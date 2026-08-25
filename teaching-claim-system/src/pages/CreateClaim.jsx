@@ -11,11 +11,11 @@ import SummaryRow from "../components/SummaryRow";
 
 const STEP_TITLES = ["ข้อมูล", "รายละเอียดคำขอ", "หลักฐานประกอบการเบิก", "ตรวจสอบความถูกต้อง"];
 
-export default function CreateClaim({ presetCourse, onCancel, onSubmit }) {
+export default function CreateClaim({ presetCourse, presetRound, onCancel, onSubmit }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     semester: "1/2569",
-    round: "รอบที่ 2 · 1 – 31 สิงหาคม 2569",
+    round: presetRound ? `${presetRound.label} · ${presetRound.period}` : "รอบที่ 2 · 1 – 31 สิงหาคม 2569",
     courseCode: presetCourse || "CS101",
     teachingDate: "",
     hours: "",
@@ -108,17 +108,29 @@ export default function CreateClaim({ presetCourse, onCancel, onSubmit }) {
                 </select>
               </Field>
               <Field label="รอบการยื่น" required>
-                <select className="fld" value={form.round} onChange={(e) => set("round", e.target.value)}>
-                  <option>รอบที่ 2 · 1 – 31 สิงหาคม 2569</option>
-                  <option>รอบที่ 1 · 1 – 31 กรกฎาคม 2569</option>
-                </select>
+                {presetRound ? (
+                  <div className="fld flex items-center" style={{ background: "#F8FBFC", color: C.ink }}>
+                    {form.round}
+                  </div>
+                ) : (
+                  <select className="fld" value={form.round} onChange={(e) => set("round", e.target.value)}>
+                    <option>รอบที่ 2 · 1 – 31 สิงหาคม 2569</option>
+                    <option>รอบที่ 1 · 1 – 31 กรกฎาคม 2569</option>
+                  </select>
+                )}
               </Field>
               <Field label="รายวิชา" required>
-                <select className="fld" value={form.courseCode} onChange={(e) => set("courseCode", e.target.value)}>
-                  {COURSES.map((c) => (
-                    <option key={c.code} value={c.code}>{c.code} – {c.name}</option>
-                  ))}
-                </select>
+                {presetRound ? (
+                  <div className="fld flex items-center" style={{ background: "#F8FBFC", color: C.ink }}>
+                    {course.code} – {course.name}
+                  </div>
+                ) : (
+                  <select className="fld" value={form.courseCode} onChange={(e) => set("courseCode", e.target.value)}>
+                    {COURSES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code} – {c.name}</option>
+                    ))}
+                  </select>
+                )}
               </Field>
               <p className="text-xs" style={{ color: C.sub }}>
                 ชั่วโมงคงเหลือสำหรับวิชานี้: <span className="font-semibold" style={{ color: C.tealDark }}>{remaining} ชม.</span> จากทั้งหมด {course.quota} ชม.

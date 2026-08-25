@@ -1,5 +1,5 @@
 import React from "react";
-import { LayoutDashboard, BookOpen, ClipboardList, FilePlus2, LogOut } from "lucide-react";
+import { LayoutDashboard, BookOpen, ClipboardList, FilePlus2, LogOut, GraduationCap } from "lucide-react";
 import { C } from "../theme";
 
 export const NAV_ITEMS = [
@@ -20,10 +20,7 @@ export default function Sidebar({ view, setView, collapsed }) {
       <div>
         <div className="flex items-center gap-3 px-7 py-8">
           <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: C.roseSoft }}>
-            <div className="relative w-5 h-5">
-              <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[5px] rounded-full" style={{ background: C.rose }} />
-              <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[5px] rounded-full" style={{ background: C.rose }} />
-            </div>
+            <GraduationCap size={22} style={{ color: C.rose }} />
           </div>
           {!collapsed && (
             <div className="leading-tight">

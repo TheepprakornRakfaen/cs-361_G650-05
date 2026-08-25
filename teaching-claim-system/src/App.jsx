@@ -11,6 +11,7 @@ import Assignments from "./pages/Assignments";
 import MyClaims from "./pages/MyClaims";
 import ClaimDetail from "./pages/ClaimDetail";
 import CreateClaim from "./pages/CreateClaim";
+import CreateClaimList from "./pages/CreateClaimList";
 
 const SUBTITLE_MAP = {
   dashboard: "แดชบอร์ด",
@@ -25,6 +26,8 @@ export default function App() {
   const [view, setView] = useState("dashboard");
   const [selectedId, setSelectedId] = useState(null);
   const [presetCourse, setPresetCourse] = useState(null);
+  const [presetRound, setPresetRound] = useState(null);
+  const [createStage, setCreateStage] = useState("list"); // "list" | "form"
   const [collapsed, setCollapsed] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -36,11 +39,22 @@ export default function App() {
   }
   function goCreate(courseCode) {
     setPresetCourse(courseCode || null);
+    setPresetRound(null);
+    setCreateStage("form");
     setView("create");
+  }
+  function goCreateForRound(round) {
+    setPresetCourse(round.courseCode);
+    setPresetRound(round);
+    setCreateStage("form");
   }
   function setViewAndReset(v) {
     setView(v);
-    if (v === "create") setPresetCourse(null);
+    if (v === "create") {
+      setPresetCourse(null);
+      setPresetRound(null);
+      setCreateStage("list");
+    }
   }
 
   function submitClaim(form) {
@@ -83,8 +97,16 @@ export default function App() {
           {view === "assignments" && <Assignments goCreateFor={(code) => goCreate(code)} />}
           {view === "myclaims" && <MyClaims claims={claims} goDetail={goDetail} goCreate={() => goCreate()} />}
           {view === "detail" && <ClaimDetail claim={selectedClaim} goBack={() => setView("myclaims")} />}
-          {view === "create" && (
-            <CreateClaim presetCourse={presetCourse} onCancel={() => setView("myclaims")} onSubmit={submitClaim} />
+          {view === "create" && createStage === "list" && (
+            <CreateClaimList goCreateForRound={goCreateForRound} />
+          )}
+          {view === "create" && createStage === "form" && (
+            <CreateClaim
+              presetCourse={presetCourse}
+              presetRound={presetRound}
+              onCancel={() => setCreateStage("list")}
+              onSubmit={submitClaim}
+            />
           )}
         </main>
       </div>
