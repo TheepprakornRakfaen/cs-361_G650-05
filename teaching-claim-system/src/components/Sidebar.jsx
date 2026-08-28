@@ -1,12 +1,9 @@
 import React from "react";
-import { LayoutDashboard, BookOpen, ClipboardList, FilePlus2, LogOut, GraduationCap } from "lucide-react";
+import { Home, LogOut, GraduationCap } from "lucide-react";
 import { C } from "../theme";
 
 export const NAV_ITEMS = [
-  { id: "dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
-  { id: "assignments", label: "งานสอน", icon: BookOpen },
-  { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList },
-  { id: "create", label: "สร้างคำขอ", icon: FilePlus2 },
+  { id: "home", label: "หน้าแรก", icon: Home },
 ];
 
 export default function Sidebar({ view, setView, collapsed }) {
@@ -33,7 +30,7 @@ export default function Sidebar({ view, setView, collapsed }) {
         <nav className="px-4 mt-2 flex flex-col gap-1.5">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const active = view === item.id || (view === "detail" && item.id === "myclaims");
+            const active = view === item.id;
             return (
               <button
                 key={item.id}
