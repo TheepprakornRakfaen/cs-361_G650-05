@@ -218,7 +218,12 @@ export default function Home() {
       <SectionCard className="p-6 mb-8">
         <SectionTitle icon={FileCheck2} title="เอกสารประกอบการเบิก" />
         <div className="grid sm:grid-cols-2 gap-4">
-          {[DOCUMENTS.internal, DOCUMENTS.external].map((d) => (
+          {[
+  DOCUMENTS.internal,
+  DOCUMENTS.external,
+  DOCUMENTS.lecturer,
+  DOCUMENTS.assistant,
+].map((d) => (
             <HoverCard key={d.title} className="rounded-2xl p-4 border" baseBg={C.bg} baseBorder={C.bg}>
               <p className="font-semibold text-sm mb-2" style={{ color: C.ink }}>{d.title}</p>
               <div className="flex flex-wrap gap-2">
