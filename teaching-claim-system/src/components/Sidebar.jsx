@@ -15,7 +15,7 @@ export default function Sidebar({ view, setView, collapsed }) {
       style={{ borderColor: C.border }}
     >
       <div>
-        <div className="flex items-center gap-3 px-7 py-8">
+        <div className={`flex items-center gap-3 py-8 ${collapsed ? "px-3 justify-center" : "px-7"}`}>
           <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: C.roseSoft }}>
             <GraduationCap size={22} style={{ color: C.rose }} />
           </div>
