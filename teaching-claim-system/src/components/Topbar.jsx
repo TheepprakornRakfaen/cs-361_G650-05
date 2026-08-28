@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Menu, Search, X, Bell, User } from "lucide-react";
 import { C, USER_NAME } from "../theme";
 
-export default function Topbar({ onMenuClick, subtitle, searchQuery = "", onSearchChange }) {
+export default function Topbar({ onMenuClick, subtitle, searchQuery = "", onSearchChange, onProfileClick }) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const closeSearch = () => {
@@ -56,9 +56,13 @@ export default function Topbar({ onMenuClick, subtitle, searchQuery = "", onSear
           <span className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ background: "#4F6BE0" }} />
         </button>
         <span className="hidden sm:inline text-sm font-semibold" style={{ color: C.tealDark }}>{USER_NAME}</span>
-        <div className="w-10 h-10 rounded-full bg-[#EEF2F5] flex items-center justify-center">
+        <button
+          onClick={onProfileClick}
+          className="w-10 h-10 rounded-full bg-[#EEF2F5] flex items-center justify-center hover:ring-2 transition-all"
+          style={{ "--tw-ring-color": C.teal }}
+        >
           <User size={18} style={{ color: C.sub }} />
-        </div>
+        </button>
       </div>
     </header>
   );
