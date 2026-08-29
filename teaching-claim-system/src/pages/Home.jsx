@@ -5,13 +5,14 @@ import {
   Users,
   Wallet,
   FileCheck2,
+  FileText,
   ListChecks,
   CalendarClock,
   ClipboardList,
   Info,
-  SearchX,
   GraduationCap,
   UserCog,
+  SearchX,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -23,6 +24,7 @@ import {
   TA_RATES,
   CONDITIONS,
   DOCUMENTS,
+  RELATED_DOCUMENTS,
   PROCESS_STEPS,
   TIMING,
   TEACHER_FEATURES,
@@ -194,7 +196,105 @@ export default function Home({ query = "" }) {
           <p className="text-xs mt-1" style={{ color: C.sub }}>ลองค้นหาด้วยคำอื่น เช่น "อัตรา" "เอกสาร" หรือ "ขั้นตอน"</p>
         </SectionCard>
       )}
+     {/* เอกสารประกาศและระเบียบที่เกี่ยวข้อง */}
+<div className="mb-8">
 
+  <div className="space-y-3">
+    {RELATED_DOCUMENTS.map((doc) => (
+      <HoverCard
+        key={doc.title}
+        className="rounded-2xl p-4 border"
+        baseBg="#FFFFFF"
+      >
+        <div className="flex items-start gap-3">
+
+          {/* Icon */}
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: C.tealSoft }}
+          >
+            <FileText
+              size={18}
+              style={{ color: C.tealDark }}
+            />
+          </div>
+
+          {/* เนื้อหา */}
+          <div className="flex-1 min-w-0">
+
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span
+                className="px-2.5 py-1 rounded-full text-xs font-semibold"
+                style={{
+                  background: C.tealSoft,
+                  color: C.tealDark,
+                }}
+              >
+                {doc.type}
+              </span>
+
+              <span
+                className="text-xs"
+                style={{ color: C.sub }}
+              >
+                {doc.date}
+              </span>
+            </div>
+
+            <p
+              className="font-semibold text-sm leading-6"
+              style={{ color: C.ink }}
+            >
+              {doc.title}
+            </p>
+
+            <p
+              className="text-xs mt-1.5 leading-5"
+              style={{ color: C.sub }}
+            >
+              {doc.description}
+            </p>
+
+            {/* ปุ่ม */}
+            <div className="flex flex-wrap gap-2 mt-4">
+
+              {/* เปิดหน้าเว็บมหาวิทยาลัย */}
+              <a
+                href={doc.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold transition-all hover:-translate-y-0.5"
+                style={{
+                  background: C.teal,
+                  color: "#FFFFFF",
+                }}
+              >
+                ดูเอกสาร
+              </a>
+
+              {/* เปิด / ดาวน์โหลด PDF */}
+              <a
+                href={doc.pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="px-4 py-2 rounded-xl text-xs font-semibold border transition-all hover:-translate-y-0.5"
+                style={{
+                  borderColor: C.border,
+                  color: C.ink,
+                  background: "#FFFFFF",
+                }}
+              >
+                ดาวน์โหลด / เปิด PDF
+              </a>
+
+            </div>
+          </div>
+        </div>
+      </HoverCard>
+    ))}
+  </div>
+</div>
       {/* ขอบเขตการเบิก */}
       {visible.scope && (
         <SectionCard className="p-6 mb-8">
