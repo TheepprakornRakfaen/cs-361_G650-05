@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  50% {
+    transform: translateY(-10px) translateX(4px);
+  }
+}
+
+.fld {
+  width: 100%;
+  border: 1px solid var(--border, #dceef2);
+  border-radius: 0.9rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.875rem;
+  outline: none;
+  background: #fff;
+}
+.fld:focus {
+  border-color: #3fa6bb;
+  box-shadow: 0 0 0 3px #e7f5f8;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
