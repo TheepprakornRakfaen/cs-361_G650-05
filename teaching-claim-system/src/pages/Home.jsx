@@ -13,6 +13,10 @@ import {
   GraduationCap,
   UserCog,
   SearchX,
+  Presentation,
+  UserCheck,
+  Mic,
+  UserPlus,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -32,10 +36,16 @@ import {
 } from "../data/infoData";
 
 // สไตล์ต่อบทบาทในการ์ดสไลด์ของ "ผู้มีสิทธิ์ยื่นคำขอเบิก"
-const ROLE_STYLES = [
-  { icon: GraduationCap, gradient: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})` },
-  { icon: UserCog, gradient: "linear-gradient(135deg, #F5A75A, #E07B39)" },
-];
+// key ตาม role เพื่อให้สี/ไอคอนของแต่ละบทบาทคงที่ ไม่ซ้ำกัน ไม่ผูกกับลำดับ
+const ROLE_STYLES = {
+  "อาจารย์ / ผู้สอน": { icon: GraduationCap, gradient: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})` },
+  "ผู้ช่วยสอน (TA)": { icon: UserCog, gradient: "linear-gradient(135deg, #F5A75A, #E07B39)" },
+  "อาจารย์ผู้รับผิดชอบวิชา": { icon: ShieldCheck, gradient: "linear-gradient(135deg, #8B7FE8, #5B4FC7)" },
+  "อาจารย์ผู้บรรยาย": { icon: Presentation, gradient: "linear-gradient(135deg, #5B9BE0, #2F6FB8)" },
+  "ผู้ช่วยกิจกรรม": { icon: UserPlus, gradient: "linear-gradient(135deg, #F080A0, #D9436B)" },
+  "ผู้ช่วยอาจารย์ผู้บรรยาย": { icon: Mic, gradient: "linear-gradient(135deg, #4FCB9F, #1F9E76)" },
+};
+const DEFAULT_ROLE_STYLE = { icon: UserCheck, gradient: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})` };
 
 function SectionTitle({ icon: Icon, title, sub }) {
   return (
@@ -331,8 +341,8 @@ export default function Home({ query = "" }) {
         <SectionCard className="p-6 mb-8" hoverable={false}>
           <SectionTitle icon={Users} title="ผู้มีสิทธิ์ยื่นคำขอเบิก" sub="ลากหรือกดลูกศรเพื่อดูแต่ละบทบาท" />
           <Carousel>
-            {USER_TYPES.map((u, i) => {
-              const style = ROLE_STYLES[i % ROLE_STYLES.length];
+            {USER_TYPES.map((u) => {
+              const style = ROLE_STYLES[u.role] || DEFAULT_ROLE_STYLE;
               const RoleIcon = style.icon;
               return (
                 <div
