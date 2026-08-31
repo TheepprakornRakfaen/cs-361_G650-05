@@ -13,17 +13,34 @@ const SUBTITLE_MAP = {
 
 export default function App() {
   const [view, setView] = useState("home");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false); // ย่อ/ขยาย sidebar บน desktop (md ขึ้นไป)
+  const [mobileOpen, setMobileOpen] = useState(false); // เปิด/ปิด sidebar แบบ drawer บนมือถือ
   const [search, setSearch] = useState("");
   const [loginOpen, setLoginOpen] = useState(false);
 
+  // ปุ่ม hamburger ปุ่มเดียวใช้ได้ทั้งสองกรณี: มือถือ = เปิด/ปิด drawer, desktop = ย่อ/ขยาย
+  const handleMenuClick = () => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (isMobile) {
+      setMobileOpen((o) => !o);
+    } else {
+      setCollapsed((c) => !c);
+    }
+  };
+
   return (
     <div className="w-full min-h-screen flex" style={{ background: C.bg }}>
-      <Sidebar view={view} setView={setView} collapsed={collapsed} />
+      <Sidebar
+        view={view}
+        setView={setView}
+        collapsed={collapsed}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
-          onMenuClick={() => setCollapsed((c) => !c)}
+          onMenuClick={handleMenuClick}
           subtitle={SUBTITLE_MAP[view]}
           searchQuery={search}
           onSearchChange={setSearch}
