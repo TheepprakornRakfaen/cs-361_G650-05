@@ -52,13 +52,12 @@ export default function Topbar({ onMenuClick, subtitle, searchQuery = "", onSear
       </div>
       <div className="flex items-center gap-4 shrink-0">
         <button className="relative w-10 h-10 rounded-xl flex items-center justify-center hover:bg-[#F2F6F8]" style={{ color: C.tealDark }}>
-          <Bell size={19} />
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ background: "#4F6BE0" }} />
+          <Bell size={19} fill={C.tealDark} strokeWidth={2} />
         </button>
-        <span className="hidden sm:inline text-sm font-semibold" style={{ color: C.tealDark }}>{USER_NAME}</span>
+
         <button
           onClick={onProfileClick}
-          className="w-10 h-10 rounded-full bg-[#EEF2F5] flex items-center justify-center hover:ring-2 transition-all"
+          className="w-12 h-12 rounded-full bg-[#EEF2F5] flex items-center justify-center hover:ring-2 transition-all"
           style={{ "--tw-ring-color": C.teal }}
         >
           <User size={18} style={{ color: C.sub }} />

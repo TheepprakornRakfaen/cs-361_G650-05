@@ -4,6 +4,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: "Noto Sans Thai", "Inter", system-ui, sans-serif;
 }
@@ -13,6 +17,7 @@ body {
     opacity: 0;
     transform: translateY(6px);
   }
+
   to {
     opacity: 1;
     transform: none;
@@ -24,6 +29,7 @@ body {
   100% {
     transform: translateY(0) translateX(0);
   }
+
   50% {
     transform: translateY(-10px) translateX(4px);
   }
@@ -38,6 +44,7 @@ body {
   outline: none;
   background: #fff;
 }
+
 .fld:focus {
   border-color: #3fa6bb;
   box-shadow: 0 0 0 3px #e7f5f8;
@@ -47,6 +54,7 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

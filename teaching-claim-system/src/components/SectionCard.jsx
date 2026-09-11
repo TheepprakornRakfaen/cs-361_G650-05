@@ -1,14 +1,16 @@
 import React, { useState } from "react";
 import { C } from "../theme";
 
-export default function SectionCard({ children, className = "", hoverable = true }) {
+export default function SectionCard({ children, className = "", hoverable = true, ...props }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
-      className={`bg-white rounded-3xl border transition-all duration-200 ${className}`}
+      {...props}
+      className={`rounded-3xl border transition-all duration-300 ${className}`}
       style={{
+        background: C.card,
         borderColor: hoverable && hovered ? C.teal : C.border,
-        boxShadow: hoverable && hovered ? "0 12px 28px -8px rgba(63,166,187,0.25)" : "none",
+        boxShadow: hoverable && hovered ? "0 18px 45px -18px rgba(34,211,197,0.28)" : "0 8px 30px -24px rgba(0,0,0,0.9)",
         transform: hoverable && hovered ? "translateY(-2px)" : "none",
       }}
       onMouseEnter={() => hoverable && setHovered(true)}
