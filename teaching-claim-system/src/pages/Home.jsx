@@ -77,19 +77,14 @@ const ROLE_STYLES = {
 
 const DEFAULT_ROLE_STYLE = { icon: UserCheck, gradient: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})` };
 
-function SectionTitle({ icon: Icon, title, sub }) {
+function SectionTitle({ icon: Icon, title, sub, accent = C.tealDark }) {
   return (
-    <div className="flex items-start gap-3 mb-4">
-      <div
-        className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-        style={{ background: C.tealSoft }}
-      >
-        <Icon size={18} style={{ color: C.tealDark }} />
+    <div className="mb-5 pl-4 border-l-[3px]" style={{ borderColor: accent }}>
+      <div className="flex items-center gap-2">
+        <Icon size={16} style={{ color: accent }} strokeWidth={2.25} />
+        <h3 className="font-bold text-lg tracking-tight" style={{ color: C.ink }}>{title}</h3>
       </div>
-      <div>
-        <h3 className="font-bold text-lg" style={{ color: C.ink }}>{title}</h3>
-        {sub && <p className="text-sm mt-0.5" style={{ color: C.sub }}>{sub}</p>}
-      </div>
+      {sub && <p className="text-sm mt-1" style={{ color: C.sub }}>{sub}</p>}
     </div>
   );
 }
@@ -170,6 +165,15 @@ function buildCorpus(...parts) {
   return JSON.stringify(parts).toLowerCase();
 }
 
+const QUICK_NAV = [
+  ["documents", "ประกาศและเอกสาร"],
+  ["scope", "ขอบเขตการเบิก"],
+  ["users", "ผู้มีสิทธิ์"],
+  ["rates", "อัตราค่าตอบแทน"],
+  ["process", "วิธียื่นคำขอ"],
+  ["faq", "คำถามที่พบบ่อย"],
+];
+
 const FAQS = [
   {
     question: "ใครสามารถยื่นคำขอเบิกค่าตอบแทนการสอนได้บ้าง?",
@@ -235,7 +239,7 @@ export default function Home({ query = "" }) {
         }}
       >
         {/* พื้นที่สำหรับรูปภาพเว็บไซต์ */}
-        <div className="relative w-full h-84 md:h-80 overflow-hidden rounded-[28px]">
+        <div className="relative w-full h-72 md:h-[480px] overflow-hidden rounded-[28px]">
           <img
             src="/images/TU.jpg"
             alt="ภาพเว็บไซต์ระบบเบิกค่าตอบแทนการสอน"
@@ -276,24 +280,51 @@ export default function Home({ query = "" }) {
 
 
 
-        {/* Quick navigation — วางทับบริเวณด้านล่างของรูป TU */}
-          <nav
-        className="absolute z-20 left-1/2 -translate-x-1/2 bottom-[130px] w-[92%] md:w-[88%] rounded-2xl border bg-white p-2.5 md:p-3"
-        style={{
-          borderColor: "#D7E8EB",
-          boxShadow: "0 12px 30px rgba(40,100,110,0.16)",
-        }}
-        aria-label="เมนูภายในหน้า"
-      >
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              {[
-                ["documents", "ประกาศและเอกสาร"],
-                ["scope", "ขอบเขตการเบิก"],
-                ["users", "ผู้มีสิทธิ์"],
-                ["rates", "อัตราค่าตอบแทน"],
-                ["process", "วิธียื่นคำขอ"],
-                ["faq", "คำถามที่พบบ่อย"],
-              ].map(([id, label]) => (
+        {/* Quick navigation — ดึงขึ้นทับขอบล่างรูป TU ด้วย margin ลบ แทนตำแหน่ง absolute เดิมที่อิงความสูงของกริด */}
+        <nav
+          className="relative z-20 mx-auto w-[92%] md:w-[88%] -mt-9 sm:-mt-14 rounded-2xl border bg-white p-2.5 md:p-3"
+          style={{
+            borderColor: "#D7E8EB",
+            boxShadow: "0 12px 30px rgba(40,100,110,0.16)",
+          }}
+          aria-label="เมนูภายในหน้า"
+        >
+            {/* มือถือ: dropdown เดียวให้กดลูกศรลงเลือกเมนู แทนกริดที่แน่นเกินไป */}
+            <div className="sm:hidden relative">
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id) window.location.hash = id;
+                  e.target.selectedIndex = 0;
+                }}
+                aria-label="เลือกเมนูภายในหน้า"
+                className="w-full appearance-none rounded-xl pl-4 pr-10 py-3 text-sm font-semibold"
+                style={{
+                  background: "#F2F9FA",
+                  color: "#2E8291",
+                  border: "1px solid #D7E8EB",
+                }}
+              >
+                <option value="" disabled>
+                  เลือกเมนู...
+                </option>
+                {QUICK_NAV.map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={18}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: "#2E8291" }}
+              />
+            </div>
+
+            {/* sm ขึ้นไป: กริดเมนูด่วนแบบเดิม */}
+            <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {QUICK_NAV.map(([id, label]) => (
                 <a
                   key={id}
                   href={`#${id}`}
@@ -310,7 +341,7 @@ export default function Home({ query = "" }) {
           </nav>
 
         {/* ข้อมูลเว็บไซต์ใต้รูป */}
-        <div className="px-6 md:px-8 pt-16 md:pt-20 pb-4">
+        <div className="px-6 md:px-8 pt-6 md:pt-8 pb-4">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
             <div className="min-w-0">
             
@@ -553,6 +584,7 @@ export default function Home({ query = "" }) {
             icon={Users}
             title="ผู้มีสิทธิ์ยื่นคำขอเบิก"
             sub="ผู้ใช้งานที่สามารถยื่นคำขอในระบบ"
+            accent={C.violet}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-6xl mx-auto">
@@ -668,13 +700,13 @@ export default function Home({ query = "" }) {
                 style={{ borderColor: "#C8E3E7" }}
               >
                 {TEACHING_RATE.values.map((v) => (
-                  <div key={v} className="px-4 py-2.5 text-center">
+                  <div key={v} className="px-4 py-3 text-center">
                     <p className="text-xs mb-1.5" style={{ color: C.sub }}>
                       อัตราค่าตอบแทน
                     </p>
-                    <p className="text-xl font-extrabold" style={{ color: C.tealDark }}>
+                    <p className="figure text-3xl md:text-4xl font-extrabold" style={{ color: C.tealDark }}>
                       {v.toLocaleString()}
-                      <span className="text-xs font-semibold ml-1">บาท/ชม.</span>
+                      <span className="text-xs font-semibold ml-1.5">บาท/ชม.</span>
                     </p>
                   </div>
                 ))}
@@ -708,7 +740,7 @@ export default function Home({ query = "" }) {
               <span
                 className="text-xs font-medium px-3 py-1 rounded-full"
                 style={{
-                  background: "#F3F0FF",
+                  background: C.violetSoft,
                   color: C.violet,
                 }}
               >
@@ -739,9 +771,9 @@ export default function Home({ query = "" }) {
                     </p>
                   </div>
 
-                  <p className="text-lg font-extrabold text-right shrink-0" style={{ color: C.tealDark }}>
+                  <p className="figure text-2xl font-extrabold text-right shrink-0" style={{ color: C.tealDark }}>
                     {r.rate}
-                    <span className="text-xs font-semibold ml-1">บาท/ชม.</span>
+                    <span className="text-xs font-semibold ml-1.5">บาท/ชม.</span>
                   </p>
                 </div>
               ))}
@@ -753,7 +785,7 @@ export default function Home({ query = "" }) {
       {/* เงื่อนไข/หลักเกณฑ์ */}
       {visible.conditions && (
         <section className="mb-8 px-1">
-          <SectionTitle icon={Info} title="เงื่อนไขและหลักเกณฑ์" />
+          <SectionTitle icon={Info} title="เงื่อนไขและหลักเกณฑ์" accent={C.ember} />
           <div className="border-t" style={{ borderColor: C.border }}>
             {CONDITIONS.map((c, index) => (
               <HoverListItem

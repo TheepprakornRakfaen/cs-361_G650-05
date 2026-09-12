@@ -57,12 +57,15 @@ export default function Footer() {
 
   return (
     <footer className="relative w-full mt-10 text-white overflow-hidden">
-      <div className="h-1 w-full" style={{ background: C.brandGradient }} />
+      <div
+        className="h-1 w-full"
+        style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
+      />
 
       <div
         className="relative w-full"
         style={{
-          background: "#090E18",
+          background: `linear-gradient(180deg, #10233B 0%, #0A1B2E 100%)`,
           borderTop: `1px solid ${C.border}`,
         }}
       >
@@ -70,16 +73,14 @@ export default function Footer() {
         <div
           className="absolute -left-20 -top-20 w-72 h-72 rounded-full pointer-events-none"
           style={{
-            background:
-              "radial-gradient(circle, rgba(108,92,224,0.18), transparent 70%)",
+            background: `radial-gradient(circle, rgba(62,127,193,0.20), transparent 70%)`,
           }}
         />
 
         <div
           className="absolute -right-16 bottom-0 w-72 h-72 rounded-full pointer-events-none"
           style={{
-            background:
-              "radial-gradient(circle, rgba(13,165,184,0.16), transparent 70%)",
+            background: `radial-gradient(circle, rgba(30,86,135,0.18), transparent 70%)`,
           }}
         />
 
@@ -92,7 +93,7 @@ export default function Footer() {
               <div className="flex items-center gap-3 mb-4">
                 <div
                   className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{ background: C.brandGradient }}
+                  style={{ background: `linear-gradient(135deg, ${C.teal}, ${C.tealDark})` }}
                 >
                   <GraduationCap size={20} className="text-white" />
                 </div>

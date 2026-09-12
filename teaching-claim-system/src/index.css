@@ -46,8 +46,8 @@ body {
 }
 
 .fld:focus {
-  border-color: #3fa6bb;
-  box-shadow: 0 0 0 3px #e7f5f8;
+  border-color: #1e5687;
+  box-shadow: 0 0 0 3px #e8f0fa;
 }
 
 .no-scrollbar {
@@ -57,4 +57,11 @@ body {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ตัวเลขเด่น เช่น อัตราค่าตอบแทน — หนาและชัดเจน เข้าธีมฟอนต์เดิมของเว็บ */
+.figure {
+  font-family: "Inter", "Noto Sans Thai", sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.02em;
 }

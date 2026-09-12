@@ -151,11 +151,11 @@ export default function Sidebar({
                           background: `linear-gradient(
                             90deg,
                             ${C.teal},
-                            #7FD3E1
+                            #6FA8D9
                           )`,
                           color: "#fff",
                           boxShadow:
-                            "0 4px 12px rgba(64,170,185,0.20)",
+                            "0 4px 12px rgba(30,86,135,0.20)",
                         }
                       : {
                           color: C.ink,

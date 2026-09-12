@@ -2,13 +2,17 @@ export const C = {
   bg: "#F2F6F8",
   card: "#FFFFFF",
   border: "#DCEEF2",
-  teal: "#55b8cc",
-  tealDark: "#3fa5b9",
-  tealSoft: "#E7F5F8",
+  teal: "#3E7FC1",
+  tealDark: "#1E5687",
+  tealSoft: "#E8F0FA",
   ink: "#1E293B",
   sub: "#64748B",
   rose: "#E5484D",
   roseSoft: "#FCE9EA",
+  violet: "#6E62C9",
+  violetSoft: "#F1EFFB",
+  ember: "#C4622D",
+  emberSoft: "#FBEEE5",
 };
 
 export const STATUS_STYLE = {
