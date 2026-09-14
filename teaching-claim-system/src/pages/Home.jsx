@@ -239,7 +239,7 @@ export default function Home({ query = "" }) {
         }}
       >
         {/* พื้นที่สำหรับรูปภาพเว็บไซต์ */}
-        <div className="relative w-full h-72 md:h-[480px] overflow-hidden rounded-[28px]">
+        <div className="relative w-full h-68 md:h-[480px] overflow-hidden rounded-[28px]">
           <img
             src="/images/TU.jpg"
             alt="ภาพเว็บไซต์ระบบเบิกค่าตอบแทนการสอน"
@@ -328,7 +328,7 @@ export default function Home({ query = "" }) {
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="flex items-center justify-center min-h-11 rounded-xl px-3 py-2 text-xs md:text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5"
+                  className="flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
                   style={{
                     background: "#F2F9FA",
                     color: "#2E8291",
@@ -950,8 +950,8 @@ export default function Home({ query = "" }) {
                   key={faq.question}
                   className="rounded-2xl border overflow-hidden transition-all duration-200"
                   style={{
-                    borderColor: isOpen ? "#9DD2D9" : "#DCEBED",
-                    background: isOpen ? "#F5FBFC" : "#FFFFFF",
+                    borderColor: isOpen ? C.teal : C.border,
+                    background: isOpen ? C.tealSoft : "#FFFFFF",
                   }}
                 >
                   <button
@@ -977,7 +977,7 @@ export default function Home({ query = "" }) {
                   {isOpen && (
                     <div
                       className="px-5 pb-5 text-sm leading-6"
-                      style={{ color: "#58727A" }}
+                      style={{ color: C.sub }}
                     >
                       {faq.answer}
                     </div>
