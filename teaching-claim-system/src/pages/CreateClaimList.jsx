@@ -58,7 +58,7 @@ export default function CreateClaimList({
   }, [rounds, courses, query, statusFilter]);
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full max-w-none">
       {/* Search */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
         <div

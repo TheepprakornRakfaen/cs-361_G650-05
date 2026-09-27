@@ -37,7 +37,7 @@ export default function ClaimDetail({
 }) {
   if (!claim) {
     return (
-      <div className="max-w-3xl">
+      <div className="w-full">
         <SectionCard className="p-10 text-center">
           <p
             className="text-sm font-medium"
@@ -70,14 +70,19 @@ export default function ClaimDetail({
   const amount = Number(claim.amount || 0);
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <button
         type="button"
         onClick={goBack}
         className="flex items-center gap-2 text-sm font-semibold mb-6 transition-opacity hover:opacity-70"
         style={{ color: C.tealDark }}
       >
-        <ArrowLeft size={16} />
+        <span
+          className="flex items-center justify-center w-7 h-7 rounded-full border-2"
+          style={{ borderColor: C.tealDark }}
+        >
+          <ArrowLeft size={14} />
+        </span>
         กลับไปคำขอของฉัน
       </button>
 

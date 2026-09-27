@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
+import HeroCarousel from "../components/HeroCarousel";
 import {
   SCOPE,
   USER_TYPES,
@@ -238,53 +239,24 @@ export default function Home({ query = "" }) {
           animation: "fadein 0.5s ease-out",
         }}
       >
-        {/* พื้นที่สำหรับรูปภาพเว็บไซต์ */}
-        <div className="relative w-full h-68 md:h-[480px] overflow-hidden rounded-[28px]">
-          <img
-            src="/images/TU.jpg"
-            alt="ภาพเว็บไซต์ระบบเบิกค่าตอบแทนการสอน"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-              if (e.currentTarget.nextElementSibling) {
-                e.currentTarget.nextElementSibling.style.display = "flex";
-              }
-            }}
-          />
-
-          {/* Placeholder ก่อนนำรูปจริงมาใส่ */}
-          <div
-            className="absolute inset-0 hidden items-center justify-center"
-            style={{
-              background: "linear-gradient(135deg, #69C4CE, #3FA7B3)",
-            }}
-          >
-            <div className="text-center text-white">
-              <div
-                className="mx-auto mb-3 w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{
-                  background: "rgba(255,255,255,0.18)",
-                  border: "1px solid rgba(255,255,255,0.35)",
-                }}
-              >
-                <FileText size={30} />
-              </div>
-              <p className="text-sm font-semibold">ใส่รูปภาพเว็บไซต์ตรงนี้</p>
-              <p className="text-xs mt-1 opacity-80">public/images/hero.jpg</p>
-            </div>
-          </div>
-
-
-
-        </div>
+        {/* พื้นที่สำหรับรูปภาพเว็บไซต์ — สไลด์เปลี่ยนรูปอัตโนมัติทุก 5 วิ + เลื่อนเองได้ */}
+        <HeroCarousel
+          images={[
+            "/images/TU.jpg",
+            // เพิ่มรูปเพิ่มเติมได้ตรงนี้ เช่น
+            // "/images/hero-2.jpg",
+            // "/images/hero-3.jpg",
+          ]}
+          alt="ภาพเว็บไซต์ระบบเบิกค่าตอบแทนการสอน"
+        />
 
 
 
         {/* Quick navigation — ดึงขึ้นทับขอบล่างรูป TU ด้วย margin ลบ แทนตำแหน่ง absolute เดิมที่อิงความสูงของกริด */}
         <nav
-          className="relative z-20 mx-auto w-[92%] md:w-[88%] -mt-9 sm:-mt-14 rounded-2xl border bg-white p-2.5 md:p-3"
+          className="relative z-20 mx-auto w-[92%] md:w-[88%] -mt-5 sm:-mt-8 rounded-2xl border bg-white p-2.5 md:p-3"
           style={{
-            borderColor: "#D7E8EB",
+            borderColor: C.border,
             boxShadow: "0 12px 30px rgba(40,100,110,0.16)",
           }}
           aria-label="เมนูภายในหน้า"
@@ -301,9 +273,9 @@ export default function Home({ query = "" }) {
                 aria-label="เลือกเมนูภายในหน้า"
                 className="w-full appearance-none rounded-xl pl-4 pr-10 py-3 text-sm font-semibold"
                 style={{
-                  background: "#F2F9FA",
-                  color: "#2E8291",
-                  border: "1px solid #D7E8EB",
+                  background: C.tealSoft,
+                  color: C.tealDark,
+                  border: `1px solid ${C.border}`,
                 }}
               >
                 <option value="" disabled>
@@ -318,7 +290,7 @@ export default function Home({ query = "" }) {
               <ChevronDown
                 size={18}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: "#2E8291" }}
+                style={{ color: C.tealDark }}
               />
             </div>
 
@@ -330,8 +302,8 @@ export default function Home({ query = "" }) {
                   href={`#${id}`}
                   className="flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
                   style={{
-                    background: "#F2F9FA",
-                    color: "#2E8291",
+                    background: C.tealSoft,
+                    color: C.tealDark,
                   }}
                 >
                   {label}

@@ -44,20 +44,22 @@ export default function Sidebar({
 
       {/* Sidebar */}
       <aside
-        className={`
-          fixed
-          inset-y-0 left-0
-          z-50
-          flex flex-col justify-between shrink-0
-          bg-white border-r
-          transition-transform md:transition-all duration-200
-          w-[260px]
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0
-          ${collapsed ? "md:w-[84px]" : "md:w-[280px]"}
-        `}
-        style={{ borderColor: C.border }}
-      >
+  className={`
+    fixed
+    top-[80px]
+    bottom-0
+    left-0
+    z-40
+    flex flex-col justify-between shrink-0
+    bg-white border-r
+    transition-transform md:transition-all duration-200
+    w-[260px]
+    ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+    md:translate-x-0
+    ${collapsed ? "md:w-[84px]" : "md:w-[280px]"}
+  `}
+  style={{ borderColor: C.border }}
+>
         {/* ส่วนบน */}
         <div>
           {/* Logo / ชื่อระบบ */}

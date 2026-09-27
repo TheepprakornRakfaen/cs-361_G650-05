@@ -183,6 +183,34 @@ export default function CreateClaim({
     course?.code,
   ]);
 
+  function validateStep1() {
+    const nextErrors = {};
+
+    if (!form.round) {
+      nextErrors.round =
+        "กรุณาเลือกรอบการยื่น";
+    }
+
+    if (!form.courseCode) {
+      nextErrors.courseCode =
+        "กรุณาระบุรายวิชา";
+    }
+
+    if (
+      courses.length === 0 &&
+      (!form.rate || Number(form.rate) <= 0)
+    ) {
+      nextErrors.rate =
+        "กรุณาระบุอัตราค่าตอบแทนต่อชั่วโมง";
+    }
+
+    setErrors(nextErrors);
+
+    return (
+      Object.keys(nextErrors).length === 0
+    );
+  }
+
   function validateStep2() {
     const nextErrors = {};
 
@@ -226,6 +254,13 @@ export default function CreateClaim({
 
   function next() {
     if (
+      step === 1 &&
+      !validateStep1()
+    ) {
+      return;
+    }
+
+    if (
       step === 2 &&
       !validateStep2()
     ) {
@@ -263,9 +298,9 @@ export default function CreateClaim({
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full max-w-none">
       {/* Steps */}
-      <div className="flex items-center gap-2 mb-6 flex-wrap">
+      <div className="flex items-center justify-between gap-3 mb-8 w-full">
         {STEP_TITLES.map(
           (
             title,
@@ -276,7 +311,7 @@ export default function CreateClaim({
             >
               <div className="flex items-center gap-2">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                 className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold shrink-0"
                   style={{
                     background:
                       step ===
@@ -308,7 +343,7 @@ export default function CreateClaim({
                 </div>
 
                 <span
-                  className="text-xs font-medium hidden sm:inline"
+                  className="text-sm font-semibold whitespace-nowrap hidden sm:inline"
                   style={{
                     color:
                       step >=
@@ -324,7 +359,7 @@ export default function CreateClaim({
               {index <
                 3 && (
                 <div
-                  className="w-6 h-[2px]"
+                  className="flex-1 h-[2px] min-w-6"
                   style={{
                     background:
                       C.border,
@@ -338,13 +373,14 @@ export default function CreateClaim({
 
       <SectionCard className="overflow-hidden">
         <div
-          className="h-2"
+          className="h-16"
           style={{
             background: `linear-gradient(90deg, ${C.teal}, ${C.tealSoft})`,
           }}
         />
 
-        <div className="p-6 md:p-8">
+        <div className="p-6 m
+        d:p-10">
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2
@@ -416,6 +452,9 @@ export default function CreateClaim({
               <Field
                 label="รอบการยื่น"
                 required
+                error={
+                  errors.round
+                }
               >
                 <select
                   className="fld"
@@ -565,6 +604,9 @@ export default function CreateClaim({
                 <Field
                   label="อัตราค่าตอบแทนต่อชั่วโมง"
                   required
+                  error={
+                    errors.rate
+                  }
                 >
                   <input
                     type="number"

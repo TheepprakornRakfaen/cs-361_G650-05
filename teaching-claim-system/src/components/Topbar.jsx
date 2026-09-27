@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Menu, Search, X, Bell, User } from "lucide-react";
+import { Menu, Search, X, Bell, LogIn } from "lucide-react";
 import { C, USER_NAME } from "../theme";
 
 export default function Topbar({
@@ -18,11 +18,11 @@ export default function Topbar({
 
   return (
     <header
-      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0"
-      style={{
-        background: C.tealDark,
-      }}
-    >
+  className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-40"
+  style={{
+    background: C.tealDark,
+  }}
+>
       {/* Left */}
       <div className="flex items-center gap-5 min-w-0 flex-1">
         {/* Menu */}
@@ -109,15 +109,14 @@ export default function Topbar({
           />
         </button>
 
-        {/* Profile */}
+        {/* เข้าสู่ระบบ */}
         <button
           onClick={onProfileClick}
-          className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 transition-all"
+          className="flex items-center gap-2 h-11 pl-4 pr-5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shrink-0"
+          style={{ background: C.rose }}
         >
-          <User
-            size={18}
-            style={{ color: "#FFFFFF" }}
-          />
+          <LogIn size={17} />
+          <span className="hidden sm:inline">เข้าสู่ระบบ</span>
         </button>
       </div>
     </header>

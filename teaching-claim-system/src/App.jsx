@@ -4,10 +4,10 @@ import { C } from "./theme";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
-import LoginModal from "./components/LoginModal";
 import Footer from "./components/Footer";
 
 import Home from "./pages/Home";
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Assignments from "./pages/Assignments";
 import MyClaims from "./pages/MyClaims";
@@ -53,9 +53,6 @@ export default function App() {
 
   const [search, setSearch] =
     useState("");
-
-  const [loginOpen, setLoginOpen] =
-    useState(false);
 
   const [selectedClaimId, setSelectedClaimId] =
     useState(null);
@@ -260,69 +257,86 @@ export default function App() {
     }
   };
 
-  return (
+  /*
+   * หน้า Login แยกต่างหาก (ไม่ใช่ popup)
+   */
+  if (view === "login") {
+    return (
+      <Login
+        onBack={() => setView("home")}
+        onLoginSuccess={() => setView("home")}
+      />
+    );
+  }
+
+        return (
     <div
-      className="w-full min-h-screen flex"
+      className="w-full h-screen overflow-hidden flex flex-col"
       style={{
         background: C.bg,
       }}
     >
-      <Sidebar
-        view={view}
-        setView={setView}
-        collapsed={collapsed}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() =>
-          setMobileOpen(false)
+      {/* =========================
+          Header ด้านบน
+          ========================= */}
+      <Topbar
+        onMenuClick={handleMenuClick}
+        subtitle={
+          SUBTITLE_MAP[view] ||
+          "ระบบเบิกค่าสอน"
+        }
+        searchQuery={search}
+        onSearchChange={setSearch}
+        onProfileClick={() =>
+          setView("login")
         }
       />
 
-      <div
-        className={`
-          flex-1
-          flex
-          flex-col
-          min-w-0
-          transition-all
-          duration-200
+      {/* =========================
+          ส่วนด้านล่าง Header
+          Sidebar + Content
+          ========================= */}
+      <div className="flex flex-1 min-h-0">
 
-          ${
-            collapsed
-              ? "md:ml-[84px]"
-              : "md:ml-[280px]"
-          }
-        `}
-      >
-        <Topbar
-          onMenuClick={handleMenuClick}
-          subtitle={
-            SUBTITLE_MAP[view] ||
-            "ระบบเบิกค่าสอน"
-          }
-          searchQuery={search}
-          onSearchChange={setSearch}
-          onProfileClick={() =>
-            setLoginOpen(true)
+        {/* Sidebar */}
+        <Sidebar
+          view={view}
+          setView={setView}
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() =>
+            setMobileOpen(false)
           }
         />
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-5 md:p-9">
-            {renderPage()}
-          </div>
+        {/* Main Content */}
+        <div
+          className={`
+            flex-1
+            flex
+            flex-col
+            min-w-0
+            transition-all
+            duration-200
 
-          {view === "home" && (
-            <Footer />
-          )}
-        </main>
+            ${
+              collapsed
+                ? "md:ml-[84px]"
+                : "md:ml-[280px]"
+            }
+          `}
+        >
+          <main className="flex-1 overflow-y-auto">
+            <div className="p-5 md:p-9">
+              {renderPage()}
+            </div>
+
+            {view === "home" && (
+              <Footer />
+            )}
+          </main>
+        </div>
       </div>
-
-      <LoginModal
-        open={loginOpen}
-        onClose={() =>
-          setLoginOpen(false)
-        }
-      />
     </div>
   );
 }

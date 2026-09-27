@@ -1,7 +1,9 @@
+import { COURSES } from "./mockData";
+
 const STORAGE_KEY = "teaching-claim-system:v1";
 
 const DEFAULT_STATE = {
-  courses: [],
+  courses: COURSES,
   claims: [],
   rounds: [],
 };
@@ -12,7 +14,7 @@ function readState() {
 
     if (!raw) {
       return {
-        courses: [],
+        courses: COURSES,
         claims: [],
         rounds: [],
       };
@@ -21,9 +23,10 @@ function readState() {
     const parsed = JSON.parse(raw);
 
     return {
-      courses: Array.isArray(parsed.courses)
-        ? parsed.courses
-        : [],
+      courses:
+        Array.isArray(parsed.courses) && parsed.courses.length > 0
+          ? parsed.courses
+          : COURSES,
 
       claims: Array.isArray(parsed.claims)
         ? parsed.claims
