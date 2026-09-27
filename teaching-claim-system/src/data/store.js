@@ -96,12 +96,8 @@ export function createClaimId(claims = []) {
   ).padStart(4, "0")}`;
 }
 
-export function addClaim(form) {
-  const state = readState();
-
-  const claim = {
-    id: createClaimId(state.claims),
-
+function claimFieldsFromForm(form) {
+  return {
     courseCode:
       form.courseCode?.trim() || "-",
 
@@ -146,9 +142,16 @@ export function addClaim(form) {
 
     evidence:
       form.fileName || "",
+  };
+}
 
-    status: "Pending",
+export function addClaim(form, status = "Pending") {
+  const state = readState();
 
+  const claim = {
+    id: createClaimId(state.claims),
+    ...claimFieldsFromForm(form),
+    status,
     createdAt:
       new Date().toISOString(),
   };
@@ -161,6 +164,36 @@ export function addClaim(form) {
   writeState(state);
 
   return claim;
+}
+
+export function updateClaimFromForm(id, form, status) {
+  const state = readState();
+
+  let updatedClaim = null;
+
+  state.claims = state.claims.map(
+    (claim) => {
+      if (
+        String(claim.id) !==
+        String(id)
+      ) {
+        return claim;
+      }
+
+      updatedClaim = {
+        ...claim,
+        ...claimFieldsFromForm(form),
+        status:
+          status || claim.status,
+      };
+
+      return updatedClaim;
+    }
+  );
+
+  writeState(state);
+
+  return updatedClaim;
 }
 
 export function deleteClaim(id) {

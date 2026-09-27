@@ -52,7 +52,11 @@ export default function Login({ onBack, onLoginSuccess }) {
           onClick={onBack}
           className="relative z-10 flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white transition-colors w-fit"
         >
-          <ArrowLeft size={18} />
+          <span
+            className="flex items-center justify-center w-8 h-8 rounded-full border-2 border-white/70"
+          >
+            <ArrowLeft size={16} />
+          </span>
           กลับสู่หน้าแรก
         </button>
 
@@ -98,10 +102,10 @@ export default function Login({ onBack, onLoginSuccess }) {
         <div className="flex items-center justify-between px-5 md:px-12 h-20 shrink-0 md:hidden">
           <button
             onClick={onBack}
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ color: C.ink }}
+            className="w-10 h-10 rounded-full flex items-center justify-center border-2"
+            style={{ color: C.ink, borderColor: C.border }}
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
           </button>
           <span className="text-sm font-semibold" style={{ color: C.ink }}>
             ระบบเบิกค่าสอน

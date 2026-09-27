@@ -15,6 +15,7 @@ import {
   Wallet,
   Pencil,
   Send,
+  Save,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -32,11 +33,15 @@ const STEP_TITLES = [
 export default function CreateClaim({
   presetCourse,
   presetRound,
+  initialClaim,
   courses = [],
   rounds = [],
   onCancel,
   onSubmit,
+  onSaveDraft,
 }) {
+  const isEditing = Boolean(initialClaim);
+
   const firstCourse =
     courses.find(
       (c) =>
@@ -49,42 +54,76 @@ export default function CreateClaim({
     useState(1);
 
   const [form, setForm] =
-    useState({
-      semester: "1/2569",
+    useState(() => {
+      if (initialClaim) {
+        return {
+          semester:
+            initialClaim.semester ||
+            "1/2569",
+          round:
+            initialClaim.round || "",
+          courseCode:
+            initialClaim.courseCode ||
+            "",
+          courseName:
+            initialClaim.courseName ||
+            "",
+          rate: Number(
+            initialClaim.rate || 0
+          ),
+          teachingDate:
+            initialClaim.teachingDate ||
+            "",
+          hours: initialClaim.hours
+            ? String(initialClaim.hours)
+            : "",
+          amount: initialClaim.amount
+            ? String(initialClaim.amount)
+            : "",
+          notes:
+            initialClaim.notes || "",
+          fileName:
+            initialClaim.evidence || "",
+        };
+      }
 
-      round: presetRound
-        ? `${presetRound.label || ""} · ${
-            presetRound.period || ""
-          }`
-        : rounds[0]
-        ? `${rounds[0].label || ""} · ${
-            rounds[0].period || ""
-          }`
-        : "",
+      return {
+        semester: "1/2569",
 
-      courseCode:
-        presetCourse ||
-        firstCourse?.code ||
-        "",
+        round: presetRound
+          ? `${presetRound.label || ""} · ${
+              presetRound.period || ""
+            }`
+          : rounds[0]
+          ? `${rounds[0].label || ""} · ${
+              rounds[0].period || ""
+            }`
+          : "",
 
-      courseName:
-        firstCourse?.name ||
-        "",
+        courseCode:
+          presetCourse ||
+          firstCourse?.code ||
+          "",
 
-      rate:
-        Number(
-          firstCourse?.rate || 0
-        ),
+        courseName:
+          firstCourse?.name ||
+          "",
 
-      teachingDate: "",
+        rate:
+          Number(
+            firstCourse?.rate || 0
+          ),
 
-      hours: "",
+        teachingDate: "",
 
-      amount: "",
+        hours: "",
 
-      notes: "",
+        amount: "",
 
-      fileName: "",
+        notes: "",
+
+        fileName: "",
+      };
     });
 
   const [errors, setErrors] =
@@ -402,7 +441,9 @@ export default function CreateClaim({
                   color: C.sub,
                 }}
               >
-                ข้อมูลจะถูกบันทึกไว้ในเครื่องนี้
+                {isEditing
+                  ? "กำลังแก้ไขคำขอ — บันทึกร่างหรือยื่นใหม่ได้"
+                  : "ข้อมูลจะถูกบันทึกไว้ในเครื่องนี้"}
               </p>
             </div>
 
@@ -1018,59 +1059,78 @@ export default function CreateClaim({
               ย้อนกลับ
             </button>
 
-            {step < 4 ? (
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={next}
-                className="px-7 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2"
+                onClick={() =>
+                  onSaveDraft?.(form)
+                }
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
                 style={{
-                  background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                  borderColor: C.border,
+                  color: C.tealDark,
                 }}
               >
-                ถัดไป
-                <ArrowRight
-                  size={15}
-                />
+                <Save size={14} />
+                บันทึกร่าง
               </button>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setStep(1)
-                  }
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
-                  style={{
-                    borderColor:
-                      C.border,
-                    color: C.ink,
-                  }}
-                >
-                  <Pencil
-                    size={14}
-                  />
-                  แก้ไข
-                </button>
 
+              {step < 4 ? (
                 <button
                   type="button"
-                  onClick={() =>
-                    onSubmit?.(
-                      form
-                    )
-                  }
-                  className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
+                  onClick={next}
+                  className="px-7 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2"
                   style={{
                     background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                   }}
                 >
-                  <Send
-                    size={14}
+                  ถัดไป
+                  <ArrowRight
+                    size={15}
                   />
-                  ยื่นคำขอ
                 </button>
-              </div>
-            )}
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStep(1)
+                    }
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
+                    style={{
+                      borderColor:
+                        C.border,
+                      color: C.ink,
+                    }}
+                  >
+                    <Pencil
+                      size={14}
+                    />
+                    แก้ไข
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onSubmit?.(
+                        form
+                      )
+                    }
+                    className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
+                    style={{
+                      background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                    }}
+                  >
+                    <Send
+                      size={14}
+                    />
+                    {isEditing
+                      ? "ยื่นคำขออีกครั้ง"
+                      : "ยื่นคำขอ"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </SectionCard>

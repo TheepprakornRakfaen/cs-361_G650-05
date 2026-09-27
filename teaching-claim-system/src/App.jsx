@@ -19,6 +19,7 @@ import {
   loadState,
   saveState,
   addClaim,
+  updateClaimFromForm,
 } from "./data/store";
 
 const SUBTITLE_MAP = {
@@ -62,6 +63,12 @@ export default function App() {
 
   const [presetRound, setPresetRound] =
     useState(null);
+
+  const [editingClaimId, setEditingClaimId] =
+    useState(null);
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(false);
 
   const [state, setState] = useState(() =>
     loadState()
@@ -116,6 +123,7 @@ export default function App() {
   const goCreate = () => {
     setPresetCourse("");
     setPresetRound(null);
+    setEditingClaimId(null);
     setView("claim-create");
   };
 
@@ -125,6 +133,7 @@ export default function App() {
   const goCreateFor = (courseCode) => {
     setPresetCourse(courseCode);
     setPresetRound(null);
+    setEditingClaimId(null);
     setView("claim-create");
   };
 
@@ -134,7 +143,26 @@ export default function App() {
   const goCreateForRound = (round) => {
     setPresetCourse("");
     setPresetRound(round);
+    setEditingClaimId(null);
     setView("claim-create");
+  };
+
+  /*
+   * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
+   */
+  const goEditClaim = (id) => {
+    setPresetCourse("");
+    setPresetRound(null);
+    setEditingClaimId(id);
+    setView("claim-create");
+  };
+
+  /*
+   * ออกจากระบบ
+   */
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setView("home");
   };
 
   /*
@@ -146,10 +174,16 @@ export default function App() {
   };
 
   /*
-   * Submit คำขอ
+   * Submit คำขอ (สร้างใหม่ หรือยื่นคำขอที่แก้ไข)
    */
   const handleSubmit = (form) => {
-    const newClaim = addClaim(form);
+    const savedClaim = editingClaimId
+      ? updateClaimFromForm(
+          editingClaimId,
+          form,
+          "Pending"
+        )
+      : addClaim(form, "Pending");
 
     /*
      * โหลดข้อมูลใหม่จาก localStorage
@@ -158,7 +192,32 @@ export default function App() {
 
     setState(latestState);
 
-    setSelectedClaimId(newClaim.id);
+    setEditingClaimId(null);
+
+    setSelectedClaimId(savedClaim.id);
+
+    setView("detail");
+  };
+
+  /*
+   * บันทึกร่างคำขอ (สร้างร่างใหม่ หรืออัปเดตร่างเดิม)
+   */
+  const handleSaveDraft = (form) => {
+    const savedClaim = editingClaimId
+      ? updateClaimFromForm(
+          editingClaimId,
+          form,
+          "Draft"
+        )
+      : addClaim(form, "Draft");
+
+    const latestState = loadState();
+
+    setState(latestState);
+
+    setEditingClaimId(null);
+
+    setSelectedClaimId(savedClaim.id);
 
     setView("detail");
   };
@@ -221,19 +280,30 @@ export default function App() {
           />
         );
 
-      case "claim-create":
+      case "claim-create": {
+        const editingClaim = editingClaimId
+          ? claims.find(
+              (claim) =>
+                String(claim.id) ===
+                String(editingClaimId)
+            )
+          : null;
+
         return (
           <CreateClaim
             presetCourse={presetCourse}
             presetRound={presetRound}
+            initialClaim={editingClaim}
             courses={courses}
             rounds={rounds}
             onCancel={() =>
               setView("myclaims")
             }
             onSubmit={handleSubmit}
+            onSaveDraft={handleSaveDraft}
           />
         );
+      }
 
       case "detail":
         return (
@@ -247,6 +317,7 @@ export default function App() {
             goBack={() =>
               setView("myclaims")
             }
+            onEdit={goEditClaim}
           />
         );
 
@@ -264,7 +335,10 @@ export default function App() {
     return (
       <Login
         onBack={() => setView("home")}
-        onLoginSuccess={() => setView("home")}
+        onLoginSuccess={() => {
+          setIsLoggedIn(true);
+          setView("home");
+        }}
       />
     );
   }
@@ -290,6 +364,8 @@ export default function App() {
         onProfileClick={() =>
           setView("login")
         }
+        isLoggedIn={isLoggedIn}
+        onLogout={handleLogout}
       />
 
       {/* =========================
@@ -307,6 +383,7 @@ export default function App() {
           onCloseMobile={() =>
             setMobileOpen(false)
           }
+          onLogout={handleLogout}
         />
 
         {/* Main Content */}

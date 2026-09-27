@@ -25,6 +25,7 @@ export default function Sidebar({
   collapsed,
   mobileOpen,
   onCloseMobile,
+  onLogout,
 }) {
   const handleNavClick = (id) => {
     setView(id);
@@ -209,6 +210,7 @@ export default function Sidebar({
               transition-colors
             "
             style={{ color: C.rose }}
+            onClick={onLogout}
             onMouseEnter={(e) => {
               e.currentTarget.style.background =
                 C.roseSoft;

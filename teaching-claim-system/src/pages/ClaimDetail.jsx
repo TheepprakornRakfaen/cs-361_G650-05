@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   Paperclip,
+  Pencil,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -34,6 +35,7 @@ export default function ClaimDetail({
   claim,
   course,
   goBack,
+  onEdit,
 }) {
   if (!claim) {
     return (
@@ -70,7 +72,7 @@ export default function ClaimDetail({
   const amount = Number(claim.amount || 0);
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <button
         type="button"
         onClick={goBack}
@@ -96,7 +98,29 @@ export default function ClaimDetail({
             คำขอ #{claim.id}
           </h2>
 
-          <StatusPill status={claim.status} />
+          <div className="flex items-center gap-2">
+            {(status === "Draft" ||
+              status === "Rejected") && (
+              <button
+                type="button"
+                onClick={() =>
+                  onEdit?.(claim.id)
+                }
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
+                style={{
+                  borderColor: C.border,
+                  color: C.tealDark,
+                }}
+              >
+                <Pencil size={13} />
+                {status === "Draft"
+                  ? "แก้ไขร่าง"
+                  : "แก้ไขและยื่นใหม่"}
+              </button>
+            )}
+
+            <StatusPill status={claim.status} />
+          </div>
         </div>
 
         {/* Course + Month */}
