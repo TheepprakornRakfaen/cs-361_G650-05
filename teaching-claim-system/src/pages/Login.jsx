@@ -19,7 +19,7 @@ const FEATURES = [
   { icon: ShieldCheck, text: "ข้อมูลปลอดภัย เข้าถึงได้เฉพาะผู้มีสิทธิ์" },
 ];
 
-export default function Login({ onBack, onLoginSuccess }) {
+export default function Login({ onBack, onLoginSuccess, notice = "" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -147,6 +147,17 @@ export default function Login({ onBack, onLoginSuccess }) {
                 สำหรับอาจารย์ผู้สอนและผู้ช่วยสอน (TA)
               </p>
             </div>
+
+            {/* แจ้งเมื่อถูกพามาหน้านี้เพราะเข้าหน้าที่ต้องล็อกอิน */}
+            {notice && (
+              <div
+                className="flex items-center gap-2 text-sm font-medium rounded-xl px-4 py-3 mb-5"
+                style={{ background: C.tealSoft, color: C.tealDark }}
+              >
+                <Lock size={15} className="shrink-0" />
+                {notice}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>

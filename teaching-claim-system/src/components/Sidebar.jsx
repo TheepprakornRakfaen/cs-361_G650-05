@@ -7,6 +7,7 @@ import {
   FilePlus2,
   LogOut,
   LogIn,
+  Lock,
   GraduationCap,
   X,
 } from "lucide-react";
@@ -14,10 +15,11 @@ import { C } from "../theme";
 
 export const NAV_ITEMS = [
   { id: "home", label: "หน้าแรก", icon: Home },
-  { id: "dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
-  { id: "assignments", label: "งานสอน", icon: BookOpen },
-  { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList },
-  { id: "create", label: "สร้างคำขอ", icon: FilePlus2 },
+  // requiresLogin: ต้องเข้าสู่ระบบก่อน (ให้ตรงกับ PROTECTED_VIEWS ใน App.jsx)
+  { id: "dashboard", label: "แดชบอร์ด", icon: LayoutDashboard, requiresLogin: true },
+  { id: "assignments", label: "งานสอน", icon: BookOpen, requiresLogin: true },
+  { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList, requiresLogin: true },
+  { id: "create", label: "สร้างคำขอ", icon: FilePlus2, requiresLogin: true },
 ];
 
 export default function Sidebar({
@@ -183,6 +185,16 @@ export default function Sidebar({
                   >
                     {item.label}
                   </span>
+
+                  {/* แม่กุญแจ = ต้องเข้าสู่ระบบก่อน */}
+                  {item.requiresLogin && !isLoggedIn && (
+                    <Lock
+                      size={14}
+                      aria-label="ต้องเข้าสู่ระบบ"
+                      className={`ml-auto shrink-0 ${collapsed ? "md:hidden" : ""}`}
+                      style={{ color: C.sub }}
+                    />
+                  )}
                 </button>
               );
             })}

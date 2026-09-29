@@ -40,6 +40,20 @@ const SUBTITLE_MAP = {
   profile: "ข้อมูลส่วนตัว",
 };
 
+/*
+ * หน้าที่ต้องเข้าสู่ระบบก่อน (หน้าแรกกับหน้า Login เข้าได้เลย)
+ */
+const PROTECTED_VIEWS = new Set([
+  "dashboard",
+  "assignments",
+  "myclaims",
+  "create",
+  "rounds",
+  "claim-create",
+  "detail",
+  "profile",
+]);
+
 const SYSTEM_ROUNDS = [
   {
     id: "current-1-2569",
@@ -359,14 +373,27 @@ export default function App() {
 
   /*
    * หน้า Login แยกต่างหาก (ไม่ใช่ popup)
+   * ถ้ายังไม่ล็อกอินแล้วเข้าหน้าที่ต้องล็อกอิน จะแสดงหน้า Login แทน
+   * และล็อกอินเสร็จแล้วพากลับไปหน้าที่ตั้งใจจะเข้า
+   *
+   * หมายเหตุ: เป็นการกันฝั่ง frontend เพื่อการใช้งานเท่านั้น
+   * ความปลอดภัยจริงต้องให้ API ตรวจ token จาก Cognito
    */
-  if (view === "login") {
+  const needsLogin =
+    !isLoggedIn && PROTECTED_VIEWS.has(view);
+
+  if (view === "login" || needsLogin) {
     return (
       <Login
+        notice={
+          needsLogin
+            ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้"
+            : ""
+        }
         onBack={() => setView("home")}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          setView("home");
+          setView(needsLogin ? view : "home");
         }}
       />
     );
