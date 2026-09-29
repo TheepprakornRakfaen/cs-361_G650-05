@@ -12,6 +12,11 @@ import {
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import StatusPill from "../components/StatusPill";
+import {
+  sessionMinutes,
+  formatDuration,
+  formatThaiDate,
+} from "../utils/time";
 
 const STEPS = [
   {
@@ -70,6 +75,13 @@ export default function ClaimDetail({
   const rejected = status === "Rejected";
 
   const amount = Number(claim.amount || 0);
+
+  // คำขอแบบใหม่มีหลายวัน (sessions) คำขอเก่ามีแค่ teachingDate
+  const sessions = Array.isArray(claim.sessions)
+    ? [...claim.sessions].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      )
+    : [];
 
   return (
     <div className="w-full">
@@ -243,26 +255,48 @@ export default function ClaimDetail({
           <div>
             <p style={{ color: C.sub }}>
               วันที่สอน
+              {sessions.length > 1 ? ` (${sessions.length} วัน)` : ""}
             </p>
 
-            <p
-              className="font-semibold mt-0.5"
-              style={{ color: C.ink }}
-            >
-              {claim.teachingDate || "-"}
-            </p>
+            {sessions.length > 0 ? (
+              <div className="mt-0.5 flex flex-col gap-0.5">
+                {sessions.map((session) => (
+                  <p
+                    key={session.date}
+                    className="font-semibold"
+                    style={{ color: C.ink }}
+                  >
+                    {formatThaiDate(session.date)}
+                    <span className="font-normal" style={{ color: C.sub }}>
+                      {" "}· {formatDuration(sessionMinutes(session))}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p
+                className="font-semibold mt-0.5"
+                style={{ color: C.ink }}
+              >
+                {formatThaiDate(claim.teachingDate)}
+              </p>
+            )}
           </div>
 
           <div>
             <p style={{ color: C.sub }}>
-              จำนวนชั่วโมง
+              เวลาสอนรวม
             </p>
 
             <p
               className="font-semibold mt-0.5"
               style={{ color: C.ink }}
             >
-              {claim.hours || 0} ชั่วโมง
+              {formatDuration(
+                sessions.length > 0
+                  ? sessions.reduce((sum, s) => sum + sessionMinutes(s), 0)
+                  : Number(claim.hours || 0) * 60
+              )}
             </p>
           </div>
 

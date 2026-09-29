@@ -125,6 +125,12 @@ function claimFieldsFromForm(form) {
     teachingDate:
       form.teachingDate || "",
 
+    // วันสอนแต่ละวัน [{ date, hours, minutes }] — teachingDate คือวันแรก
+    sessions: Array.isArray(form.sessions)
+      ? form.sessions
+      : [],
+
+    // ชั่วโมงรวมแบบทศนิยม (เช่น 3.5) คำนวณจาก sessions
     hours: Number(
       form.hours || 0
     ),

@@ -11,17 +11,25 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
-  Calendar,
   Wallet,
   Pencil,
   Send,
   Save,
+  Plus,
 } from "lucide-react";
 
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import Field from "../components/Field";
 import SummaryRow from "../components/SummaryRow";
+import NumberCombo from "../components/NumberCombo";
+import {
+  sessionMinutes,
+  formatDuration,
+  hoursToParts,
+  formatThaiDate,
+  roundMoney,
+} from "../utils/time";
 
 const STEP_TITLES = [
   "ข้อมูล",
@@ -29,6 +37,97 @@ const STEP_TITLES = [
   "หลักฐานประกอบการเบิก",
   "ตรวจสอบความถูกต้อง",
 ];
+
+/*
+ * ขอบเขตข้อมูลที่ยอมให้กรอก (กันข้อมูลผิด เช่น ปี 0309 หรือชั่วโมงติดลบ)
+ * TODO: SEMESTER_START ใช้ 1 มิ.ย. 2569 ไปก่อน รอยืนยันวันเปิดภาค 1/2569
+ */
+const SEMESTER_START = "2026-06-01";
+const MAX_HOURS_PER_DAY = 12;
+const MAX_SESSIONS = 20;
+
+// ตัวเลือกในช่องเวลา (พิมพ์เลขอื่นเองได้ เช่น 47 นาที)
+const HOUR_OPTIONS = Array.from({ length: MAX_HOURS_PER_DAY + 1 }, (_, i) => i);
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
+const MAX_NOTES_LENGTH = 500;
+const MAX_FILE_MB = 10;
+const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
+
+// วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง (ใช้กับ min/max ของ input type="date")
+function todayISO() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+}
+
+// ตรวจวันที่สอน คืนข้อความ error หรือ "" ถ้าถูกต้อง
+function validateTeachingDate(value) {
+  if (!value) {
+    return "กรุณาระบุวันที่สอน";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(date.getTime())) {
+    return "รูปแบบวันที่ไม่ถูกต้อง";
+  }
+
+  if (value < SEMESTER_START) {
+    return `วันที่สอนต้องไม่ก่อนวันเปิดภาค (${formatThaiDate(SEMESTER_START)})`;
+  }
+
+  if (value > todayISO()) {
+    return "ยังเบิกวันที่ยังไม่ถึงไม่ได้";
+  }
+
+  return "";
+}
+
+// ตรวจเวลาสอนของวันสอน 1 แถว (ชั่วโมง + นาที) คืนข้อความ error หรือ ""
+function validateSessionTime(session) {
+  if (session.hours === "" && session.minutes === "") {
+    return "กรุณาระบุเวลาสอน";
+  }
+
+  if (Number(session.minutes || 0) > 59) {
+    return "นาทีต้องอยู่ระหว่าง 0–59";
+  }
+
+  const minutes = sessionMinutes(session);
+
+  if (minutes <= 0) {
+    return "เวลาสอนต้องมากกว่า 0";
+  }
+
+  if (minutes > MAX_HOURS_PER_DAY * 60) {
+    return `ไม่เกิน ${MAX_HOURS_PER_DAY} ชั่วโมงต่อวัน`;
+  }
+
+  return "";
+}
+
+let sessionCounter = 0;
+
+// แถววันสอนเปล่า (id ใช้เป็น key ของ React)
+function emptySession() {
+  sessionCounter += 1;
+  return { id: `s-${Date.now()}-${sessionCounter}`, date: "", hours: "", minutes: "" };
+}
+
+// ตรวจไฟล์หลักฐาน คืนข้อความ error หรือ "" ถ้าถูกต้อง
+function validateFile(file) {
+  const name = file.name.toLowerCase();
+
+  if (!ALLOWED_FILE_EXTENSIONS.some((ext) => name.endsWith(ext))) {
+    return "รองรับเฉพาะไฟล์ PDF, JPG, PNG";
+  }
+
+  if (file.size > MAX_FILE_MB * 1024 * 1024) {
+    return `ไฟล์ต้องมีขนาดไม่เกิน ${MAX_FILE_MB} MB`;
+  }
+
+  return "";
+}
 
 export default function CreateClaim({
   presetCourse,
@@ -72,15 +171,25 @@ export default function CreateClaim({
           rate: Number(
             initialClaim.rate || 0
           ),
-          teachingDate:
-            initialClaim.teachingDate ||
-            "",
-          hours: initialClaim.hours
-            ? String(initialClaim.hours)
-            : "",
-          amount: initialClaim.amount
-            ? String(initialClaim.amount)
-            : "",
+          // คำขอใหม่มี sessions (หลายวัน) ส่วนคำขอเก่ามีแค่วันเดียว + ชั่วโมงทศนิยม
+          sessions:
+            Array.isArray(initialClaim.sessions) &&
+            initialClaim.sessions.length > 0
+              ? initialClaim.sessions.map((s) => ({
+                  ...emptySession(),
+                  date: s.date || "",
+                  hours: s.hours ? String(s.hours) : "",
+                  minutes: s.minutes ? String(s.minutes) : "",
+                }))
+              : [
+                  {
+                    ...emptySession(),
+                    date: /^\d{4}-\d{2}-\d{2}$/.test(initialClaim.teachingDate || "")
+                      ? initialClaim.teachingDate
+                      : "",
+                    ...hoursToParts(initialClaim.hours),
+                  },
+                ],
           notes:
             initialClaim.notes || "",
           fileName:
@@ -115,11 +224,7 @@ export default function CreateClaim({
             firstCourse?.rate || 0
           ),
 
-        teachingDate: "",
-
-        hours: "",
-
-        amount: "",
+        sessions: [emptySession()],
 
         notes: "",
 
@@ -173,29 +278,78 @@ export default function CreateClaim({
   };
 
   /*
-   * คำนวณเงินอัตโนมัติ
+   * คำนวณเวลาสอนรวมและเงินอัตโนมัติ (คิดตามนาทีจริง)
    */
-  useEffect(() => {
-    const hours =
-      Number(
-        form.hours || 0
-      );
+  const totalMinutes = form.sessions.reduce(
+    (sum, session) => sum + sessionMinutes(session),
+    0
+  );
 
-    const amount =
-      hours * rate;
+  const totalHours = totalMinutes / 60;
 
+  const amount = roundMoney(totalHours * rate);
+
+  const filledSessions = form.sessions.filter(
+    (session) => session.date
+  );
+
+  const updateSession = (id, key, value) => {
     setForm((current) => ({
       ...current,
-      amount:
-        form.hours
-          ? String(amount)
-          : "",
-      rate,
+      sessions: current.sessions.map((session) =>
+        session.id === id
+          ? { ...session, [key]: value }
+          : session
+      ),
     }));
-  }, [
-    form.hours,
-    rate,
-  ]);
+  };
+
+  const addSession = () => {
+    setForm((current) =>
+      current.sessions.length >= MAX_SESSIONS
+        ? current
+        : {
+            ...current,
+            sessions: [...current.sessions, emptySession()],
+          }
+    );
+  };
+
+  const removeSession = (id) => {
+    setForm((current) => ({
+      ...current,
+      sessions:
+        current.sessions.length > 1
+          ? current.sessions.filter((session) => session.id !== id)
+          : current.sessions,
+    }));
+  };
+
+  /*
+   * ข้อมูลที่ส่งออกไปบันทึก
+   * เก็บ teachingDate (วันแรก) + hours (ชั่วโมงรวมแบบทศนิยม) ไว้ด้วย
+   * เพื่อให้หน้าอื่นและ backend ที่ยังใช้รูปแบบเดิมอ่านได้
+   */
+  function buildPayload() {
+    const sortedDates = filledSessions
+      .map((session) => session.date)
+      .sort();
+
+    return {
+      ...form,
+      rate,
+      sessions: form.sessions
+        .filter((session) => session.date || session.hours || session.minutes)
+        .map(({ date, hours, minutes }) => ({
+          date,
+          hours: Number(hours || 0),
+          minutes: Number(minutes || 0),
+        })),
+      teachingDate: sortedDates[0] || "",
+      hours: roundMoney(totalHours),
+      amount: totalMinutes ? String(amount) : "",
+    };
+  }
 
   /*
    * preset course
@@ -254,26 +408,43 @@ export default function CreateClaim({
   function validateStep2() {
     const nextErrors = {};
 
-    if (
-      !form.teachingDate
-    ) {
-      nextErrors.teachingDate =
-        "กรุณาระบุวันที่สอน";
+    /*
+     * ตรวจทีละแถว: วันที่ + เวลาสอน และห้ามวันซ้ำกัน
+     * error ของแต่ละแถวเก็บเป็น { [id]: { date, time } }
+     */
+    const sessionErrors = {};
+
+    form.sessions.forEach((session, index) => {
+      let dateError = validateTeachingDate(session.date);
+
+      const isDuplicate =
+        session.date &&
+        form.sessions.findIndex((other) => other.date === session.date) !== index;
+
+      if (!dateError && isDuplicate) {
+        dateError = "วันที่ซ้ำกับแถวด้านบน";
+      }
+
+      const timeError = validateSessionTime(session);
+
+      if (dateError || timeError) {
+        sessionErrors[session.id] = { date: dateError, time: timeError };
+      }
+    });
+
+    if (Object.keys(sessionErrors).length > 0) {
+      nextErrors.sessions = sessionErrors;
+    } else if (totalMinutes > remaining * 60) {
+      nextErrors.sessionsTotal =
+        `เวลาสอนรวม ${formatDuration(totalMinutes)} เกินชั่วโมงคงเหลือ (${remaining} ชม.)`;
     }
 
     if (
-      !form.hours ||
-      Number(form.hours) <=
-        0
+      form.notes.length >
+      MAX_NOTES_LENGTH
     ) {
-      nextErrors.hours =
-        "กรุณาระบุจำนวนชั่วโมง";
-    } else if (
-      Number(form.hours) >
-      remaining
-    ) {
-      nextErrors.hours =
-        `เกินชั่วโมงคงเหลือ (${remaining} ชม.)`;
+      nextErrors.notes =
+        `รายละเอียดต้องไม่เกิน ${MAX_NOTES_LENGTH} ตัวอักษร`;
     }
 
     if (!form.courseCode) {
@@ -331,10 +502,38 @@ export default function CreateClaim({
   ) {
     if (!file) return;
 
+    const fileError =
+      validateFile(file);
+
+    setErrors((current) => ({
+      ...current,
+      file: fileError,
+    }));
+
+    if (fileError) return;
+
     set(
       "fileName",
       file.name
     );
+  }
+
+  /*
+   * ตรวจทุกขั้นอีกรอบก่อนยื่นจริง
+   * ถ้ามีข้อผิดพลาด พากลับไปขั้นที่ผิด
+   */
+  function handleSubmit() {
+    if (!validateStep1()) {
+      setStep(1);
+      return;
+    }
+
+    if (!validateStep2()) {
+      setStep(2);
+      return;
+    }
+
+    onSubmit?.(buildPayload());
   }
 
   return (
@@ -696,65 +895,114 @@ export default function CreateClaim({
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-5">
-              <Field
-                label="วันที่สอน"
-                required
-                error={
-                  errors.teachingDate
-                }
-              >
-                <div className="relative">
-                  <input
-                    type="date"
-                    className="fld"
-                    value={
-                      form.teachingDate
-                    }
-                    onChange={(e) =>
-                      set(
-                        "teachingDate",
-                        e.target
-                          .value
-                      )
-                    }
-                  />
-
-                  <Calendar
-                    size={16}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{
-                      color:
-                        C.sub,
-                    }}
-                  />
+              {/* วันและเวลาที่สอน — เพิ่มได้หลายวันในคำขอเดียว */}
+              <div>
+                <div className="flex items-center gap-1 text-sm font-semibold mb-2" style={{ color: C.ink }}>
+                  <span>วันและเวลาที่สอน</span>
+                  <span style={{ color: C.rose }}>*</span>
                 </div>
-              </Field>
 
-              <Field
-                label="จำนวนชั่วโมง"
-                required
-                error={
-                  errors.hours
-                }
-              >
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="fld"
-                  placeholder="กรอกจำนวนชั่วโมง"
-                  value={
-                    form.hours
-                  }
-                  onChange={(e) =>
-                    set(
-                      "hours",
-                      e.target
-                        .value
-                    )
-                  }
-                />
-              </Field>
+                <div className="flex flex-col gap-3">
+                  {form.sessions.map((session, index) => {
+                    const rowError = errors.sessions?.[session.id];
+
+                    return (
+                      <div
+                        key={session.id}
+                        className="rounded-2xl border p-3"
+                        style={{
+                          borderColor: rowError ? C.rose : C.border,
+                          background: "#FAFDFE",
+                        }}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                            style={{ background: C.tealSoft, color: C.tealDark }}
+                          >
+                            {index + 1}
+                          </span>
+
+                          <input
+                            type="date"
+                            aria-label={`วันที่สอน วันที่ ${index + 1}`}
+                            className="fld flex-1 min-w-[10rem]"
+                            min={SEMESTER_START}
+                            max={todayISO()}
+                            value={session.date}
+                            onChange={(e) => updateSession(session.id, "date", e.target.value)}
+                          />
+
+                          {/* พิมพ์เองได้ หรือกดเลือกจากรายการ (ชม. 0–12, นาทีทีละ 5 แต่พิมพ์ 0–59 ได้ทุกเลข) */}
+                          <div className="flex items-center gap-2">
+                            <NumberCombo
+                              ariaLabel="ชั่วโมง"
+                              value={session.hours}
+                              max={MAX_HOURS_PER_DAY}
+                              options={HOUR_OPTIONS}
+                              onChange={(value) => updateSession(session.id, "hours", value)}
+                            />
+                            <span className="text-sm" style={{ color: C.sub }}>ชม.</span>
+
+                            <NumberCombo
+                              ariaLabel="นาที"
+                              value={session.minutes}
+                              max={59}
+                              options={MINUTE_OPTIONS}
+                              onChange={(value) => updateSession(session.id, "minutes", value)}
+                            />
+                            <span className="text-sm" style={{ color: C.sub }}>นาที</span>
+                          </div>
+
+                          {form.sessions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeSession(session.id)}
+                              aria-label={`ลบวันที่ ${index + 1}`}
+                              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 hover:bg-[#FCE9EA] transition-colors ml-auto"
+                            >
+                              <Trash2 size={16} style={{ color: C.rose }} />
+                            </button>
+                          )}
+                        </div>
+
+                        {rowError && (
+                          <p className="text-xs mt-2 pl-9" style={{ color: C.rose }}>
+                            {[rowError.date, rowError.time].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={addSession}
+                    disabled={form.sessions.length >= MAX_SESSIONS}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border disabled:opacity-50 hover:bg-[#E8F0FA] transition-colors"
+                    style={{ borderColor: C.teal, color: C.tealDark }}
+                  >
+                    <Plus size={15} />
+                    เพิ่มวันสอน
+                  </button>
+
+                  <span className="text-sm" style={{ color: C.sub }}>
+                    รวม {filledSessions.length} วัน ·{" "}
+                    <span className="font-semibold" style={{ color: C.ink }}>
+                      {formatDuration(totalMinutes)}
+                    </span>{" "}
+                    (คงเหลือ {remaining} ชม.)
+                  </span>
+                </div>
+
+                {errors.sessionsTotal && (
+                  <p className="text-xs mt-2" style={{ color: C.rose }}>
+                    {errors.sessionsTotal}
+                  </p>
+                )}
+              </div>
 
               <Field label="อัตราค่าตอบแทน">
                 <div
@@ -780,24 +1028,34 @@ export default function CreateClaim({
                     }}
                   />
 
+                  {/* ใช้ style แทน pl-10 เพราะ .fld ใน index.css ทับ padding ของ Tailwind ทำให้ไอคอนซ้อนตัวเลข */}
                   <input
                     readOnly
-                    className="fld pl-10 bg-[#F8FBFC]"
+                    className="fld bg-[#F8FBFC]"
+                    style={{ paddingLeft: "2.75rem" }}
                     value={
-                      form.amount
-                        ? Number(
-                            form.amount
-                          ).toLocaleString()
+                      totalMinutes
+                        ? amount.toLocaleString()
                         : ""
                     }
                     placeholder="คำนวณอัตโนมัติ"
                   />
                 </div>
+
+                {totalMinutes > 0 && (
+                  <p className="text-xs mt-1.5" style={{ color: C.sub }}>
+                    {formatDuration(totalMinutes)} × ฿{rate.toLocaleString()}/ชม. (คิดตามนาทีจริง)
+                  </p>
+                )}
               </Field>
 
-              <Field label="รายละเอียดเพิ่มเติม (ถ้ามี)">
+              <Field
+                label="รายละเอียดเพิ่มเติม (ถ้ามี)"
+                error={errors.notes}
+              >
                 <textarea
                   rows={3}
+                  maxLength={MAX_NOTES_LENGTH}
                   className="fld resize-none"
                   value={
                     form.notes
@@ -810,6 +1068,12 @@ export default function CreateClaim({
                     )
                   }
                 />
+                <p
+                  className="text-xs text-right mt-1"
+                  style={{ color: C.sub }}
+                >
+                  {form.notes.length}/{MAX_NOTES_LENGTH}
+                </p>
               </Field>
             </div>
           )}
@@ -878,7 +1142,7 @@ export default function CreateClaim({
                     color: C.sub,
                   }}
                 >
-                  เวอร์ชันนี้จัดเก็บเฉพาะชื่อไฟล์ใน localStorage
+                  PDF, JPG, PNG ไม่เกิน {MAX_FILE_MB} MB · เวอร์ชันนี้จัดเก็บเฉพาะชื่อไฟล์ใน localStorage
                 </p>
 
                 <input
@@ -886,6 +1150,7 @@ export default function CreateClaim({
                     fileInputRef
                   }
                   type="file"
+                  accept={ALLOWED_FILE_EXTENSIONS.join(",")}
                   hidden
                   onChange={(e) =>
                     handleFile(
@@ -911,6 +1176,16 @@ export default function CreateClaim({
                   เลือกไฟล์
                 </button>
               </div>
+
+              {errors.file && (
+                <p
+                  className="text-xs mt-2 flex items-center gap-1.5"
+                  style={{ color: C.rose }}
+                >
+                  <AlertTriangle size={13} />
+                  {errors.file}
+                </p>
+              )}
 
               {form.fileName && (
                 <div
@@ -984,16 +1259,28 @@ export default function CreateClaim({
               />
 
               <SummaryRow
-                label="วันที่สอน"
+                label={`วันที่สอน (${filledSessions.length} วัน)`}
                 value={
-                  form.teachingDate ||
-                  "—"
+                  filledSessions.length > 0 ? (
+                    <span className="flex flex-col gap-0.5">
+                      {[...filledSessions]
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                        .map((session) => (
+                          <span key={session.id}>
+                            {formatThaiDate(session.date)} ·{" "}
+                            {formatDuration(sessionMinutes(session))}
+                          </span>
+                        ))}
+                    </span>
+                  ) : (
+                    "—"
+                  )
                 }
               />
 
               <SummaryRow
-                label="จำนวนชั่วโมง"
-                value={`${form.hours || 0} ชั่วโมง`}
+                label="เวลาสอนรวม"
+                value={formatDuration(totalMinutes)}
               />
 
               <SummaryRow
@@ -1003,10 +1290,7 @@ export default function CreateClaim({
 
               <SummaryRow
                 label="จำนวนเงิน"
-                value={`฿${Number(
-                  form.amount ||
-                    0
-                ).toLocaleString()}`}
+                value={`฿${amount.toLocaleString()}`}
               />
 
               <SummaryRow
@@ -1067,7 +1351,7 @@ export default function CreateClaim({
               <button
                 type="button"
                 onClick={() =>
-                  onSaveDraft?.(form)
+                  onSaveDraft?.(buildPayload())
                 }
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
                 style={{
@@ -1115,11 +1399,7 @@ export default function CreateClaim({
 
                   <button
                     type="button"
-                    onClick={() =>
-                      onSubmit?.(
-                        form
-                      )
-                    }
+                    onClick={handleSubmit}
                     className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
