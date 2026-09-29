@@ -1,6 +1,16 @@
 import React, { useState } from "react";
-import { Menu, Search, X, Bell, LogIn, LogOut } from "lucide-react";
-import { C, USER_NAME } from "../theme";
+import {
+  Menu,
+  Search,
+  X,
+  Bell,
+  LogIn,
+  LogOut,
+} from "lucide-react";
+import { C } from "../theme";
+import { getInitial } from "../data/users";
+
+const AVATAR_BG = `linear-gradient(135deg, #F07A7E, ${C.rose})`;
 
 export default function Topbar({
   onMenuClick,
@@ -9,13 +19,16 @@ export default function Topbar({
   onSearchChange,
   onProfileClick,
   isLoggedIn = false,
-  userName = USER_NAME,
+  user = null,
   onLogout,
 }) {
+  // ชื่อที่แสดงมาจากผู้ใช้ที่ล็อกอินจริง (ไม่ fix ชื่อไว้แล้ว)
+  const userName = user?.name || "";
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const initial = userName?.trim()?.charAt(0) || "U";
+  const initial = getInitial(user);
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -118,22 +131,21 @@ export default function Topbar({
         {/* เข้าสู่ระบบ / โปรไฟล์ */}
         {isLoggedIn ? (
           <div className="relative shrink-0">
+            {/* แสดงแค่รูปโปรไฟล์ ชื่อเต็มดูได้ตอนกดเปิดเมนู */}
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="flex items-center gap-2 h-11 pl-1.5 pr-1.5 sm:pr-4 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] hover:bg-white/10"
+              title={userName}
+              aria-label={`บัญชีผู้ใช้: ${userName}`}
+              aria-expanded={menuOpen}
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 ring-2 transition-all active:scale-[0.96] ${
+                menuOpen ? "ring-white" : "ring-white/40 hover:ring-white"
+              }`}
+              style={{
+                background: AVATAR_BG,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+              }}
             >
-              <span
-                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                style={{
-                  background: C.rose,
-                  color: "#FFFFFF",
-                }}
-              >
-                {initial}
-              </span>
-              <span className="hidden sm:inline max-w-[10rem] truncate">
-                {userName}
-              </span>
+              {initial}
             </button>
 
             {menuOpen && (
@@ -143,27 +155,65 @@ export default function Topbar({
                   onClick={() => setMenuOpen(false)}
                 />
                 <div
-                  className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg z-50 overflow-hidden"
-                  style={{ borderColor: C.border }}
+                  className="absolute right-0 mt-3 w-72 rounded-2xl border bg-white z-50 overflow-hidden"
+                  style={{
+                    borderColor: C.border,
+                    boxShadow: "0 20px 45px -12px rgba(15,40,70,0.35)",
+                    animation: "fadein .18s ease-out",
+                  }}
                 >
+                  {/* ส่วนหัว: รูปโปรไฟล์ + ชื่อ + ตำแหน่ง */}
                   <div
-                    className="px-4 py-3 text-xs font-semibold truncate border-b"
-                    style={{ color: C.ink, borderColor: C.border }}
+                    className="relative px-5 py-4 flex items-center gap-3 overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${C.tealDark}, ${C.teal})`,
+                    }}
                   >
-                    {userName}
+                    <div
+                      className="pointer-events-none absolute -right-8 -top-10 w-28 h-28 rounded-full"
+                      style={{ background: "rgba(255,255,255,0.10)" }}
+                    />
+
+                    <span
+                      className="relative w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shrink-0 ring-2 ring-white/70"
+                      style={{ background: AVATAR_BG }}
+                    >
+                      {initial}
+                    </span>
+
+                    <div className="relative min-w-0 text-white">
+                      <p className="text-sm font-bold truncate">
+                        {userName}
+                      </p>
+                      {user?.email && (
+                        <p className="text-xs truncate opacity-80 mt-0.5">
+                          {user.email}
+                        </p>
+                      )}
+                      {user?.role && (
+                        <span
+                          className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          style={{ background: "rgba(255,255,255,0.20)" }}
+                        >
+                          {user.role}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onLogout && onLogout();
-                    }}
-                    className="flex items-center gap-2 w-full px-4 py-3 text-sm font-semibold hover:bg-[#FCE9EA] transition-colors"
-                    style={{ color: C.rose }}
-                  >
-                    <LogOut size={15} />
-                    ออกจากระบบ
-                  </button>
+                  <div className="p-2">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onLogout && onLogout();
+                      }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#FCE9EA] transition-colors"
+                      style={{ color: C.rose }}
+                    >
+                      <LogOut size={17} />
+                      ออกจากระบบ
+                    </button>
+                  </div>
                 </div>
               </>
             )}

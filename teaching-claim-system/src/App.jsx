@@ -22,6 +22,11 @@ import {
   updateClaimFromForm,
 } from "./data/store";
 
+import {
+  loadSessionUser,
+  saveSessionUser,
+} from "./data/users";
+
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
   dashboard: "แดชบอร์ด",
@@ -67,8 +72,18 @@ export default function App() {
   const [editingClaimId, setEditingClaimId] =
     useState(null);
 
-  const [isLoggedIn, setIsLoggedIn] =
-    useState(false);
+  /*
+   * ผู้ใช้ที่เข้าสู่ระบบอยู่ (null = ยังไม่เข้าสู่ระบบ)
+   * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
+   */
+  const [currentUser, setCurrentUser] =
+    useState(() => loadSessionUser());
+
+  const isLoggedIn = Boolean(currentUser);
+
+  useEffect(() => {
+    saveSessionUser(currentUser);
+  }, [currentUser]);
 
   const [state, setState] = useState(() =>
     loadState()
@@ -161,7 +176,7 @@ export default function App() {
    * ออกจากระบบ
    */
   const handleLogout = () => {
-    setIsLoggedIn(false);
+    setCurrentUser(null);
     setView("home");
   };
 
@@ -335,8 +350,8 @@ export default function App() {
     return (
       <Login
         onBack={() => setView("home")}
-        onLoginSuccess={() => {
-          setIsLoggedIn(true);
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
           setView("home");
         }}
       />
@@ -365,6 +380,7 @@ export default function App() {
           setView("login")
         }
         isLoggedIn={isLoggedIn}
+        user={currentUser}
         onLogout={handleLogout}
       />
 

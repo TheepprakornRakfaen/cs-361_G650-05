@@ -11,6 +11,7 @@ import {
   FileCheck2,
 } from "lucide-react";
 import { C } from "../theme";
+import { resolveUser } from "../data/users";
 
 const FEATURES = [
   { icon: Wallet, text: "ยื่นคำขอเบิกค่าสอนได้ทุกที่ ทุกเวลา" },
@@ -22,11 +23,18 @@ export default function Login({ onBack, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: เชื่อมต่อระบบยืนยันตัวตนจริงภายหลัง
-    onLoginSuccess && onLoginSuccess();
+
+    if (!email.trim() || !password) {
+      setError("กรุณากรอกอีเมล / รหัสผู้ใช้ และรหัสผ่าน");
+      return;
+    }
+
+    // TODO: เชื่อม Cognito ภายหลัง — ตอนนี้ยังไม่ตรวจรหัสผ่านจริง
+    onLoginSuccess && onLoginSuccess(resolveUser(email));
   };
 
   return (
@@ -156,7 +164,10 @@ export default function Login({ onBack, onLoginSuccess }) {
                   <input
                     type="text"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
                     placeholder="name@tu.ac.th"
                     className="bg-transparent outline-none text-sm w-full"
                     style={{ color: C.ink }}
@@ -180,7 +191,10 @@ export default function Login({ onBack, onLoginSuccess }) {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError("");
+                    }}
                     placeholder="••••••••"
                     className="bg-transparent outline-none text-sm w-full"
                     style={{ color: C.ink }}
@@ -195,6 +209,15 @@ export default function Login({ onBack, onLoginSuccess }) {
                   </button>
                 </div>
               </div>
+
+              {error && (
+                <p
+                  className="text-xs font-medium rounded-lg px-3 py-2"
+                  style={{ color: C.rose, background: C.roseSoft }}
+                >
+                  {error}
+                </p>
+              )}
 
               <div className="flex justify-end -mt-1">
                 <button
