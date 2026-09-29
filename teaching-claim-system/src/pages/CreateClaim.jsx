@@ -39,6 +39,7 @@ export default function CreateClaim({
   onCancel,
   onSubmit,
   onSaveDraft,
+  user,
 }) {
   const isEditing = Boolean(initialClaim);
 
@@ -447,17 +448,20 @@ export default function CreateClaim({
               </p>
             </div>
 
-            <span
-              className="text-xs font-semibold px-3 py-1 rounded-full"
-              style={{
-                background:
-                  C.tealSoft,
-                color:
-                  C.tealDark,
-              }}
-            >
-              อาจารย์
-            </span>
+            {/* ตำแหน่งของผู้ใช้ที่ล็อกอิน (เดิม fix เป็น "อาจารย์") */}
+            {user?.role && (
+              <span
+                className="text-xs font-semibold px-3 py-1 rounded-full"
+                style={{
+                  background:
+                    C.tealSoft,
+                  color:
+                    C.tealDark,
+                }}
+              >
+                {user.role}
+              </span>
+            )}
           </div>
 
           {/* STEP 1 */}

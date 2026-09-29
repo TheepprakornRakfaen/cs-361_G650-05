@@ -319,6 +319,7 @@ export default function App() {
             }
             onSubmit={handleSubmit}
             onSaveDraft={handleSaveDraft}
+            user={currentUser}
           />
         );
       }
@@ -413,7 +414,9 @@ export default function App() {
           onCloseMobile={() =>
             setMobileOpen(false)
           }
+          isLoggedIn={isLoggedIn}
           onLogout={handleLogout}
+          onLogin={() => setView("login")}
         />
 
         {/* Main Content */}

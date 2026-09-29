@@ -6,6 +6,7 @@ import {
   ClipboardList,
   FilePlus2,
   LogOut,
+  LogIn,
   GraduationCap,
   X,
 } from "lucide-react";
@@ -25,7 +26,9 @@ export default function Sidebar({
   collapsed,
   mobileOpen,
   onCloseMobile,
+  isLoggedIn = false,
   onLogout,
+  onLogin,
 }) {
   const handleNavClick = (id) => {
     setView(id);
@@ -186,10 +189,10 @@ export default function Sidebar({
           </nav>
         </div>
 
-        {/* Logout */}
+        {/* ออกจากระบบ / เข้าสู่ระบบ — เปลี่ยนตามสถานะการล็อกอิน */}
         <div className="px-4 pb-8">
           <button
-            className="
+            className={`
               flex items-center gap-3
               px-4 py-3
               rounded-2xl
@@ -197,22 +200,23 @@ export default function Sidebar({
               font-semibold
               w-full
               transition-colors
-            "
-            style={{ color: C.rose }}
-            onClick={onLogout}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background =
-                C.roseSoft;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background =
-                "transparent";
+              ${isLoggedIn ? "hover:bg-[#FCE9EA]" : "hover:bg-[#E8F0FA]"}
+            `}
+            style={{ color: isLoggedIn ? C.rose : C.tealDark }}
+            onClick={() => {
+              if (isLoggedIn) {
+                onLogout && onLogout();
+              } else {
+                onLogin && onLogin();
+              }
+              onCloseMobile && onCloseMobile();
             }}
           >
-            <LogOut
-              size={19}
-              className="shrink-0"
-            />
+            {isLoggedIn ? (
+              <LogOut size={19} className="shrink-0" />
+            ) : (
+              <LogIn size={19} className="shrink-0" />
+            )}
 
             <span
               className={
@@ -221,7 +225,7 @@ export default function Sidebar({
                   : ""
               }
             >
-              ออกจากระบบ
+              {isLoggedIn ? "ออกจากระบบ" : "เข้าสู่ระบบ"}
             </span>
           </button>
         </div>
