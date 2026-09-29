@@ -302,6 +302,7 @@ export default function App() {
             claims={claims}
             goCreate={goCreate}
             goDetail={goDetail}
+            goMyClaims={() => setView("myclaims")}
           />
         );
 
