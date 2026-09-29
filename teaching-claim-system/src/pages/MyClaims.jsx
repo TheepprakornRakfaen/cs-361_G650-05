@@ -6,10 +6,12 @@ import React, {
 import {
   Search,
   Plus,
+  ClipboardList,
 } from "lucide-react";
 
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
+import PageHeader from "../components/PageHeader";
 import StatusPill from "../components/StatusPill";
 
 export default function MyClaims({
@@ -96,6 +98,25 @@ export default function MyClaims({
 
   return (
     <div>
+      <PageHeader
+        icon={ClipboardList}
+        title="คำขอของฉัน"
+        description="ติดตามสถานะคำขอเบิกค่าสอนทั้งหมดของคุณ กดที่แถวเพื่อดูรายละเอียด"
+        action={
+          <button
+            type="button"
+            onClick={goCreate}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90"
+            style={{
+              background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+            }}
+          >
+            สร้างคำขอ
+            <Plus size={16} />
+          </button>
+        }
+      />
+
       {/* Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-6">
         <div
@@ -152,18 +173,6 @@ export default function MyClaims({
             ไม่อนุมัติ
           </option>
         </select>
-
-        <button
-          type="button"
-          onClick={goCreate}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm md:ml-auto transition-opacity hover:opacity-90"
-          style={{
-            background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
-          }}
-        >
-          สร้างคำขอ
-          <Plus size={16} />
-        </button>
       </div>
 
       {/* Status Summary */}

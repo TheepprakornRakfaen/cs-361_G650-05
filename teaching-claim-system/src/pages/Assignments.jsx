@@ -1,26 +1,20 @@
 import React from "react";
-import { ArrowRight, Clock3 } from "lucide-react";
+import { ArrowRight, Clock3, BookOpen } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
+import PageHeader from "../components/PageHeader";
 
 export default function Assignments({
   courses = [],
   goCreateFor,
 }) {
   return (
-    <div className="max-w-5xl">
-      <div className="mb-6">
-        <h2
-          className="text-xl font-extrabold mb-1"
-          style={{ color: C.ink }}
-        >
-          งานสอนของฉัน
-        </h2>
-
-        <p className="text-sm" style={{ color: C.sub }}>
-          ภาคการศึกษา 1/2569 · ชั่วโมงสอนสูงสุด 45 ชั่วโมง / รายวิชา / ภาคการศึกษา
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        icon={BookOpen}
+        title="งานสอนของฉัน"
+        description="ภาคการศึกษา 1/2569 · ชั่วโมงสอนสูงสุด 45 ชั่วโมง / รายวิชา / ภาคการศึกษา"
+      />
 
       {courses.length === 0 ? (
         <SectionCard className="p-10 text-center">
@@ -45,7 +39,7 @@ export default function Assignments({
           </p>
         </SectionCard>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-5">
+        <div className="grid sm:grid-cols-2 2xl:grid-cols-3 gap-5">
           {courses.map((course) => {
             const quota = Number(course.quota || 45);
             const used = Number(course.used || 0);

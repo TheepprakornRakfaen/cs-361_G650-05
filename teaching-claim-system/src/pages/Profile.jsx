@@ -82,7 +82,7 @@ export default function Profile({ user, courses = [], claims = [], onLogin }) {
   }
 
   return (
-    <div className="max-w-6xl">
+    <div className="w-full">
       {/* ส่วนหัวโปรไฟล์ */}
       <div
         className="relative rounded-3xl p-6 md:p-8 mb-6 overflow-hidden text-white"

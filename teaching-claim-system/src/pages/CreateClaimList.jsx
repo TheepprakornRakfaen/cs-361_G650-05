@@ -4,10 +4,12 @@ import {
   ChevronDown,
   Plus,
   Clock,
+  FilePlus2,
 } from "lucide-react";
 
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
+import PageHeader from "../components/PageHeader";
 
 export default function CreateClaimList({
   rounds = [],
@@ -59,6 +61,12 @@ export default function CreateClaimList({
 
   return (
     <div className="w-full max-w-none">
+      <PageHeader
+        icon={FilePlus2}
+        title="สร้างคำขอ"
+        description="เลือกรอบการยื่นที่เปิดรับ แล้วกด “สร้างคำขอ” เพื่อเริ่มกรอกข้อมูล"
+      />
+
       {/* Search */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
         <div
@@ -76,7 +84,7 @@ export default function CreateClaimList({
             onChange={(e) =>
               setQuery(e.target.value)
             }
-            placeholder="ค้นหา รหัสคำขอ / รายวิชา"
+            placeholder="ค้นหารอบการยื่น เช่น 1/2569, มิถุนายน"
             className="outline-none text-sm w-full bg-transparent"
             style={{ color: C.ink }}
           />
