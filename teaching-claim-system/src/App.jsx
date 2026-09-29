@@ -28,6 +28,8 @@ import {
   saveSessionUser,
 } from "./data/users";
 
+import { buildUserCourses } from "./data/rates";
+
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
   dashboard: "แดชบอร์ด",
@@ -115,13 +117,33 @@ export default function App() {
   /*
    * ป้องกันข้อมูลเสีย
    */
-  const claims = Array.isArray(state?.claims)
+  const allClaims = Array.isArray(state?.claims)
     ? state.claims
     : [];
 
-  const courses = Array.isArray(state?.courses)
+  /*
+   * แต่ละคนเห็นเฉพาะคำขอของตัวเอง (owner = username ของคนที่สร้าง)
+   * หมายเหตุ: คำขอเก่าที่สร้างก่อนมี owner จะไม่แสดงให้ใครเห็น
+   */
+  const claims = allClaims.filter(
+    (claim) =>
+      currentUser &&
+      claim.owner === currentUser.username
+  );
+
+  const allCourses = Array.isArray(state?.courses)
     ? state.courses
     : [];
+
+  /*
+   * รายวิชาที่ผู้ใช้ได้รับมอบหมาย + อัตราตามตำแหน่ง + ชั่วโมงที่ใช้ไป
+   * (ไม่มีวิชาที่ได้รับมอบหมาย = [] → ยื่นเบิกไม่ได้)
+   */
+  const courses = buildUserCourses(
+    currentUser,
+    allCourses,
+    claims
+  );
 
   const storedRounds = Array.isArray(state?.rounds)
     ? state.rounds
@@ -214,7 +236,7 @@ export default function App() {
           form,
           "Pending"
         )
-      : addClaim(form, "Pending");
+      : addClaim(form, "Pending", currentUser?.username);
 
     /*
      * โหลดข้อมูลใหม่จาก localStorage
@@ -240,7 +262,7 @@ export default function App() {
           form,
           "Draft"
         )
-      : addClaim(form, "Draft");
+      : addClaim(form, "Draft", currentUser?.username);
 
     const latestState = loadState();
 

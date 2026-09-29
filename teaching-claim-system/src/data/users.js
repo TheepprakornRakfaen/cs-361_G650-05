@@ -28,6 +28,33 @@ export const MOCK_USERS = [
   },
 ];
 
+/*
+ * การมอบหมายงานสอน (จำลอง): ใครสอนวิชาไหน ในตำแหน่งอะไร
+ * อัตราค่าตอบแทนคำนวณจากข้อมูลนี้ (ดู rates.js) ผู้ใช้กรอกเองไม่ได้
+ * ผู้ใช้ที่ไม่มีในนี้ = ไม่มีวิชาที่ได้รับมอบหมาย → ยื่นเบิกไม่ได้
+ *
+ * position: lecturer | activityAssistant | lecturerAssistant
+ * program:  thai | english (ใช้กับ lecturer)
+ * students: จำนวนนักศึกษาต่อห้อง (ใช้กับ lecturer)
+ *
+ * TODO: รอ backend ส่งข้อมูลจริง (เจ้าหน้าที่เป็นคนบันทึก)
+ */
+export const MOCK_ASSIGNMENTS = {
+  nitcha: [
+    { courseCode: "CS101", position: "lecturer", program: "thai", students: 150 },
+    { courseCode: "CS341", position: "lecturer", program: "english", students: 220 },
+    { courseCode: "CS361", position: "lecturer", program: "thai", students: 80 },
+  ],
+  ta01: [
+    { courseCode: "CS101", position: "lecturerAssistant" },
+    { courseCode: "CS102", position: "activityAssistant" },
+  ],
+};
+
+export function getAssignments(username) {
+  return MOCK_ASSIGNMENTS[username] || [];
+}
+
 const SESSION_KEY = "teaching-claim-system:user";
 
 /*

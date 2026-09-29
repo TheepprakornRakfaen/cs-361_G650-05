@@ -151,12 +151,14 @@ function claimFieldsFromForm(form) {
   };
 }
 
-export function addClaim(form, status = "Pending") {
+export function addClaim(form, status = "Pending", owner = "") {
   const state = readState();
 
   const claim = {
     id: createClaimId(state.claims),
     ...claimFieldsFromForm(form),
+    // username ของคนที่สร้างคำขอ — ใช้กรองให้แต่ละคนเห็นเฉพาะคำขอของตัวเอง
+    owner,
     status,
     createdAt:
       new Date().toISOString(),

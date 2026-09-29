@@ -82,6 +82,16 @@ export default function Assignments({
                     >
                       {course.name || "-"}
                     </p>
+
+                    {/* ตำแหน่งในวิชานี้ — เป็นตัวกำหนดอัตราค่าตอบแทน */}
+                    {course.positionLabel && (
+                      <p
+                        className="text-xs font-semibold mt-1.5"
+                        style={{ color: C.tealDark }}
+                      >
+                        {course.positionLabel}
+                      </p>
+                    )}
                   </div>
 
                   {rate > 0 && (

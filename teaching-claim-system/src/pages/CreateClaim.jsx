@@ -245,11 +245,8 @@ export default function CreateClaim({
         form.courseCode
     );
 
-  const rate = Number(
-    course?.rate ??
-      form.rate ??
-      0
-  );
+  // อัตรามาจากตำแหน่งในรายวิชาที่ได้รับมอบหมายเท่านั้น (ไม่ใช้ค่าที่อยู่ในฟอร์ม)
+  const rate = Number(course?.rate || 0);
 
   const quota =
     Number(
@@ -388,14 +385,12 @@ export default function CreateClaim({
     if (!form.courseCode) {
       nextErrors.courseCode =
         "กรุณาระบุรายวิชา";
-    }
-
-    if (
-      courses.length === 0 &&
-      (!form.rate || Number(form.rate) <= 0)
-    ) {
-      nextErrors.rate =
-        "กรุณาระบุอัตราค่าตอบแทนต่อชั่วโมง";
+    } else if (!course) {
+      nextErrors.courseCode =
+        "รายวิชานี้ไม่ได้อยู่ในรายวิชาที่คุณได้รับมอบหมาย";
+    } else if (rate <= 0) {
+      nextErrors.courseCode =
+        "ไม่พบอัตราค่าตอบแทนของตำแหน่งนี้ กรุณาติดต่อเจ้าหน้าที่";
     }
 
     setErrors(nextErrors);
@@ -809,69 +804,45 @@ export default function CreateClaim({
                     )}
                   </select>
                 ) : (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <input
-                      className="fld"
-                      value={
-                        form.courseCode
-                      }
-                      placeholder="รหัสรายวิชา เช่น CS101"
-                      onChange={(e) =>
-                        set(
-                          "courseCode",
-                          e.target
-                            .value
-                        )
-                      }
-                    />
-
-                    <input
-                      className="fld"
-                      value={
-                        form.courseName
-                      }
-                      placeholder="ชื่อรายวิชา"
-                      onChange={(e) =>
-                        set(
-                          "courseName",
-                          e.target
-                            .value
-                        )
-                      }
-                    />
+                  /*
+                   * ไม่มีวิชาที่ได้รับมอบหมาย = ยื่นเบิกไม่ได้
+                   * (เดิมให้พิมพ์รหัสวิชาและอัตราเอง ทำให้ใครก็ใส่อัตราเท่าไหร่ก็ได้)
+                   */
+                  <div
+                    className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
+                    style={{ background: "#FEF6D8", color: "#9A7B06" }}
+                  >
+                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                    <span>
+                      ยังไม่มีรายวิชาที่ได้รับมอบหมาย จึงยื่นคำขอเบิกไม่ได้
+                      หากข้อมูลไม่ถูกต้อง กรุณาติดต่อเจ้าหน้าที่
+                    </span>
                   </div>
                 )}
               </Field>
 
-              {courses.length ===
-                0 && (
-                <Field
-                  label="อัตราค่าตอบแทนต่อชั่วโมง"
-                  required
-                  error={
-                    errors.rate
-                  }
+              {/* ตำแหน่งและอัตรามาจากการมอบหมายงาน ผู้ใช้แก้เองไม่ได้ */}
+              {course && (
+                <div
+                  className="rounded-2xl px-4 py-3 text-sm"
+                  style={{ background: C.tealSoft }}
                 >
-                  <input
-                    type="number"
-                    min="0"
-                    className="fld"
-                    value={
-                      form.rate ||
-                      ""
-                    }
-                    placeholder="เช่น 600"
-                    onChange={(e) =>
-                      set(
-                        "rate",
-                        e.target
-                          .value
-                      )
-                    }
-                  />
-                </Field>
+                  <p style={{ color: C.ink }}>
+                    ตำแหน่งในวิชานี้:{" "}
+                    <span className="font-semibold">{course.positionLabel}</span>
+                    {" · "}
+                    อัตรา{" "}
+                    <span className="font-semibold" style={{ color: C.tealDark }}>
+                      ฿{rate.toLocaleString()} / ชั่วโมง
+                    </span>
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: C.sub }}>
+                    {course.rateSource}
+                  </p>
+                </div>
               )}
 
+              {course && (
               <p
                 className="text-xs"
                 style={{
@@ -889,6 +860,7 @@ export default function CreateClaim({
                   {remaining} ชม.
                 </span>
               </p>
+              )}
             </div>
           )}
 
@@ -1015,6 +987,12 @@ export default function CreateClaim({
                   {rate.toLocaleString()}
                   {" / ชั่วโมง"}
                 </div>
+
+                {course && (
+                  <p className="text-xs mt-1.5" style={{ color: C.sub }}>
+                    ตามตำแหน่ง {course.positionLabel} · {course.rateSource}
+                  </p>
+                )}
               </Field>
 
               <Field label="จำนวนเงิน">
@@ -1353,7 +1331,9 @@ export default function CreateClaim({
                 onClick={() =>
                   onSaveDraft?.(buildPayload())
                 }
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
+                // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
+                disabled={courses.length === 0}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   borderColor: C.border,
                   color: C.tealDark,
