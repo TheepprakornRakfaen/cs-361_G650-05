@@ -10,6 +10,10 @@ export const MOCK_USERS = [
     name: "นางสาวนิชชา วรเมธาพงศ์",
     firstName: "นิชชา",
     role: "อาจารย์ผู้สอน",
+    staffId: "T6500123",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "02-564-4440 ต่อ 2001",
   },
   {
     username: "ta01",
@@ -17,6 +21,10 @@ export const MOCK_USERS = [
     name: "นายธีรภัทร ใจดี",
     firstName: "ธีรภัทร",
     role: "ผู้ช่วยสอน (TA)",
+    staffId: "6509610001",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "08x-xxx-xxxx",
   },
 ];
 

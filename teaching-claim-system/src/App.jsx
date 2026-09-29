@@ -14,6 +14,7 @@ import MyClaims from "./pages/MyClaims";
 import CreateClaim from "./pages/CreateClaim";
 import ClaimDetail from "./pages/ClaimDetail";
 import CreateClaimList from "./pages/CreateClaimList";
+import Profile from "./pages/Profile";
 
 import {
   loadState,
@@ -36,6 +37,7 @@ const SUBTITLE_MAP = {
   "claim-create": "กรอกข้อมูลคำขอ",
   rounds: "รอบการยื่น",
   detail: "รายละเอียดคำขอ",
+  profile: "ข้อมูลส่วนตัว",
 };
 
 const SYSTEM_ROUNDS = [
@@ -336,6 +338,16 @@ export default function App() {
           />
         );
 
+      case "profile":
+        return (
+          <Profile
+            user={currentUser}
+            courses={courses}
+            claims={claims}
+            onLogin={() => setView("login")}
+          />
+        );
+
       default:
         return (
           <Home query={search} />
@@ -382,6 +394,7 @@ export default function App() {
         isLoggedIn={isLoggedIn}
         user={currentUser}
         onLogout={handleLogout}
+        onOpenProfile={() => setView("profile")}
       />
 
       {/* =========================

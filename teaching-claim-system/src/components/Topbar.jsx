@@ -6,6 +6,8 @@ import {
   Bell,
   LogIn,
   LogOut,
+  UserRound,
+  ChevronRight,
 } from "lucide-react";
 import { C } from "../theme";
 import { getInitial } from "../data/users";
@@ -21,6 +23,7 @@ export default function Topbar({
   isLoggedIn = false,
   user = null,
   onLogout,
+  onOpenProfile,
 }) {
   // ชื่อที่แสดงมาจากผู้ใช้ที่ล็อกอินจริง (ไม่ fix ชื่อไว้แล้ว)
   const userName = user?.name || "";
@@ -202,6 +205,19 @@ export default function Topbar({
                   </div>
 
                   <div className="p-2">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenProfile && onOpenProfile();
+                      }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#E8F0FA] transition-colors"
+                      style={{ color: C.ink }}
+                    >
+                      <UserRound size={17} style={{ color: C.tealDark }} />
+                      ดูข้อมูลส่วนตัว
+                      <ChevronRight size={16} className="ml-auto" style={{ color: C.sub }} />
+                    </button>
+
                     <button
                       onClick={() => {
                         setMenuOpen(false);
