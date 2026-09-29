@@ -262,6 +262,7 @@ export default function App() {
       case "dashboard":
         return (
           <Dashboard
+            user={currentUser}
             claims={claims}
             goCreate={goCreate}
             goDetail={goDetail}

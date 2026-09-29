@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { ChevronDown, Plus } from "lucide-react";
-import { C, USER_FIRST } from "../theme";
+import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 
-export default function Dashboard({ claims = [], goCreate, goDetail }) {
+export default function Dashboard({ user, claims = [], goCreate, goDetail }) {
   const counts = useMemo(() => {
     const c = {
       Draft: 0,
@@ -97,9 +97,17 @@ export default function Dashboard({ claims = [], goCreate, goDetail }) {
           }}
         />
 
-        <p className="text-lg font-semibold mb-6 relative">
-          {USER_FIRST} สบายดี
-        </p>
+        {/* หัวข้อ + ชื่อเต็มของคนที่ล็อกอิน (ไม่ใช้ชื่อที่ fix ไว้แล้ว) */}
+        <div className="mb-6 relative">
+          <p className="text-2xl font-extrabold">
+            ภาพรวมคำขอเบิกค่าสอน
+          </p>
+          <p className="text-sm opacity-85 mt-1">
+            {user
+              ? `${user.name} · ${user.role || "ผู้ใช้งานระบบ"}`
+              : "เข้าสู่ระบบเพื่อดูคำขอเบิกค่าสอนของคุณ"}
+          </p>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 relative">
           {[

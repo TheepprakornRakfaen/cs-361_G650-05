@@ -21,6 +21,3 @@ export const STATUS_STYLE = {
   Approved: { bg: "#DFF5E6", fg: "#1E8E4F", label: "อนุมัติแล้ว" },
   Rejected: { bg: "#FBE2E2", fg: "#C23B3B", label: "ไม่อนุมัติ" },
 };
-
-export const USER_NAME = "นางสาวนิชชา วรเมธาพงศ์";
-export const USER_FIRST = "นางสาวนิชชา";
