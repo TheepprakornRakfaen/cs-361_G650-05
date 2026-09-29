@@ -139,23 +139,24 @@ export default function Sidebar({
                   onClick={() =>
                     handleNavClick(item.id)
                   }
-                  className="
+                  className={`
                     flex items-center gap-3
                     px-4 py-3
                     rounded-2xl
                     text-[15px]
                     font-semibold
-                    transition-all duration-200
+                    transition-colors duration-200
                     w-full
-                  "
+                    ${active ? "" : "hover:bg-[#E8F0FA]"}
+                  `}
+                  /*
+                   * ใช้ hover ของ Tailwind แทนการแก้ style ผ่าน onMouseEnter/Leave
+                   * เพราะแบบเดิมทำให้เมนูที่เพิ่งออกมาค้างเป็นตัวหนังสือสีขาว
+                   */
                   style={
                     active
                       ? {
-                          background: `linear-gradient(
-                            90deg,
-                            ${C.teal},
-                            #6FA8D9
-                          )`,
+                          background: `linear-gradient(90deg, ${C.teal}, #6FA8D9)`,
                           color: "#fff",
                           boxShadow:
                             "0 4px 12px rgba(30,86,135,0.20)",
@@ -164,18 +165,6 @@ export default function Sidebar({
                           color: C.ink,
                         }
                   }
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background =
-                        C.tealSoft;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background =
-                        "transparent";
-                    }
-                  }}
                 >
                   <Icon
                     size={19}
