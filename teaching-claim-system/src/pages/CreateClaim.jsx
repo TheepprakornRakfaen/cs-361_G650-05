@@ -1,8 +1,4 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   ArrowRight,
@@ -111,7 +107,12 @@ let sessionCounter = 0;
 // แถววันสอนเปล่า (id ใช้เป็น key ของ React)
 function emptySession() {
   sessionCounter += 1;
-  return { id: `s-${Date.now()}-${sessionCounter}`, date: "", hours: "", minutes: "" };
+  return {
+    id: `s-${Date.now()}-${sessionCounter}`,
+    date: "",
+    hours: "",
+    minutes: "",
+  };
 }
 
 // ตรวจไฟล์หลักฐาน คืนข้อความ error หรือ "" ถ้าถูกต้อง
@@ -135,139 +136,104 @@ export default function CreateClaim({
   initialClaim,
   courses = [],
   rounds = [],
+  terms = [],
+  periods = [],
+  selectedTermId,
+  onTermChange,
+  selectedPeriodId,
+  onPeriodChange,
+  termLoading = false,
+  periodLoading = false,
+  termError = "",
   onCancel,
-  onSubmit,
-  onSaveDraft,
-  user,
 }) {
   const isEditing = Boolean(initialClaim);
 
   const firstCourse =
-    courses.find(
-      (c) =>
-        c.code ===
-        presetCourse
-    ) ||
-    courses[0];
+    courses.find((c) => c.code === presetCourse) || courses[0];
 
-  const [step, setStep] =
-    useState(1);
+  const [step, setStep] = useState(1);
 
-  const [form, setForm] =
-    useState(() => {
-      if (initialClaim) {
-        return {
-          semester:
-            initialClaim.semester ||
-            "1/2569",
-          round:
-            initialClaim.round || "",
-          courseCode:
-            initialClaim.courseCode ||
-            "",
-          courseName:
-            initialClaim.courseName ||
-            "",
-          rate: Number(
-            initialClaim.rate || 0
-          ),
-          // คำขอใหม่มี sessions (หลายวัน) ส่วนคำขอเก่ามีแค่วันเดียว + ชั่วโมงทศนิยม
-          sessions:
-            Array.isArray(initialClaim.sessions) &&
-            initialClaim.sessions.length > 0
-              ? initialClaim.sessions.map((s) => ({
-                  ...emptySession(),
-                  date: s.date || "",
-                  hours: s.hours ? String(s.hours) : "",
-                  minutes: s.minutes ? String(s.minutes) : "",
-                }))
-              : [
-                  {
-                    ...emptySession(),
-                    date: /^\d{4}-\d{2}-\d{2}$/.test(initialClaim.teachingDate || "")
-                      ? initialClaim.teachingDate
-                      : "",
-                    ...hoursToParts(initialClaim.hours),
-                  },
-                ],
-          notes:
-            initialClaim.notes || "",
-          fileName:
-            initialClaim.evidence || "",
-        };
-      }
-
+  const [form, setForm] = useState(() => {
+    if (initialClaim) {
       return {
-        semester: "1/2569",
+        semester: initialClaim.semester || "1/2569",
+        termId: initialClaim.termId || "",
+        round: initialClaim.round || "",
 
-        round: presetRound
-          ? `${presetRound.label || ""} · ${
-              presetRound.period || ""
-            }`
-          : rounds[0]
-          ? `${rounds[0].label || ""} · ${
-              rounds[0].period || ""
-            }`
+        periodId: initialClaim.periodId || "",
+        courseCode: initialClaim.courseCode || "",
+        courseName: initialClaim.courseName || "",
+        rate: Number(initialClaim.rate || 0),
+        // คำขอใหม่มี sessions (หลายวัน) ส่วนคำขอเก่ามีแค่วันเดียว + ชั่วโมงทศนิยม
+        sessions:
+          Array.isArray(initialClaim.sessions) &&
+          initialClaim.sessions.length > 0
+            ? initialClaim.sessions.map((s) => ({
+                ...emptySession(),
+                date: s.date || "",
+                hours: s.hours ? String(s.hours) : "",
+                minutes: s.minutes ? String(s.minutes) : "",
+              }))
+            : [
+                {
+                  ...emptySession(),
+                  date: /^\d{4}-\d{2}-\d{2}$/.test(
+                    initialClaim.teachingDate || "",
+                  )
+                    ? initialClaim.teachingDate
+                    : "",
+                  ...hoursToParts(initialClaim.hours),
+                },
+              ],
+        notes: initialClaim.notes || "",
+        fileName: initialClaim.evidence || "",
+      };
+    }
+
+    return {
+      semester: "1/2569",
+
+      termId: "",
+
+      round: presetRound
+        ? `${presetRound.label || ""} · ${presetRound.period || ""}`
+        : rounds[0]
+          ? `${rounds[0].label || ""} · ${rounds[0].period || ""}`
           : "",
 
-        courseCode:
-          presetCourse ||
-          firstCourse?.code ||
-          "",
+      periodId: presetRound?.id || "",
 
-        courseName:
-          firstCourse?.name ||
-          "",
+      courseCode: presetCourse || firstCourse?.code || "",
 
-        rate:
-          Number(
-            firstCourse?.rate || 0
-          ),
+      courseName: firstCourse?.name || "",
 
-        sessions: [emptySession()],
+      rate: Number(firstCourse?.rate || 0),
 
-        notes: "",
+      sessions: [emptySession()],
 
-        fileName: "",
-      };
-    });
+      notes: "",
 
-  const [errors, setErrors] =
-    useState({});
+      fileName: "",
+    };
+  });
 
-  const fileInputRef =
-    useRef(null);
+  const [errors, setErrors] = useState({});
 
-  const course =
-    courses.find(
-      (c) =>
-        c.code ===
-        form.courseCode
-    );
+  const fileInputRef = useRef(null);
+
+  const course = courses.find((c) => c.code === form.courseCode);
 
   // อัตรามาจากตำแหน่งในรายวิชาที่ได้รับมอบหมายเท่านั้น (ไม่ใช้ค่าที่อยู่ในฟอร์ม)
   const rate = Number(course?.rate || 0);
 
-  const quota =
-    Number(
-      course?.quota
-    ) || 45;
+  const quota = Number(course?.quota) || 45;
 
-  const used =
-    Number(
-      course?.used
-    ) || 0;
+  const used = Number(course?.used) || 0;
 
-  const remaining =
-    Math.max(
-      quota - used,
-      0
-    );
+  const remaining = Math.max(quota - used, 0);
 
-  const set = (
-    key,
-    value
-  ) => {
+  const set = (key, value) => {
     setForm((current) => ({
       ...current,
       [key]: value,
@@ -279,24 +245,20 @@ export default function CreateClaim({
    */
   const totalMinutes = form.sessions.reduce(
     (sum, session) => sum + sessionMinutes(session),
-    0
+    0,
   );
 
   const totalHours = totalMinutes / 60;
 
   const amount = roundMoney(totalHours * rate);
 
-  const filledSessions = form.sessions.filter(
-    (session) => session.date
-  );
+  const filledSessions = form.sessions.filter((session) => session.date);
 
   const updateSession = (id, key, value) => {
     setForm((current) => ({
       ...current,
       sessions: current.sessions.map((session) =>
-        session.id === id
-          ? { ...session, [key]: value }
-          : session
+        session.id === id ? { ...session, [key]: value } : session,
       ),
     }));
   };
@@ -308,7 +270,7 @@ export default function CreateClaim({
         : {
             ...current,
             sessions: [...current.sessions, emptySession()],
-          }
+          },
     );
   };
 
@@ -328,9 +290,7 @@ export default function CreateClaim({
    * เพื่อให้หน้าอื่นและ backend ที่ยังใช้รูปแบบเดิมอ่านได้
    */
   function buildPayload() {
-    const sortedDates = filledSessions
-      .map((session) => session.date)
-      .sort();
+    const sortedDates = filledSessions.map((session) => session.date).sort();
 
     return {
       ...form,
@@ -352,39 +312,25 @@ export default function CreateClaim({
    * preset course
    */
   useEffect(() => {
-    if (
-      presetCourse &&
-      course
-    ) {
-      setForm(
-        (current) => ({
-          ...current,
-          courseCode:
-            course.code,
-          courseName:
-            course.name || "",
-          rate: Number(
-            course.rate || 0
-          ),
-        })
-      );
+    if (presetCourse && course) {
+      setForm((current) => ({
+        ...current,
+        courseCode: course.code,
+        courseName: course.name || "",
+        rate: Number(course.rate || 0),
+      }));
     }
-  }, [
-    presetCourse,
-    course?.code,
-  ]);
+  }, [presetCourse, course?.code]);
 
   function validateStep1() {
     const nextErrors = {};
 
     if (!form.round) {
-      nextErrors.round =
-        "กรุณาเลือกรอบการยื่น";
+      nextErrors.round = "กรุณาเลือกรอบการยื่น";
     }
 
     if (!form.courseCode) {
-      nextErrors.courseCode =
-        "กรุณาระบุรายวิชา";
+      nextErrors.courseCode = "กรุณาระบุรายวิชา";
     } else if (!course) {
       nextErrors.courseCode =
         "รายวิชานี้ไม่ได้อยู่ในรายวิชาที่คุณได้รับมอบหมาย";
@@ -395,9 +341,7 @@ export default function CreateClaim({
 
     setErrors(nextErrors);
 
-    return (
-      Object.keys(nextErrors).length === 0
-    );
+    return Object.keys(nextErrors).length === 0;
   }
 
   function validateStep2() {
@@ -414,7 +358,8 @@ export default function CreateClaim({
 
       const isDuplicate =
         session.date &&
-        form.sessions.findIndex((other) => other.date === session.date) !== index;
+        form.sessions.findIndex((other) => other.date === session.date) !==
+          index;
 
       if (!dateError && isDuplicate) {
         dateError = "วันที่ซ้ำกับแถวด้านบน";
@@ -430,55 +375,32 @@ export default function CreateClaim({
     if (Object.keys(sessionErrors).length > 0) {
       nextErrors.sessions = sessionErrors;
     } else if (totalMinutes > remaining * 60) {
-      nextErrors.sessionsTotal =
-        `เวลาสอนรวม ${formatDuration(totalMinutes)} เกินชั่วโมงคงเหลือ (${remaining} ชม.)`;
+      nextErrors.sessionsTotal = `เวลาสอนรวม ${formatDuration(totalMinutes)} เกินชั่วโมงคงเหลือ (${remaining} ชม.)`;
     }
 
-    if (
-      form.notes.length >
-      MAX_NOTES_LENGTH
-    ) {
-      nextErrors.notes =
-        `รายละเอียดต้องไม่เกิน ${MAX_NOTES_LENGTH} ตัวอักษร`;
+    if (form.notes.length > MAX_NOTES_LENGTH) {
+      nextErrors.notes = `รายละเอียดต้องไม่เกิน ${MAX_NOTES_LENGTH} ตัวอักษร`;
     }
 
     if (!form.courseCode) {
-      nextErrors.courseCode =
-        "กรุณาระบุรายวิชา";
+      nextErrors.courseCode = "กรุณาระบุรายวิชา";
     }
 
-    setErrors(
-      nextErrors
-    );
+    setErrors(nextErrors);
 
-    return (
-      Object.keys(
-        nextErrors
-      ).length === 0
-    );
+    return Object.keys(nextErrors).length === 0;
   }
 
   function next() {
-    if (
-      step === 1 &&
-      !validateStep1()
-    ) {
+    if (step === 1 && !validateStep1()) {
       return;
     }
 
-    if (
-      step === 2 &&
-      !validateStep2()
-    ) {
+    if (step === 2 && !validateStep2()) {
       return;
     }
 
-    setStep((current) =>
-      Math.min(
-        4,
-        current + 1
-      )
-    );
+    setStep((current) => Math.min(4, current + 1));
   }
 
   function back() {
@@ -487,18 +409,13 @@ export default function CreateClaim({
       return;
     }
 
-    setStep((current) =>
-      current - 1
-    );
+    setStep((current) => current - 1);
   }
 
-  function handleFile(
-    file
-  ) {
+  function handleFile(file) {
     if (!file) return;
 
-    const fileError =
-      validateFile(file);
+    const fileError = validateFile(file);
 
     setErrors((current) => ({
       ...current,
@@ -507,10 +424,7 @@ export default function CreateClaim({
 
     if (fileError) return;
 
-    set(
-      "fileName",
-      file.name
-    );
+    set("fileName", file.name);
   }
 
   /*
@@ -535,74 +449,50 @@ export default function CreateClaim({
     <div className="w-full max-w-none">
       {/* Steps */}
       <div className="flex items-center justify-between gap-3 mb-8 w-full">
-        {STEP_TITLES.map(
-          (
-            title,
-            index
-          ) => (
-            <React.Fragment
-              key={title}
-            >
-              <div className="flex items-center gap-2">
-                <div
-                 className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold shrink-0"
-                  style={{
-                    background:
-                      step ===
-                      index + 1
-                        ? C.teal
-                        : step >
-                          index + 1
+        {STEP_TITLES.map((title, index) => (
+          <React.Fragment key={title}>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold shrink-0"
+                style={{
+                  background:
+                    step === index + 1
+                      ? C.teal
+                      : step > index + 1
                         ? C.tealSoft
                         : "#EEF2F5",
 
-                    color:
-                      step ===
-                      index + 1
-                        ? "#fff"
-                        : step >
-                          index + 1
+                  color:
+                    step === index + 1
+                      ? "#fff"
+                      : step > index + 1
                         ? C.tealDark
                         : C.sub,
-                  }}
-                >
-                  {step >
-                  index + 1 ? (
-                    <CheckCircle2
-                      size={14}
-                    />
-                  ) : (
-                    index + 1
-                  )}
-                </div>
-
-                <span
-                  className="text-sm font-semibold whitespace-nowrap hidden sm:inline"
-                  style={{
-                    color:
-                      step >=
-                      index + 1
-                        ? C.ink
-                        : C.sub,
-                  }}
-                >
-                  {title}
-                </span>
+                }}
+              >
+                {step > index + 1 ? <CheckCircle2 size={14} /> : index + 1}
               </div>
 
-              {index <
-                3 && (
-                <div
-                  className="flex-1 h-[2px] min-w-6"
-                  style={{
-                    background:
-                      C.border,
-                  }}
-                />
-              )}
-            </React.Fragment>
-          )
-        )}
+              <span
+                className="text-sm font-semibold whitespace-nowrap hidden sm:inline"
+                style={{
+                  color: step >= index + 1 ? C.ink : C.sub,
+                }}
+              >
+                {title}
+              </span>
+            </div>
+
+            {index < 3 && (
+              <div
+                className="flex-1 h-[2px] min-w-6"
+                style={{
+                  background: C.border,
+                }}
+              />
+            )}
+          </React.Fragment>
+        ))}
       </div>
 
       <SectionCard className="overflow-hidden">
@@ -613,8 +503,10 @@ export default function CreateClaim({
           }}
         />
 
-        <div className="p-6 m
-        d:p-10">
+        <div
+          className="p-6 m
+        d:p-10"
+        >
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2
@@ -623,11 +515,7 @@ export default function CreateClaim({
                   color: C.ink,
                 }}
               >
-                {
-                  STEP_TITLES[
-                    step - 1
-                  ]
-                }
+                {STEP_TITLES[step - 1]}
               </h2>
 
               <p
@@ -647,10 +535,8 @@ export default function CreateClaim({
               <span
                 className="text-xs font-semibold px-3 py-1 rounded-full"
                 style={{
-                  background:
-                    C.tealSoft,
-                  color:
-                    C.tealDark,
+                  background: C.tealSoft,
+                  color: C.tealDark,
                 }}
               >
                 {user.role}
@@ -661,147 +547,137 @@ export default function CreateClaim({
           {/* STEP 1 */}
           {step === 1 && (
             <div className="space-y-5">
-              <Field
-                label="ภาคการศึกษา"
-                required
-              >
+              <Field label="ภาคการศึกษา" required>
                 <select
                   className="fld"
-                  value={
-                    form.semester
-                  }
-                  onChange={(e) =>
-                    set(
-                      "semester",
-                      e.target
-                        .value
-                    )
-                  }
+                  value={selectedTermId ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const termId = value ? Number(value) : null;
+
+                    const selectedTerm = terms.find(
+                      (term) => Number(term.id) === termId,
+                    );
+
+                    setForm((current) => ({
+                      ...current,
+
+                      termId: termId ?? "",
+                      semester: selectedTerm
+                        ? `${selectedTerm.semester}/${selectedTerm.year}`
+                        : "",
+
+                      // เปลี่ยนภาคแล้วต้องเลือกรอบใหม่
+                      periodId: "",
+                      round: "",
+
+                      // เปลี่ยนภาคแล้วต้องเลือกรายวิชาใหม่
+                      courseCode: "",
+                      courseName: "",
+                      rate: 0,
+                    }));
+
+                    onTermChange?.(termId);
+                    onPeriodChange?.(null);
+                  }}
+                  disabled={termLoading}
                 >
-                  <option>
-                    1/2569
+                  <option value="">
+                    {termLoading
+                      ? "กำลังโหลดภาคการศึกษา..."
+                      : "เลือกภาคการศึกษา"}
                   </option>
 
-                  <option>
-                    2/2569
-                  </option>
+                  {terms.map((term) => (
+                    <option key={term.id} value={term.id}>
+                      {term.semester}/{term.year}
+                    </option>
+                  ))}
                 </select>
               </Field>
 
-              <Field
-                label="รอบการยื่น"
-                required
-                error={
-                  errors.round
-                }
-              >
+              <Field label="รอบการยื่น" required error={errors.round}>
                 <select
                   className="fld"
-                  value={
-                    form.round
-                  }
-                  onChange={(e) =>
-                    set(
-                      "round",
-                      e.target
-                        .value
-                    )
-                  }
+                  value={selectedPeriodId ?? ""}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const periodId = value ? Number(value) : null;
+
+                    const selectedPeriod = periods.find(
+                      (period) => Number(period.id) === periodId,
+                    );
+
+                    setForm((current) => ({
+                      ...current,
+
+                      periodId: periodId ?? "",
+                      round: selectedPeriod
+                        ? selectedPeriod.label ||
+                          `${selectedPeriod.month}/${selectedPeriod.year || ""}`
+                        : "",
+                    }));
+
+                    onPeriodChange?.(periodId);
+                  }}
+                  disabled={!selectedTermId || periodLoading}
                 >
                   <option value="">
-                    เลือกรอบการยื่น
+                    {!selectedTermId
+                      ? "เลือกภาคการศึกษาก่อน"
+                      : periodLoading
+                        ? "กำลังโหลดรอบการยื่น..."
+                        : periods.length === 0
+                          ? "ไม่มีรอบการยื่น"
+                          : "เลือกรอบการยื่น"}
                   </option>
 
-                  {rounds.map(
-                    (round) => (
-                      <option
-                        key={
-                          round.id
-                        }
-                        value={`${round.label || ""} · ${
-                          round.period ||
-                          ""
-                        }`}
-                      >
-                        {round.label}
+                  {periods.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.label || `เดือน ${period.month}`}
 
-                        {round.period
-                          ? ` · ${round.period}`
-                          : ""}
-                      </option>
-                    )
+                      {period.open_at && period.close_at
+                        ? ` · ${period.open_at} - ${period.close_at}`
+                        : ""}
+                    </option>
+                  ))}
+
+                  {termError && (
+                    <p className="text-xs mt-1.5" style={{ color: C.rose }}>
+                      {termError}
+                    </p>
                   )}
                 </select>
               </Field>
 
-              <Field
-                label="รายวิชา"
-                required
-                error={
-                  errors.courseCode
-                }
-              >
-                {courses.length >
-                0 ? (
+              <Field label="รายวิชา" required error={errors.courseCode}>
+                {courses.length > 0 ? (
                   <select
                     className="fld"
-                    value={
-                      form.courseCode
-                    }
+                    value={form.courseCode}
                     onChange={(e) => {
-                      const selected =
-                        courses.find(
-                          (item) =>
-                            item.code ===
-                            e.target
-                              .value
-                        );
-
-                      setForm(
-                        (
-                          current
-                        ) => ({
-                          ...current,
-
-                          courseCode:
-                            e.target
-                              .value,
-
-                          courseName:
-                            selected?.name ||
-                            "",
-
-                          rate: Number(
-                            selected?.rate ||
-                              0
-                          ),
-                        })
+                      const selected = courses.find(
+                        (item) => item.code === e.target.value,
                       );
+
+                      setForm((current) => ({
+                        ...current,
+
+                        courseCode: e.target.value,
+
+                        courseName: selected?.name || "",
+
+                        rate: Number(selected?.rate || 0),
+                      }));
                     }}
                   >
-                    <option value="">
-                      เลือกรายวิชา
-                    </option>
+                    <option value="">เลือกรายวิชา</option>
 
-                    {courses.map(
-                      (item) => (
-                        <option
-                          key={
-                            item.code
-                          }
-                          value={
-                            item.code
-                          }
-                        >
-                          {
-                            item.code
-                          }{" "}
-                          –{" "}
-                          {item.name ||
-                            "ไม่ระบุชื่อ"}
-                        </option>
-                      )
-                    )}
+                    {courses.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.code} – {item.name || "ไม่ระบุชื่อ"}
+                      </option>
+                    ))}
                   </select>
                 ) : (
                   /*
@@ -829,10 +705,15 @@ export default function CreateClaim({
                 >
                   <p style={{ color: C.ink }}>
                     ตำแหน่งในวิชานี้:{" "}
-                    <span className="font-semibold">{course.positionLabel}</span>
+                    <span className="font-semibold">
+                      {course.positionLabel}
+                    </span>
                     {" · "}
                     อัตรา{" "}
-                    <span className="font-semibold" style={{ color: C.tealDark }}>
+                    <span
+                      className="font-semibold"
+                      style={{ color: C.tealDark }}
+                    >
                       ฿{rate.toLocaleString()} / ชั่วโมง
                     </span>
                   </p>
@@ -843,23 +724,22 @@ export default function CreateClaim({
               )}
 
               {course && (
-              <p
-                className="text-xs"
-                style={{
-                  color: C.sub,
-                }}
-              >
-                ชั่วโมงคงเหลือ:{" "}
-                <span
-                  className="font-semibold"
+                <p
+                  className="text-xs"
                   style={{
-                    color:
-                      C.tealDark,
+                    color: C.sub,
                   }}
                 >
-                  {remaining} ชม.
-                </span>
-              </p>
+                  ชั่วโมงคงเหลือ:{" "}
+                  <span
+                    className="font-semibold"
+                    style={{
+                      color: C.tealDark,
+                    }}
+                  >
+                    {remaining} ชม.
+                  </span>
+                </p>
               )}
             </div>
           )}
@@ -869,7 +749,10 @@ export default function CreateClaim({
             <div className="space-y-5">
               {/* วันและเวลาที่สอน — เพิ่มได้หลายวันในคำขอเดียว */}
               <div>
-                <div className="flex items-center gap-1 text-sm font-semibold mb-2" style={{ color: C.ink }}>
+                <div
+                  className="flex items-center gap-1 text-sm font-semibold mb-2"
+                  style={{ color: C.ink }}
+                >
                   <span>วันและเวลาที่สอน</span>
                   <span style={{ color: C.rose }}>*</span>
                 </div>
@@ -890,7 +773,10 @@ export default function CreateClaim({
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                            style={{ background: C.tealSoft, color: C.tealDark }}
+                            style={{
+                              background: C.tealSoft,
+                              color: C.tealDark,
+                            }}
                           >
                             {index + 1}
                           </span>
@@ -902,7 +788,9 @@ export default function CreateClaim({
                             min={SEMESTER_START}
                             max={todayISO()}
                             value={session.date}
-                            onChange={(e) => updateSession(session.id, "date", e.target.value)}
+                            onChange={(e) =>
+                              updateSession(session.id, "date", e.target.value)
+                            }
                           />
 
                           {/* พิมพ์เองได้ หรือกดเลือกจากรายการ (ชม. 0–12, นาทีทีละ 5 แต่พิมพ์ 0–59 ได้ทุกเลข) */}
@@ -912,18 +800,26 @@ export default function CreateClaim({
                               value={session.hours}
                               max={MAX_HOURS_PER_DAY}
                               options={HOUR_OPTIONS}
-                              onChange={(value) => updateSession(session.id, "hours", value)}
+                              onChange={(value) =>
+                                updateSession(session.id, "hours", value)
+                              }
                             />
-                            <span className="text-sm" style={{ color: C.sub }}>ชม.</span>
+                            <span className="text-sm" style={{ color: C.sub }}>
+                              ชม.
+                            </span>
 
                             <NumberCombo
                               ariaLabel="นาที"
                               value={session.minutes}
                               max={59}
                               options={MINUTE_OPTIONS}
-                              onChange={(value) => updateSession(session.id, "minutes", value)}
+                              onChange={(value) =>
+                                updateSession(session.id, "minutes", value)
+                              }
                             />
-                            <span className="text-sm" style={{ color: C.sub }}>นาที</span>
+                            <span className="text-sm" style={{ color: C.sub }}>
+                              นาที
+                            </span>
                           </div>
 
                           {form.sessions.length > 1 && (
@@ -939,8 +835,13 @@ export default function CreateClaim({
                         </div>
 
                         {rowError && (
-                          <p className="text-xs mt-2 pl-9" style={{ color: C.rose }}>
-                            {[rowError.date, rowError.time].filter(Boolean).join(" · ")}
+                          <p
+                            className="text-xs mt-2 pl-9"
+                            style={{ color: C.rose }}
+                          >
+                            {[rowError.date, rowError.time]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </p>
                         )}
                       </div>
@@ -983,8 +884,7 @@ export default function CreateClaim({
                     color: C.ink,
                   }}
                 >
-                  ฿
-                  {rate.toLocaleString()}
+                  ฿{rate.toLocaleString()}
                   {" / ชั่วโมง"}
                 </div>
 
@@ -1001,8 +901,7 @@ export default function CreateClaim({
                     size={16}
                     className="absolute left-4 top-1/2 -translate-y-1/2"
                     style={{
-                      color:
-                        C.sub,
+                      color: C.sub,
                     }}
                   />
 
@@ -1011,45 +910,28 @@ export default function CreateClaim({
                     readOnly
                     className="fld bg-[#F8FBFC]"
                     style={{ paddingLeft: "2.75rem" }}
-                    value={
-                      totalMinutes
-                        ? amount.toLocaleString()
-                        : ""
-                    }
+                    value={totalMinutes ? amount.toLocaleString() : ""}
                     placeholder="คำนวณอัตโนมัติ"
                   />
                 </div>
 
                 {totalMinutes > 0 && (
                   <p className="text-xs mt-1.5" style={{ color: C.sub }}>
-                    {formatDuration(totalMinutes)} × ฿{rate.toLocaleString()}/ชม. (คิดตามนาทีจริง)
+                    {formatDuration(totalMinutes)} × ฿{rate.toLocaleString()}
+                    /ชม. (คิดตามนาทีจริง)
                   </p>
                 )}
               </Field>
 
-              <Field
-                label="รายละเอียดเพิ่มเติม (ถ้ามี)"
-                error={errors.notes}
-              >
+              <Field label="รายละเอียดเพิ่มเติม (ถ้ามี)" error={errors.notes}>
                 <textarea
                   rows={3}
                   maxLength={MAX_NOTES_LENGTH}
                   className="fld resize-none"
-                  value={
-                    form.notes
-                  }
-                  onChange={(e) =>
-                    set(
-                      "notes",
-                      e.target
-                        .value
-                    )
-                  }
+                  value={form.notes}
+                  onChange={(e) => set("notes", e.target.value)}
                 />
-                <p
-                  className="text-xs text-right mt-1"
-                  style={{ color: C.sub }}
-                >
+                <p className="text-xs text-right mt-1" style={{ color: C.sub }}>
                   {form.notes.length}/{MAX_NOTES_LENGTH}
                 </p>
               </Field>
@@ -1071,35 +953,26 @@ export default function CreateClaim({
               <div
                 className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-12 px-6 text-center"
                 style={{
-                  borderColor:
-                    C.border,
-                  background:
-                    "#FAFDFE",
+                  borderColor: C.border,
+                  background: "#FAFDFE",
                 }}
-                onDragOver={(e) =>
-                  e.preventDefault()
-                }
+                onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
 
-                  handleFile(
-                    e.dataTransfer
-                      .files[0]
-                  );
+                  handleFile(e.dataTransfer.files[0]);
                 }}
               >
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
                   style={{
-                    background:
-                      C.tealSoft,
+                    background: C.tealSoft,
                   }}
                 >
                   <UploadCloud
                     size={24}
                     style={{
-                      color:
-                        C.tealDark,
+                      color: C.tealDark,
                     }}
                   />
                 </div>
@@ -1110,8 +983,7 @@ export default function CreateClaim({
                     color: C.ink,
                   }}
                 >
-                  เลือกไฟล์
-                  หรือลากมาวางที่นี่
+                  เลือกไฟล์ หรือลากมาวางที่นี่
                 </p>
 
                 <p
@@ -1120,35 +992,25 @@ export default function CreateClaim({
                     color: C.sub,
                   }}
                 >
-                  PDF, JPG, PNG ไม่เกิน {MAX_FILE_MB} MB · เวอร์ชันนี้จัดเก็บเฉพาะชื่อไฟล์ใน localStorage
+                  PDF, JPG, PNG ไม่เกิน {MAX_FILE_MB} MB ·
+                  เวอร์ชันนี้จัดเก็บเฉพาะชื่อไฟล์ใน localStorage
                 </p>
 
                 <input
-                  ref={
-                    fileInputRef
-                  }
+                  ref={fileInputRef}
                   type="file"
                   accept={ALLOWED_FILE_EXTENSIONS.join(",")}
                   hidden
-                  onChange={(e) =>
-                    handleFile(
-                      e.target
-                        .files[0]
-                    )
-                  }
+                  onChange={(e) => handleFile(e.target.files[0])}
                 />
 
                 <button
                   type="button"
-                  onClick={() =>
-                    fileInputRef.current?.click()
-                  }
+                  onClick={() => fileInputRef.current?.click()}
                   className="px-5 py-2 rounded-full text-sm font-semibold border"
                   style={{
-                    borderColor:
-                      C.teal,
-                    color:
-                      C.tealDark,
+                    borderColor: C.teal,
+                    color: C.tealDark,
                   }}
                 >
                   เลือกไฟล์
@@ -1169,46 +1031,32 @@ export default function CreateClaim({
                 <div
                   className="mt-4 flex items-center justify-between rounded-2xl border px-5 py-3.5"
                   style={{
-                    borderColor:
-                      C.border,
+                    borderColor: C.border,
                   }}
                 >
                   <div className="flex items-center gap-3">
                     <FileText
                       size={18}
                       style={{
-                        color:
-                          C.tealDark,
+                        color: C.tealDark,
                       }}
                     />
 
                     <p
                       className="text-sm font-medium"
                       style={{
-                        color:
-                          C.ink,
+                        color: C.ink,
                       }}
                     >
-                      {
-                        form.fileName
-                      }
+                      {form.fileName}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      set(
-                        "fileName",
-                        ""
-                      )
-                    }
-                  >
+                  <button type="button" onClick={() => set("fileName", "")}>
                     <Trash2
                       size={16}
                       style={{
-                        color:
-                          C.sub,
+                        color: C.sub,
                       }}
                     />
                   </button>
@@ -1222,18 +1070,12 @@ export default function CreateClaim({
             <div className="space-y-5">
               <SummaryRow
                 label="รายวิชา"
-                value={`${form.courseCode || "-"} — ${
-                  form.courseName ||
-                  "-"
-                }`}
+                value={`${form.courseCode || "-"} — ${form.courseName || "-"}`}
               />
 
               <SummaryRow
                 label="ภาคการศึกษา / รอบ"
-                value={`${form.semester} · ${
-                  form.round ||
-                  "-"
-                }`}
+                value={`${form.semester} · ${form.round || "-"}`}
               />
 
               <SummaryRow
@@ -1273,38 +1115,25 @@ export default function CreateClaim({
 
               <SummaryRow
                 label="รายละเอียดเพิ่มเติม"
-                value={
-                  form.notes ||
-                  "—"
-                }
+                value={form.notes || "—"}
               />
 
               <SummaryRow
                 label="หลักฐานแนบ"
-                value={
-                  form.fileName ||
-                  "ไม่มีไฟล์แนบ"
-                }
+                value={form.fileName || "ไม่มีไฟล์แนบ"}
               />
 
               {!form.fileName && (
                 <div
                   className="flex items-start gap-2 text-xs rounded-xl px-4 py-3"
                   style={{
-                    background:
-                      "#FEF6D8",
-                    color:
-                      "#9A7B06",
+                    background: "#FEF6D8",
+                    color: "#9A7B06",
                   }}
                 >
-                  <AlertTriangle
-                    size={15}
-                  />
+                  <AlertTriangle size={15} />
 
-                  <span>
-                    ยังไม่ได้แนบหลักฐาน
-                    สามารถยื่นคำขอได้
-                  </span>
+                  <span>ยังไม่ได้แนบหลักฐาน สามารถยื่นคำขอได้</span>
                 </div>
               )}
             </div>
@@ -1317,8 +1146,7 @@ export default function CreateClaim({
               onClick={back}
               className="px-6 py-2.5 rounded-full text-sm font-semibold"
               style={{
-                background:
-                  "#EEF2F5",
+                background: "#EEF2F5",
                 color: C.ink,
               }}
             >
@@ -1328,9 +1156,7 @@ export default function CreateClaim({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() =>
-                  onSaveDraft?.(buildPayload())
-                }
+                onClick={() => onSaveDraft?.(buildPayload())}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={courses.length === 0}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1353,27 +1179,20 @@ export default function CreateClaim({
                   }}
                 >
                   ถัดไป
-                  <ArrowRight
-                    size={15}
-                  />
+                  <ArrowRight size={15} />
                 </button>
               ) : (
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() =>
-                      setStep(1)
-                    }
+                    onClick={() => setStep(1)}
                     className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
                     style={{
-                      borderColor:
-                        C.border,
+                      borderColor: C.border,
                       color: C.ink,
                     }}
                   >
-                    <Pencil
-                      size={14}
-                    />
+                    <Pencil size={14} />
                     แก้ไข
                   </button>
 
@@ -1385,12 +1204,8 @@ export default function CreateClaim({
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                     }}
                   >
-                    <Send
-                      size={14}
-                    />
-                    {isEditing
-                      ? "ยื่นคำขออีกครั้ง"
-                      : "ยื่นคำขอ"}
+                    <Send size={14} />
+                    {isEditing ? "ยื่นคำขออีกครั้ง" : "ยื่นคำขอ"}
                   </button>
                 </div>
               )}
