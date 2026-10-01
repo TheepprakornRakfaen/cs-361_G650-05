@@ -24,9 +24,9 @@ import {
 } from "./data/store";
 
 import {
-  loadSessionUser,
-  saveSessionUser,
-} from "./data/users";
+  getAuthenticatedUser,
+  logoutFromCognito,
+} from "./services/auth";
 
 import { buildUserCourses } from "./data/rates";
 
@@ -95,13 +95,45 @@ export default function App() {
    * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
    */
   const [currentUser, setCurrentUser] =
-    useState(() => loadSessionUser());
+    useState(null);
+
+  const [authLoading, setAuthLoading] = 
+    useState(true);
 
   const isLoggedIn = Boolean(currentUser);
 
+  /*
+  * ตรวจ Cognito session
+  * ทุกครั้งที่เปิดเว็บ / refresh
+  */
   useEffect(() => {
-    saveSessionUser(currentUser);
-  }, [currentUser]);
+    let active = true;
+
+    async function restoreSession() {
+      try {
+        const user =
+          await getAuthenticatedUser();
+
+        if (active) {
+          setCurrentUser(user);
+        }
+      } catch {
+        if (active) {
+          setCurrentUser(null);
+        }
+      } finally {
+        if (active) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [state, setState] = useState(() =>
     loadState()
@@ -213,9 +245,18 @@ export default function App() {
   /*
    * ออกจากระบบ
    */
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setView("home");
+  const handleLogout = async () => {
+    try {
+      await logoutFromCognito();
+    } catch (error) {
+      console.error(
+        "Logout error:",
+        error
+      );
+    } finally {
+      setCurrentUser(null);
+      setView("home");
+    }
   };
 
   /*
@@ -402,6 +443,23 @@ export default function App() {
    * หมายเหตุ: เป็นการกันฝั่ง frontend เพื่อการใช้งานเท่านั้น
    * ความปลอดภัยจริงต้องให้ API ตรวจ token จาก Cognito
    */
+
+  if (authLoading) {
+    return (
+      <div
+        className="w-full min-h-screen flex items-center justify-center"
+        style={{
+          background: C.bg,
+          color: C.tealDark,
+        }}
+      >
+        <p className="text-sm font-semibold">
+          กำลังตรวจสอบการเข้าสู่ระบบ...
+        </p>
+      </div>
+    );
+  }
+  
   const needsLogin =
     !isLoggedIn && PROTECTED_VIEWS.has(view);
 

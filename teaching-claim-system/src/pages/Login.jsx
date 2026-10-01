@@ -11,7 +11,7 @@ import {
   FileCheck2,
 } from "lucide-react";
 import { C } from "../theme";
-import { resolveUser } from "../data/users";
+import { loginWithCognito, confirmNewPassword} from "../services/auth";
 
 const FEATURES = [
   { icon: Wallet, text: "ยื่นคำขอเบิกค่าสอนได้ทุกที่ ทุกเวลา" },
@@ -25,16 +25,142 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const [loading, setLoading] =
+  useState(false);
+
+  const [
+    requiresNewPassword,
+    setRequiresNewPassword,
+  ] = useState(false);
+
+  const [newPassword, setNewPassword] =
+    useState("");
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!email.trim() || !password) {
-      setError("กรุณากรอกอีเมล / รหัสผู้ใช้ และรหัสผ่าน");
+    setError("");
+
+    if (requiresNewPassword) {
+      if (!newPassword) {
+        setError(
+          "กรุณากรอกรหัสผ่านใหม่"
+        );
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const result =
+          await confirmNewPassword(
+            newPassword
+          );
+
+        if (result.signedIn) {
+          onLoginSuccess?.(
+            result.user
+          );
+          return;
+        }
+
+        setError(
+          "ยังไม่สามารถเข้าสู่ระบบได้"
+        );
+      } catch (err) {
+        console.error(err);
+
+        setError(
+          "ไม่สามารถตั้งรหัสผ่านใหม่ได้"
+        );
+      } finally {
+        setLoading(false);
+      }
+
       return;
     }
 
-    // TODO: เชื่อม Cognito ภายหลัง — ตอนนี้ยังไม่ตรวจรหัสผ่านจริง
-    onLoginSuccess && onLoginSuccess(resolveUser(email));
+    if (
+      !email.trim() ||
+      !password
+    ) {
+      setError(
+        "กรุณากรอกอีเมลและรหัสผ่าน"
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const result =
+        await loginWithCognito(
+          email,
+          password
+        );
+
+      if (
+        result.requiresNewPassword
+      ) {
+        setRequiresNewPassword(
+          true
+        );
+
+        setError("");
+
+        return;
+      }
+
+      if (result.signedIn) {
+        onLoginSuccess?.(
+          result.user
+        );
+
+        return;
+      }
+
+      setError(
+        "ยังไม่สามารถเข้าสู่ระบบได้"
+      );
+    } catch (err) {
+      console.error(
+        "Login error:",
+        err
+      );
+
+      switch (err.name) {
+        case "UserNotFoundException":
+          setError(
+            "ไม่พบบัญชีผู้ใช้นี้"
+          );
+          break;
+
+        case "NotAuthorizedException":
+          setError(
+            "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+          );
+          break;
+
+        case "UserNotConfirmedException":
+          setError(
+            "บัญชียังไม่ได้ยืนยันอีเมล"
+          );
+          break;
+
+        case "PasswordResetRequiredException":
+          setError(
+            "บัญชีนี้ต้องตั้งรหัสผ่านใหม่"
+          );
+          break;
+
+        default:
+          setError(
+            "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"
+          );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -221,6 +347,57 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
                 </div>
               </div>
 
+              {requiresNewPassword && (
+                <div>
+                  <label
+                    className="text-xs font-semibold mb-1.5 block"
+                    style={{
+                      color: C.ink,
+                    }}
+                  >
+                    ตั้งรหัสผ่านใหม่
+                  </label>
+
+                  <div
+                    className="flex items-center gap-2 rounded-xl px-3 py-3 border"
+                    style={{
+                      borderColor: C.border,
+                      background: C.bg,
+                    }}
+                  >
+                    <Lock
+                      size={16}
+                      style={{
+                        color: C.sub,
+                      }}
+                    />
+
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(
+                          e.target.value
+                        );
+
+                        setError("");
+                      }}
+                      placeholder="รหัสผ่านใหม่"
+                      className="bg-transparent outline-none text-sm w-full"
+                    />
+                  </div>
+
+                  <p
+                    className="text-xs mt-1.5"
+                    style={{
+                      color: C.sub,
+                    }}
+                  >
+                    Cognito กำหนดให้เปลี่ยนรหัสผ่านในการเข้าสู่ระบบครั้งแรก
+                  </p>
+                </div>
+              )}
+
               {error && (
                 <p
                   className="text-xs font-medium rounded-lg px-3 py-2"
@@ -242,6 +419,11 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
 
               <button
                 type="submit"
+                disabled={loading
+                  ? "กำลังเข้าสู่ระบบ..."
+                  : requiresNewPassword
+                  ? "ยืนยันรหัสผ่านใหม่"
+                  : "เข้าสู่ระบบ"}
                 className="w-full py-3.5 rounded-xl font-bold text-sm text-white mt-1 transition-transform duration-150 active:scale-[0.98]"
                 style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
               >
