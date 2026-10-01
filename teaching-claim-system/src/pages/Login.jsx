@@ -419,15 +419,17 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
 
               <button
                 type="submit"
-                disabled={loading
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white mt-1 transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
+                style={{
+                  background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                }}
+              >
+                {loading
                   ? "กำลังเข้าสู่ระบบ..."
                   : requiresNewPassword
                   ? "ยืนยันรหัสผ่านใหม่"
                   : "เข้าสู่ระบบ"}
-                className="w-full py-3.5 rounded-xl font-bold text-sm text-white mt-1 transition-transform duration-150 active:scale-[0.98]"
-                style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
-              >
-                เข้าสู่ระบบ
               </button>
             </form>
 
