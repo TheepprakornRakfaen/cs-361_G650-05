@@ -24,12 +24,11 @@ import {
   updateClaimFromForm,
 } from "./data/store";
 
-import {
-  getAuthenticatedUser,
-  logoutFromCognito,
-} from "./services/auth";
+import { getAuthenticatedUser, logoutFromCognito } from "./services/auth";
 
 import { buildUserCourses } from "./data/rates";
+import { getTerms, getPeriods } from "./api/termApi";
+import { getCourses } from "./api/courseApi";
 
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
@@ -70,50 +69,144 @@ const SYSTEM_ROUNDS = [
 export default function App() {
   const [view, setView] = useState("home");
 
-  const [collapsed, setCollapsed] =
-    useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
-  const [selectedClaimId, setSelectedClaimId] =
-    useState(null);
+  const [selectedClaimId, setSelectedClaimId] = useState(null);
 
-  const [presetCourse, setPresetCourse] =
-    useState("");
+  const [presetCourse, setPresetCourse] = useState("");
 
-  const [presetRound, setPresetRound] =
-    useState(null);
+  const [presetRound, setPresetRound] = useState(null);
 
-  const [editingClaimId, setEditingClaimId] =
-    useState(null);
+  const [editingClaimId, setEditingClaimId] = useState(null);
+
+  // =========================
+  // Semester & Submission Period
+  // =========================
+  const [terms, setTerms] = useState([]);
+  const [selectedTermId, setSelectedTermId] = useState(null);
+  const [periods, setPeriods] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState(null);
+
+  const [termLoading, setTermLoading] = useState(false);
+  const [termError, setTermError] = useState("");
+  const [periodLoading, setPeriodLoading] = useState(false);
+
+  const [courseLoading, setCourseLoading] = useState(false);
+  const [courseError, setCourseError] = useState("");
+
+  const loadTerms = async (token) => {
+    setTermLoading(true);
+    setTermError("");
+
+    try {
+      const data = await getTerms(token);
+
+      const nextTerms = Array.isArray(data?.terms) ? data.terms : [];
+
+      setTerms(nextTerms);
+
+      return nextTerms;
+    } catch (error) {
+      console.error("Load terms error:", error);
+      setTerms([]);
+      setTermError(error?.message || "ไม่สามารถโหลดภาคการศึกษาได้");
+
+      return [];
+    } finally {
+      setTermLoading(false);
+    }
+  };
+
+  const loadPeriods = async (termId, token) => {
+    if (!termId) {
+      setPeriods([]);
+      setSelectedPeriodId(null);
+      return [];
+    }
+
+    setPeriodLoading(true);
+    setTermError("");
+
+    try {
+      const data = await getPeriods(termId, token);
+
+      const nextPeriods = Array.isArray(data?.periods) ? data.periods : [];
+
+      setPeriods(nextPeriods);
+
+      return nextPeriods;
+    } catch (error) {
+      console.error("Load periods error:", error);
+      setPeriods([]);
+      setSelectedPeriodId(null);
+      setTermError(error?.message || "ไม่สามารถโหลดรอบการยื่นได้");
+
+      return [];
+    } finally {
+      setPeriodLoading(false);
+    }
+  };
+
+  const loadCourses = async (termId, token) => {
+    if (!termId) {
+      setCourseError("");
+      return [];
+    }
+
+    setCourseLoading(true);
+    setCourseError("");
+
+    try {
+      const data = await getCourses(termId, token);
+
+      const nextCourses = Array.isArray(data?.courses) ? data.courses : [];
+
+      return nextCourses;
+    } catch (error) {
+      console.error("Load courses error:", error);
+      setCourseError(error?.message || "ไม่สามารถโหลดรายวิชาได้");
+
+      return [];
+    } finally {
+      setCourseLoading(false);
+    }
+  };
+
+  const handleTermChange = (termId) => {
+    setSelectedTermId(termId);
+
+    // เปลี่ยนภาค → ล้างรอบเดิมก่อน
+    setPeriods([]);
+    setSelectedPeriodId(null);
+
+    // ตอนนี้ยังไม่เรียก loadPeriods()
+    // เพราะรอ Cognito token
+  };
 
   /*
    * ผู้ใช้ที่เข้าสู่ระบบอยู่ (null = ยังไม่เข้าสู่ระบบ)
    * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
    */
-  const [currentUser, setCurrentUser] =
-    useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
-  const [authLoading, setAuthLoading] = 
-    useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const isLoggedIn = Boolean(currentUser);
 
   /*
-  * ตรวจ Cognito session
-  * ทุกครั้งที่เปิดเว็บ / refresh
-  */
+   * ตรวจ Cognito session
+   * ทุกครั้งที่เปิดเว็บ / refresh
+   */
   useEffect(() => {
     let active = true;
 
     async function restoreSession() {
       try {
-        const user =
-          await getAuthenticatedUser();
+        const user = await getAuthenticatedUser();
 
         if (active) {
           setCurrentUser(user);
@@ -136,9 +229,7 @@ export default function App() {
     };
   }, []);
 
-  const [state, setState] = useState(() =>
-    loadState()
-  );
+  const [state, setState] = useState(() => loadState());
 
   /*
    * บันทึก localStorage ทุกครั้งที่ state เปลี่ยน
@@ -150,42 +241,27 @@ export default function App() {
   /*
    * ป้องกันข้อมูลเสีย
    */
-  const allClaims = Array.isArray(state?.claims)
-    ? state.claims
-    : [];
+  const allClaims = Array.isArray(state?.claims) ? state.claims : [];
 
   /*
    * แต่ละคนเห็นเฉพาะคำขอของตัวเอง (owner = username ของคนที่สร้าง)
    * หมายเหตุ: คำขอเก่าที่สร้างก่อนมี owner จะไม่แสดงให้ใครเห็น
    */
   const claims = allClaims.filter(
-    (claim) =>
-      currentUser &&
-      claim.owner === currentUser.username
+    (claim) => currentUser && claim.owner === currentUser.username,
   );
 
-  const allCourses = Array.isArray(state?.courses)
-    ? state.courses
-    : [];
+  const allCourses = Array.isArray(state?.courses) ? state.courses : [];
 
   /*
    * รายวิชาที่ผู้ใช้ได้รับมอบหมาย + อัตราตามตำแหน่ง + ชั่วโมงที่ใช้ไป
    * (ไม่มีวิชาที่ได้รับมอบหมาย = [] → ยื่นเบิกไม่ได้)
    */
-  const courses = buildUserCourses(
-    currentUser,
-    allCourses,
-    claims
-  );
+  const courses = buildUserCourses(currentUser, allCourses, claims);
 
-  const storedRounds = Array.isArray(state?.rounds)
-    ? state.rounds
-    : [];
+  const storedRounds = Array.isArray(state?.rounds) ? state.rounds : [];
 
-  const rounds = [
-    ...SYSTEM_ROUNDS,
-    ...storedRounds,
-  ];
+  const rounds = [...SYSTEM_ROUNDS, ...storedRounds];
 
   /*
    * เปิด/ปิด Sidebar
@@ -205,10 +281,7 @@ export default function App() {
   };
 
   const handleMenuClick = () => {
-    const isMobile =
-      window.matchMedia(
-        "(max-width: 767px)"
-      ).matches;
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
 
     if (isMobile) {
       setMobileOpen((value) => !value);
@@ -264,10 +337,7 @@ export default function App() {
     try {
       await logoutFromCognito();
     } catch (error) {
-      console.error(
-        "Logout error:",
-        error
-      );
+      console.error("Logout error:", error);
     } finally {
       setCurrentUser(null);
       setView("home");
@@ -287,11 +357,7 @@ export default function App() {
    */
   const handleSubmit = (form) => {
     const savedClaim = editingClaimId
-      ? updateClaimFromForm(
-          editingClaimId,
-          form,
-          "Pending"
-        )
+      ? updateClaimFromForm(editingClaimId, form, "Pending")
       : addClaim(form, "Pending", currentUser?.username);
 
     /*
@@ -313,11 +379,7 @@ export default function App() {
    */
   const handleSaveDraft = (form) => {
     const savedClaim = editingClaimId
-      ? updateClaimFromForm(
-          editingClaimId,
-          form,
-          "Draft"
-        )
+      ? updateClaimFromForm(editingClaimId, form, "Draft")
       : addClaim(form, "Draft", currentUser?.username);
 
     const latestState = loadState();
@@ -335,11 +397,8 @@ export default function App() {
    * หาคำขอที่เลือก
    */
   const selectedClaim =
-    claims.find(
-      (claim) =>
-        String(claim.id) ===
-        String(selectedClaimId)
-    ) || null;
+    claims.find((claim) => String(claim.id) === String(selectedClaimId)) ||
+    null;
 
   /*
    * เปลี่ยนหน้า
@@ -347,9 +406,7 @@ export default function App() {
   const renderPage = () => {
     switch (view) {
       case "home":
-        return (
-          <Home query={search} />
-        );
+        return <Home query={search} />;
 
       case "dashboard":
         return (
@@ -363,20 +420,11 @@ export default function App() {
         );
 
       case "assignments":
-        return (
-          <Assignments
-            courses={courses}
-            goCreateFor={goCreateFor}
-          />
-        );
+        return <Assignments courses={courses} goCreateFor={goCreateFor} />;
 
       case "myclaims":
         return (
-          <MyClaims
-            claims={claims}
-            goDetail={goDetail}
-            goCreate={goCreate}
-          />
+          <MyClaims claims={claims} goDetail={goDetail} goCreate={goCreate} />
         );
 
       case "create":
@@ -385,19 +433,13 @@ export default function App() {
           <CreateClaimList
             rounds={rounds}
             courses={courses}
-            goCreateForRound={
-              goCreateForRound
-            }
+            goCreateForRound={goCreateForRound}
           />
         );
 
       case "claim-create": {
         const editingClaim = editingClaimId
-          ? claims.find(
-              (claim) =>
-                String(claim.id) ===
-                String(editingClaimId)
-            )
+          ? claims.find((claim) => String(claim.id) === String(editingClaimId))
           : null;
 
         return (
@@ -407,9 +449,16 @@ export default function App() {
             initialClaim={editingClaim}
             courses={courses}
             rounds={rounds}
-            onCancel={() =>
-              setView("myclaims")
-            }
+            terms={terms}
+            periods={periods}
+            selectedTermId={selectedTermId}
+            onTermChange={handleTermChange}
+            selectedPeriodId={selectedPeriodId}
+            onPeriodChange={setSelectedPeriodId}
+            termLoading={termLoading}
+            periodLoading={periodLoading}
+            termError={termError}
+            onCancel={() => setView("myclaims")}
             onSubmit={handleSubmit}
             onSaveDraft={handleSaveDraft}
             user={currentUser}
@@ -422,13 +471,9 @@ export default function App() {
           <ClaimDetail
             claim={selectedClaim}
             course={courses.find(
-              (course) =>
-                course.code ===
-                selectedClaim?.courseCode
+              (course) => course.code === selectedClaim?.courseCode,
             )}
-            goBack={() =>
-              setView("myclaims")
-            }
+            goBack={() => setView("myclaims")}
             onEdit={goEditClaim}
           />
         );
@@ -444,9 +489,7 @@ export default function App() {
         );
 
       default:
-        return (
-          <Home query={search} />
-        );
+        return <Home query={search} />;
     }
   };
 
@@ -458,7 +501,6 @@ export default function App() {
    * หมายเหตุ: เป็นการกันฝั่ง frontend เพื่อการใช้งานเท่านั้น
    * ความปลอดภัยจริงต้องให้ API ตรวจ token จาก Cognito
    */
-
   if (authLoading) {
     return (
       <div
@@ -468,24 +510,17 @@ export default function App() {
           color: C.tealDark,
         }}
       >
-        <p className="text-sm font-semibold">
-          กำลังตรวจสอบการเข้าสู่ระบบ...
-        </p>
+        <p className="text-sm font-semibold">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
       </div>
     );
   }
-  
-  const needsLogin =
-    !isLoggedIn && PROTECTED_VIEWS.has(view);
+
+  const needsLogin = !isLoggedIn && PROTECTED_VIEWS.has(view);
 
   if (view === "login" || needsLogin) {
     return (
       <Login
-        notice={
-          needsLogin
-            ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้"
-            : ""
-        }
+        notice={needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : ""}
         onBack={() => setView("home")}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
@@ -495,7 +530,7 @@ export default function App() {
     );
   }
 
-        return (
+  return (
     <div
       className="w-full h-screen overflow-hidden flex flex-col"
       style={{
@@ -507,16 +542,11 @@ export default function App() {
           ========================= */}
       <Topbar
         onMenuClick={handleMenuClick}
-        subtitle={
-          SUBTITLE_MAP[view] ||
-          "ระบบเบิกค่าสอน"
-        }
+        subtitle={SUBTITLE_MAP[view] || "ระบบเบิกค่าสอน"}
         searchQuery={search}
         onSearchChange={setSearch}
         onSearchSelect={handleSearchSelect}
-        onProfileClick={() =>
-          setView("login")
-        }
+        onProfileClick={() => setView("login")}
         isLoggedIn={isLoggedIn}
         user={currentUser}
         onLogout={handleLogout}
@@ -528,16 +558,13 @@ export default function App() {
           Sidebar + Content
           ========================= */}
       <div className="flex flex-1 min-h-0">
-
         {/* Sidebar */}
         <Sidebar
           view={view}
           setView={setView}
           collapsed={collapsed}
           mobileOpen={mobileOpen}
-          onCloseMobile={() =>
-            setMobileOpen(false)
-          }
+          onCloseMobile={() => setMobileOpen(false)}
           isLoggedIn={isLoggedIn}
           onLogout={handleLogout}
           onLogin={() => setView("login")}
@@ -553,21 +580,13 @@ export default function App() {
             transition-all
             duration-200
 
-            ${
-              collapsed
-                ? "md:ml-[84px]"
-                : "md:ml-[280px]"
-            }
+            ${collapsed ? "md:ml-[84px]" : "md:ml-[280px]"}
           `}
         >
           <main className="flex-1 overflow-y-auto">
-            <div className="p-5 md:p-9">
-              {renderPage()}
-            </div>
+            <div className="p-5 md:p-9">{renderPage()}</div>
 
-            {view === "home" && (
-              <Footer />
-            )}
+            {view === "home" && <Footer />}
           </main>
         </div>
       </div>
