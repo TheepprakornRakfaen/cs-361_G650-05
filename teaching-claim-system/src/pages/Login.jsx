@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { C } from "../theme";
 import { loginWithCognito, confirmNewPassword} from "../services/auth";
+import { syncCurrentUser } from "../services/api";
 
 const FEATURES = [
   { icon: Wallet, text: "ยื่นคำขอเบิกค่าสอนได้ทุกที่ ทุกเวลา" },
@@ -26,12 +27,10 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
   const [error, setError] = useState("");
 
   const [loading, setLoading] =
-  useState(false);
+    useState(false);
 
-  const [
-    requiresNewPassword,
-    setRequiresNewPassword,
-  ] = useState(false);
+  const [requiresNewPassword, setRequiresNewPassword] =
+    useState(false);
 
   const [newPassword, setNewPassword] =
     useState("");
@@ -58,9 +57,31 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
           );
 
         if (result.signedIn) {
+          try {
+            const profile =
+              await syncCurrentUser();
+
+            console.log(
+              "API profile:",
+              profile
+            );
+          } catch (apiError) {
+            console.error(
+              "Profile sync error:",
+              apiError
+            );
+
+            setError(
+              "เข้าสู่ระบบสำเร็จ แต่ไม่สามารถเชื่อมต่อข้อมูลผู้ใช้กับระบบได้"
+            );
+
+            return;
+          }
+
           onLoginSuccess?.(
             result.user
           );
+
           return;
         }
 
@@ -112,6 +133,27 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
       }
 
       if (result.signedIn) {
+        try {
+          const profile =
+            await syncCurrentUser();
+
+          console.log(
+            "API profile:",
+            profile
+          );
+        } catch (apiError) {
+          console.error(
+            "Profile sync error:",
+            apiError
+          );
+
+          setError(
+            "ตั้งรหัสผ่านสำเร็จ แต่ไม่สามารถเชื่อมต่อข้อมูลผู้ใช้กับระบบได้"
+          );
+
+          return;
+        }
+
         onLoginSuccess?.(
           result.user
         );
