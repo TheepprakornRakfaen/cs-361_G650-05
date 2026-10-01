@@ -31,7 +31,10 @@ export default function HeroCarousel({ images = [], alt = "" }) {
   const trackRef = useRef(null);
   const drag = useRef({ active: false, startX: 0, delta: 0 });
 
-  const count = images.length;
+  // เพิ่ม banner1.png เป็นสไลด์แรก
+  const slides = ["/banner1.png", ...images];
+
+  const count = slides.length;
 
   const goTo = useCallback(
     (i) => {
@@ -59,10 +62,12 @@ export default function HeroCarousel({ images = [], alt = "" }) {
     drag.current = { active: true, startX: e.clientX, delta: 0 };
     trackRef.current?.setPointerCapture?.(e.pointerId);
   };
+
   const onPointerMove = (e) => {
     if (!drag.current.active) return;
     drag.current.delta = e.clientX - drag.current.startX;
   };
+
   const endDrag = () => {
     if (!drag.current.active) return;
     const { delta } = drag.current;
@@ -110,7 +115,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
         className="w-full h-full flex transition-transform duration-500 ease-out cursor-grab active:cursor-grabbing"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
-        {images.map((src, i) => (
+        {slides.map((src, i) => (
           <img
             key={src + i}
             src={src}
@@ -132,6 +137,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
       >
         <PixelArrow dir="left" />
       </button>
+
       <button
         type="button"
         onClick={next}
@@ -146,7 +152,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
       {/* จุดกดเลือกสไลด์ */}
       {count > 1 && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-          {images.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               onClick={() => goTo(i)}
