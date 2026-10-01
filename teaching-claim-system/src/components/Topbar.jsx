@@ -111,7 +111,7 @@ export default function Topbar({
 
   return (
     <header
-      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-40"
+      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-30"
       style={{
         background: C.tealDark,
       }}
