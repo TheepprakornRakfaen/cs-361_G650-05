@@ -382,10 +382,10 @@ export default function CreateClaim({
     } else if (!course) {
       nextErrors.courseCode =
         "รายวิชานี้ไม่ได้อยู่ในรายวิชาที่คุณได้รับมอบหมาย";
-    } else if (rate <= 0) {
+    } /*else if (rate <= 0) {
       nextErrors.courseCode =
         "ไม่พบอัตราค่าตอบแทนของตำแหน่งนี้ กรุณาติดต่อเจ้าหน้าที่";
-    }
+    }*/
 
     setErrors(nextErrors);
 

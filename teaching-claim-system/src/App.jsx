@@ -468,7 +468,14 @@ export default function App() {
         );
 
       case "assignments":
-        return <Assignments courses={courses} goCreateFor={goCreateFor} />;
+        return (
+          <Assignments
+            courses={apiCourses}
+            goCreateFor={goCreateFor}
+            courseLoading={courseLoading}
+            courseError={courseError}
+          />
+        );
 
       case "myclaims":
         return (
