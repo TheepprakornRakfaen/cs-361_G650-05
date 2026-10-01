@@ -24,7 +24,11 @@ import {
   updateClaimFromForm,
 } from "./data/store";
 
-import { getAuthenticatedUser, logoutFromCognito } from "./services/auth";
+import {
+  getAuthenticatedUser,
+  getIdToken,
+  logoutFromCognito,
+} from "./services/auth";
 
 import { buildUserCourses } from "./data/rates";
 import { getTerms, getPeriods } from "./api/termApi";
@@ -90,6 +94,7 @@ export default function App() {
   const [selectedTermId, setSelectedTermId] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
+  const [apiCourses, setApiCourses] = useState([]);
 
   const [termLoading, setTermLoading] = useState(false);
   const [termError, setTermError] = useState("");
@@ -153,6 +158,7 @@ export default function App() {
 
   const loadCourses = async (termId, token) => {
     if (!termId) {
+      setApiCourses([]);
       setCourseError("");
       return [];
     }
@@ -162,29 +168,43 @@ export default function App() {
 
     try {
       const data = await getCourses(termId, token);
-
       const nextCourses = Array.isArray(data?.courses) ? data.courses : [];
+
+      setApiCourses(nextCourses);
 
       return nextCourses;
     } catch (error) {
       console.error("Load courses error:", error);
+      setApiCourses([]);
       setCourseError(error?.message || "ไม่สามารถโหลดรายวิชาได้");
-
       return [];
     } finally {
       setCourseLoading(false);
     }
   };
 
-  const handleTermChange = (termId) => {
+  const handleTermChange = async (termId) => {
     setSelectedTermId(termId);
-
-    // เปลี่ยนภาค → ล้างรอบเดิมก่อน
     setPeriods([]);
     setSelectedPeriodId(null);
+    setApiCourses([]);
 
-    // ตอนนี้ยังไม่เรียก loadPeriods()
-    // เพราะรอ Cognito token
+    if (!termId) return;
+
+    try {
+      const token = await getIdToken();
+
+      if (!token) {
+        throw new Error("ไม่พบ token สำหรับเข้าสู่ระบบ");
+      }
+
+      await Promise.all([
+        loadPeriods(termId, token),
+        loadCourses(termId, token),
+      ]);
+    } catch (error) {
+      console.error("Load term-dependent data error:", error);
+    }
   };
 
   /*
@@ -228,6 +248,34 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let active = true;
+
+    async function loadInitialData() {
+      try {
+        const token = await getIdToken();
+
+        if (!token) {
+          throw new Error("ไม่พบ token สำหรับเข้าสู่ระบบ");
+        }
+
+        if (active) {
+          await loadTerms(token);
+        }
+      } catch (error) {
+        console.error("Load initial data error:", error);
+      }
+    }
+
+    loadInitialData();
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
 
   const [state, setState] = useState(() => loadState());
 
@@ -447,7 +495,7 @@ export default function App() {
             presetCourse={presetCourse}
             presetRound={presetRound}
             initialClaim={editingClaim}
-            courses={courses}
+            courses={apiCourses}
             rounds={rounds}
             terms={terms}
             periods={periods}
@@ -457,6 +505,8 @@ export default function App() {
             onPeriodChange={setSelectedPeriodId}
             termLoading={termLoading}
             periodLoading={periodLoading}
+            courseLoading={courseLoading}
+            courseError={courseError}
             termError={termError}
             onCancel={() => setView("myclaims")}
             onSubmit={handleSubmit}

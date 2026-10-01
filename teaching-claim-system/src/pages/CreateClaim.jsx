@@ -144,13 +144,61 @@ export default function CreateClaim({
   onPeriodChange,
   termLoading = false,
   periodLoading = false,
+  courseLoading = false,
+  courseError = "",
   termError = "",
+  onSubmit,
+  onSaveDraft,
+  user,
   onCancel,
 }) {
   const isEditing = Boolean(initialClaim);
 
+  const normalizeCourse = (course) => {
+    if (!course) return null;
+
+    const role = course.role || "";
+
+    const positionLabel =
+      role === "INSTRUCTOR"
+        ? "อาจารย์ผู้สอน"
+        : role === "TA"
+          ? "ผู้ช่วยสอน (TA)"
+          : role || "ไม่ระบุตำแหน่ง";
+
+    return {
+      ...course,
+
+      // รองรับทั้งข้อมูลเก่าและข้อมูลจาก API
+      code: course.code || course.course_code || "",
+      name: course.name || course.course_name_th || course.course_name_en || "",
+
+      // assignment จาก API
+      position: role,
+      positionLabel,
+
+      // ชั่วโมงที่ใช้ไป / quota / คงเหลือ
+      used: Number(course.used ?? course.hour ?? 0),
+      quota: Number(course.quota ?? course.max_hour ?? 45),
+      remaining: Number(
+        course.remaining ??
+          course.remaining_hour ??
+          Math.max(Number(course.max_hour ?? 45) - Number(course.hour ?? 0), 0),
+      ),
+
+      // rate ถ้ามีจาก backend ใช้ได้เลย
+      rate: Number(course.rate || 0),
+      rateSource:
+        course.rateSource ||
+        (role ? `ตามข้อมูลการมอบหมาย: ${positionLabel}` : ""),
+    };
+  };
+
+  const normalizedCourses = courses.map(normalizeCourse).filter(Boolean);
+
   const firstCourse =
-    courses.find((c) => c.code === presetCourse) || courses[0];
+    normalizedCourses.find((c) => c.code === presetCourse) ||
+    normalizedCourses[0];
 
   const [step, setStep] = useState(1);
 
@@ -222,7 +270,7 @@ export default function CreateClaim({
 
   const fileInputRef = useRef(null);
 
-  const course = courses.find((c) => c.code === form.courseCode);
+  const course = normalizedCourses.find((c) => c.code === form.courseCode);
 
   // อัตรามาจากตำแหน่งในรายวิชาที่ได้รับมอบหมายเท่านั้น (ไม่ใช้ค่าที่อยู่ในฟอร์ม)
   const rate = Number(course?.rate || 0);
@@ -503,10 +551,7 @@ export default function CreateClaim({
           }}
         />
 
-        <div
-          className="p-6 m
-        d:p-10"
-        >
+        <div className="p-6 md:p-10">
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2
@@ -632,58 +677,84 @@ export default function CreateClaim({
                           : "เลือกรอบการยื่น"}
                   </option>
 
-                  {periods.map((period) => (
-                    <option key={period.id} value={period.id}>
-                      {period.label || `เดือน ${period.month}`}
+                  {periods.map((period) => {
+                    const formatDate = (dateString) => {
+                      if (!dateString) return "";
 
-                      {period.open_at && period.close_at
-                        ? ` · ${period.open_at} - ${period.close_at}`
-                        : ""}
-                    </option>
-                  ))}
+                      return new Intl.DateTimeFormat("th-TH", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(dateString));
+                    };
 
-                  {termError && (
-                    <p className="text-xs mt-1.5" style={{ color: C.rose }}>
-                      {termError}
-                    </p>
-                  )}
+                    return (
+                      <option key={period.id} value={period.id}>
+                        เดือน {period.month} : {formatDate(period.open_at)} –{" "}
+                        {formatDate(period.close_at)}
+                      </option>
+                    );
+                  })}
                 </select>
+                {termError && (
+                  <p className="text-xs mt-1.5" style={{ color: C.rose }}>
+                    {termError}
+                  </p>
+                )}
               </Field>
 
               <Field label="รายวิชา" required error={errors.courseCode}>
-                {courses.length > 0 ? (
+                {courseLoading ? (
+                  <div
+                    className="rounded-xl px-4 py-3 text-sm"
+                    style={{
+                      background: "#F8FBFC",
+                      color: C.sub,
+                    }}
+                  >
+                    กำลังโหลดรายวิชาที่ได้รับมอบหมาย...
+                  </div>
+                ) : courseError ? (
+                  <div
+                    className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
+                    style={{
+                      background: "#FCE9EA",
+                      color: C.rose,
+                    }}
+                  >
+                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                    <span>{courseError}</span>
+                  </div>
+                ) : normalizedCourses.length > 0 ? (
                   <select
                     className="fld"
                     value={form.courseCode}
                     onChange={(e) => {
-                      const selected = courses.find(
+                      const selected = normalizedCourses.find(
                         (item) => item.code === e.target.value,
                       );
 
                       setForm((current) => ({
                         ...current,
-
                         courseCode: e.target.value,
-
                         courseName: selected?.name || "",
-
                         rate: Number(selected?.rate || 0),
                       }));
                     }}
                   >
                     <option value="">เลือกรายวิชา</option>
 
-                    {courses.map((item) => (
-                      <option key={item.code} value={item.code}>
+                    {normalizedCourses.map((item) => (
+                      <option
+                        key={`${item.code}-${item.section_no ?? ""}`}
+                        value={item.code}
+                      >
                         {item.code} – {item.name || "ไม่ระบุชื่อ"}
+                        {item.section_no ? ` (${item.section_no})` : ""}
                       </option>
                     ))}
                   </select>
                 ) : (
-                  /*
-                   * ไม่มีวิชาที่ได้รับมอบหมาย = ยื่นเบิกไม่ได้
-                   * (เดิมให้พิมพ์รหัสวิชาและอัตราเอง ทำให้ใครก็ใส่อัตราเท่าไหร่ก็ได้)
-                   */
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
                     style={{ background: "#FEF6D8", color: "#9A7B06" }}
@@ -708,18 +779,34 @@ export default function CreateClaim({
                     <span className="font-semibold">
                       {course.positionLabel}
                     </span>
+                    {course.section_no && (
+                      <>
+                        {" · "}
+                        Section{" "}
+                        <span className="font-semibold">
+                          {course.section_no}
+                        </span>
+                      </>
+                    )}
+                  </p>
+
+                  <p className="text-xs mt-1" style={{ color: C.sub }}>
+                    ชั่วโมงที่ใช้ไป {course.used} / {course.quota} ชม.
                     {" · "}
-                    อัตรา{" "}
-                    <span
-                      className="font-semibold"
-                      style={{ color: C.tealDark }}
-                    >
-                      ฿{rate.toLocaleString()} / ชั่วโมง
-                    </span>
+                    คงเหลือ {course.remaining} ชม.
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: C.sub }}>
-                    {course.rateSource}
-                  </p>
+
+                  {course.rate > 0 ? (
+                    <p className="text-xs mt-1" style={{ color: C.sub }}>
+                      อัตรา ฿{rate.toLocaleString()} / ชั่วโมง
+                      {" · "}
+                      {course.rateSource}
+                    </p>
+                  ) : (
+                    <p className="text-xs mt-1" style={{ color: C.sub }}>
+                      อัตราค่าตอบแทนจะอ้างอิงจากข้อมูลการมอบหมายงาน
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1158,7 +1245,7 @@ export default function CreateClaim({
                 type="button"
                 onClick={() => onSaveDraft?.(buildPayload())}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
-                disabled={courses.length === 0}
+                disabled={normalizedCourses.length === 0}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   borderColor: C.border,
