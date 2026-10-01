@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Menu,
   Search,
@@ -8,9 +8,37 @@ import {
   LogOut,
   UserRound,
   ChevronRight,
+  SearchX,
+  CornerDownLeft,
 } from "lucide-react";
 import { C } from "../theme";
 import { getInitial } from "../data/users";
+import { searchInfo } from "../data/searchIndex";
+
+// ไฮไลต์คำที่ค้นหาในข้อความผลลัพธ์
+function Highlight({ text, query }) {
+  const q = query.trim();
+  if (!q) return text;
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i === -1) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="rounded px-0.5" style={{ background: "#FFE9A8", color: "inherit" }}>
+        {text.slice(i, i + q.length)}
+      </mark>
+      {text.slice(i + q.length)}
+    </>
+  );
+}
+
+// ตัดข้อความยาวให้พอดีบรรทัด โดยเลื่อนให้เห็นคำที่ค้นเจอ
+function snippet(text, query, max = 90) {
+  if (!text) return "";
+  const i = text.toLowerCase().indexOf(query.trim().toLowerCase());
+  if (text.length <= max || i < 0 || i < max - 20) return text.length > max ? text.slice(0, max) + "…" : text;
+  return "…" + text.slice(Math.max(0, i - 25), Math.max(0, i - 25) + max) + "…";
+}
 
 const AVATAR_BG = `linear-gradient(135deg, #F07A7E, ${C.rose})`;
 
@@ -24,6 +52,7 @@ export default function Topbar({
   user = null,
   onLogout,
   onOpenProfile,
+  onSearchSelect,
 }) {
   // ชื่อที่แสดงมาจากผู้ใช้ที่ล็อกอินจริง (ไม่ fix ชื่อไว้แล้ว)
   const userName = user?.name || "";
@@ -35,7 +64,49 @@ export default function Topbar({
 
   const closeSearch = () => {
     setSearchOpen(false);
+    setActiveIndex(0);
     onSearchChange && onSearchChange("");
+  };
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const searchWrapRef = useRef(null);
+  const results = useMemo(() => searchInfo(searchQuery), [searchQuery]);
+  const hasQuery = searchQuery.trim() !== "";
+
+  // กดนอกกล่องค้นหาแล้วปิดผลลัพธ์
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDown = (e) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+        closeSearch();
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchOpen]);
+
+  const chooseResult = (r) => {
+    if (!r) return;
+    setSearchOpen(false);
+    setActiveIndex(0);
+    onSearchChange && onSearchChange("");
+    onSearchSelect && onSearchSelect(r.sectionId);
+  };
+
+  const handleSearchKey = (e) => {
+    if (e.key === "Escape") return closeSearch();
+    if (!results.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + results.length) % results.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      chooseResult(results[activeIndex]);
+    }
   };
 
   return (
@@ -57,41 +128,110 @@ export default function Topbar({
         </button>
 
         {searchOpen ? (
-          /* Search Box */
-          <div
-            className="flex items-center gap-2 rounded-xl px-3 py-2 w-full max-w-sm transition-all duration-200"
-            style={{
-              background: "#FFFFFF",
-              border: `1px solid ${C.border}`,
-            }}
-          >
-            <Search
-              size={17}
-              style={{ color: C.sub }}
-              className="shrink-0"
-            />
-
-            <input
-              autoFocus
-              type="text"
-              value={searchQuery}
-              onChange={(e) =>
-                onSearchChange && onSearchChange(e.target.value)
-              }
-              onKeyDown={(e) =>
-                e.key === "Escape" && closeSearch()
-              }
-              placeholder="ค้นหาข้อมูล เช่น อัตราค่าสอน, เอกสาร, ขั้นตอน..."
-              className="bg-transparent outline-none text-sm w-full"
-              style={{ color: C.ink }}
-            />
-
-            <button
-              onClick={closeSearch}
-              className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/5"
+          /* Search Box + ผลลัพธ์ที่ลอยอยู่ใต้ช่องค้นหา */
+          <div ref={searchWrapRef} className="relative w-full max-w-xl">
+            <div
+              className="flex items-center gap-2 rounded-xl px-3 py-2.5 w-full transition-all duration-200"
+              style={{
+                background: "#FFFFFF",
+                border: `1px solid ${C.border}`,
+                boxShadow: hasQuery ? "0 0 0 3px rgba(255,255,255,0.25)" : "none",
+              }}
             >
-              <X size={14} style={{ color: C.sub }} />
-            </button>
+              <Search size={17} style={{ color: C.sub }} className="shrink-0" />
+
+              <input
+                autoFocus
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setActiveIndex(0);
+                  onSearchChange && onSearchChange(e.target.value);
+                }}
+                onKeyDown={handleSearchKey}
+                placeholder="ค้นหาข้อมูล เช่น อัตราค่าสอน, เอกสาร, ขั้นตอน..."
+                className="bg-transparent outline-none text-sm w-full"
+                style={{ color: C.ink }}
+              />
+
+              <button
+                onClick={closeSearch}
+                aria-label="ปิดการค้นหา"
+                className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/5"
+              >
+                <X size={14} style={{ color: C.sub }} />
+              </button>
+            </div>
+
+            {hasQuery && (
+              <div
+                className="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-white overflow-hidden z-50"
+                style={{
+                  border: `1px solid ${C.border}`,
+                  boxShadow: "0 24px 50px -12px rgba(15,40,70,0.38)",
+                  animation: "fadein .15s ease-out",
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 text-xs font-semibold"
+                  style={{ background: C.tealSoft, color: C.tealDark }}
+                >
+                  <span>
+                    ผลการค้นหาสำหรับ “{searchQuery.trim()}”
+                  </span>
+                  {results.length > 0 && <span>{results.length} รายการ</span>}
+                </div>
+
+                {results.length === 0 ? (
+                  <div className="flex flex-col items-center text-center px-6 py-8">
+                    <SearchX size={28} style={{ color: C.sub }} className="mb-2" />
+                    <p className="font-semibold text-sm" style={{ color: C.ink }}>
+                      ไม่พบข้อมูลที่ตรงกับคำค้นหา
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: C.sub }}>
+                      ลองค้นหาด้วยคำอื่น เช่น "อัตรา" "เอกสาร" หรือ "ขั้นตอน"
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="max-h-[60vh] overflow-y-auto py-1.5">
+                    {results.map((r, i) => {
+                      const active = i === activeIndex;
+                      return (
+                        <li key={`${r.sectionId}-${i}`}>
+                          <button
+                            type="button"
+                            onMouseEnter={() => setActiveIndex(i)}
+                            onClick={() => chooseResult(r)}
+                            className="w-full text-left px-4 py-2.5 flex items-start gap-3 transition-colors"
+                            style={{ background: active ? C.tealSoft : "transparent" }}
+                          >
+                            <span
+                              className="mt-0.5 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
+                              style={{ background: "#FFFFFF", color: C.tealDark, border: `1px solid ${C.border}` }}
+                            >
+                              {r.section}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-semibold leading-5 truncate" style={{ color: C.ink }}>
+                                <Highlight text={r.title} query={searchQuery} />
+                              </span>
+                              {r.text && (
+                                <span className="block text-xs leading-5 mt-0.5 truncate" style={{ color: C.sub }}>
+                                  <Highlight text={snippet(r.text, searchQuery)} query={searchQuery} />
+                                </span>
+                              )}
+                            </span>
+                            {active && (
+                              <CornerDownLeft size={14} className="mt-1 shrink-0" style={{ color: C.tealDark }} />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <>

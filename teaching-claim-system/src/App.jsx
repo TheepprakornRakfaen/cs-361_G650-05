@@ -4,6 +4,7 @@ import { C } from "./theme";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
+import { scrollToSection } from "./utils/scroll";
 import Footer from "./components/Footer";
 
 import Home from "./pages/Home";
@@ -189,6 +190,20 @@ export default function App() {
   /*
    * เปิด/ปิด Sidebar
    */
+  // เลือกผลการค้นหา: กลับไปหน้าแรก แล้วเลื่อนสมูทไปหัวข้อนั้น
+  const handleSearchSelect = (sectionId) => {
+    setSearch("");
+    setMobileOpen(false);
+    const go = () => scrollToSection(sectionId);
+    if (view === "home") {
+      go();
+    } else {
+      setView("home");
+      // รอให้หน้าแรก render เสร็จก่อนค่อยเลื่อน
+      setTimeout(go, 120);
+    }
+  };
+
   const handleMenuClick = () => {
     const isMobile =
       window.matchMedia(
@@ -498,6 +513,7 @@ export default function App() {
         }
         searchQuery={search}
         onSearchChange={setSearch}
+        onSearchSelect={handleSearchSelect}
         onProfileClick={() =>
           setView("login")
         }

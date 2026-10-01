@@ -1,7 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
 const AUTO_PLAY_MS = 5000; // เลื่อนสไลด์อัตโนมัติทุก 5 วินาที
+
+// ลูกศรสไตล์พิกเซล (วาดจากสี่เหลี่ยมเล็ก ๆ 3x3 ช่อง)
+function PixelArrow({ dir = "left" }) {
+  const cells =
+    dir === "left"
+      ? [[1, 0], [0, 1], [1, 2]]
+      : [[1, 0], [2, 1], [1, 2]];
+  return (
+    <svg width="22" height="22" viewBox="0 0 3 3" shapeRendering="crispEdges" aria-hidden="true">
+      {cells.map(([x, y]) => (
+        <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="currentColor" />
+      ))}
+    </svg>
+  );
+}
 
 /**
  * สไลด์รูปภาพเต็มความกว้าง (hero) — เปลี่ยนรูปอัตโนมัติทุก 5 วิ
@@ -106,43 +121,45 @@ export default function HeroCarousel({ images = [], alt = "" }) {
         ))}
       </div>
 
-      {/* ปุ่มลูกศรซ้าย/ขวา */}
-      {count > 1 && (
-        <>
-          <button
-            onClick={prev}
-            aria-label="สไลด์ก่อนหน้า"
-            className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/85 items-center justify-center shadow-md hover:bg-white transition-colors"
-            style={{ color: "#1E5687" }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            onClick={next}
-            aria-label="สไลด์ถัดไป"
-            className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/85 items-center justify-center shadow-md hover:bg-white transition-colors"
-            style={{ color: "#1E5687" }}
-          >
-            <ChevronRight size={18} />
-          </button>
+      {/* ปุ่มลูกศรซ้าย/ขวา (สไตล์พิกเซล) — แสดงทุกขนาดหน้าจอ */}
+      <button
+        type="button"
+        onClick={prev}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label="สไลด์ก่อนหน้า"
+        className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
+        style={{ color: "#111" }}
+      >
+        <PixelArrow dir="left" />
+      </button>
+      <button
+        type="button"
+        onClick={next}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label="สไลด์ถัดไป"
+        className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
+        style={{ color: "#111" }}
+      >
+        <PixelArrow dir="right" />
+      </button>
 
-          {/* จุดกดเลือกสไลด์ */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => goTo(i)}
-                aria-label={`ไปสไลด์ที่ ${i + 1}`}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === index ? 18 : 6,
-                  height: 6,
-                  background: i === index ? "#FFFFFF" : "rgba(255,255,255,0.55)",
-                }}
-              />
-            ))}
-          </div>
-        </>
+      {/* จุดกดเลือกสไลด์ */}
+      {count > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              aria-label={`ไปสไลด์ที่ ${i + 1}`}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === index ? 18 : 6,
+                height: 6,
+                background: i === index ? "#FFFFFF" : "rgba(255,255,255,0.55)",
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

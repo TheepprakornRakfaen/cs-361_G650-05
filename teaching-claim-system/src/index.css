@@ -50,6 +50,28 @@ body {
   box-shadow: 0 0 0 3px #e8f0fa;
 }
 
+/* à¸Šà¹ˆà¸­à¸‡à¸à¸£à¸­à¸à¹ƒà¸™à¸«à¸™à¹‰à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š â€” à¸‚à¸­à¸šà¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™à¸ªà¸µ + à¸¡à¸µà¸§à¸‡à¹à¸«à¸§à¸™à¹€à¸¡à¸·à¹ˆà¸­à¹‚à¸Ÿà¸à¸±à¸ª */
+.login-field {
+  background: #f5f8fb;
+  border: 1.5px solid #dceef2;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.login-field:hover {
+  border-color: #b9d3ea;
+}
+
+.login-field:focus-within {
+  background: #ffffff;
+  border-color: #3e7fc1;
+  box-shadow: 0 0 0 4px rgba(62, 127, 193, 0.15);
+}
+
+/* à¸žà¸·à¹‰à¸™à¸—à¸µà¹ˆà¹€à¸¥à¸·à¹ˆà¸­à¸™à¸«à¸¥à¸±à¸à¸‚à¸­à¸‡à¸«à¸™à¹‰à¸² â€” à¹ƒà¸«à¹‰ scrollTo / anchor à¹€à¸¥à¸·à¹ˆà¸­à¸™à¹à¸šà¸šà¸™à¸¸à¹ˆà¸¡ */
+main {
+  scroll-behavior: smooth;
+}
+
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -59,7 +81,7 @@ body {
   display: none;
 }
 
-/* ตัวเลขเด่น เช่น อัตราค่าตอบแทน — หนาและชัดเจน เข้าธีมฟอนต์เดิมของเว็บ */
+/* à¸•à¸±à¸§à¹€à¸¥à¸‚à¹€à¸”à¹ˆà¸™ à¹€à¸Šà¹ˆà¸™ à¸­à¸±à¸•à¸£à¸²à¸„à¹ˆà¸²à¸•à¸­à¸šà¹à¸—à¸™ â€” à¸«à¸™à¸²à¹à¸¥à¸°à¸Šà¸±à¸”à¹€à¸ˆà¸™ à¹€à¸‚à¹‰à¸²à¸˜à¸µà¸¡à¸Ÿà¸­à¸™à¸•à¹Œà¹€à¸”à¸´à¸¡à¸‚à¸­à¸‡à¹€à¸§à¹‡à¸š */
 .figure {
   font-family: "Inter", "Noto Sans Thai", sans-serif;
   font-variant-numeric: lining-nums tabular-nums;

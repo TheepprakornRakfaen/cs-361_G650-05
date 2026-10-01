@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   ShieldCheck,
   XCircle,
@@ -12,7 +12,6 @@ import {
   Info,
   GraduationCap,
   UserCog,
-  SearchX,
   Presentation,
   UserCheck,
   Mic,
@@ -22,6 +21,8 @@ import {
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import HeroCarousel from "../components/HeroCarousel";
+import { scrollToSection } from "../utils/scroll";
+import { FAQS } from "../data/searchIndex";
 import {
   SCOPE,
   USER_TYPES,
@@ -41,37 +42,37 @@ import {
 const ROLE_STYLES = {
   "อาจารย์ / ผู้สอน": {
     icon: GraduationCap,
-    gradient: "linear-gradient(135deg, #8FC9CF, #5FA8B2)",
+    gradient: "linear-gradient(135deg, #7FD6E0, #4FB3D9)",
     image: "/images/roles/teacher.jpg",
   },
 
   "ผู้ช่วยสอน (TA)": {
     icon: UserCog,
-    gradient: "linear-gradient(135deg, #D9BE92, #B89563)",
+    gradient: "linear-gradient(135deg, #FFD98A, #FFB45E)",
     image: "/images/roles/ta.jpg",
   },
 
   "อาจารย์ผู้รับผิดชอบวิชา": {
     icon: ShieldCheck,
-    gradient: "linear-gradient(135deg, #AAA7D2, #7F7BB0)",
+    gradient: "linear-gradient(135deg, #BDB6FF, #8E9BFF)",
     image: "/images/roles/course-owner.jpg",
   },
 
   "อาจารย์ผู้บรรยาย": {
     icon: Presentation,
-    gradient: "linear-gradient(135deg, #91B6CF, #668FAA)",
+    gradient: "linear-gradient(135deg, #9CD0FF, #5DA9F0)",
     image: "/images/roles/lecturer.jpg",
   },
 
   "ผู้ช่วยกิจกรรม": {
     icon: UserPlus,
-    gradient: "linear-gradient(135deg, #C79DAF, #9E7388)",
+    gradient: "linear-gradient(135deg, #FFB8D2, #F58FB5)",
     image: "/images/roles/activity-assistant.jpg",
   },
 
   "ผู้ช่วยอาจารย์ผู้บรรยาย": {
     icon: Mic,
-    gradient: "linear-gradient(135deg, #8BBEAD, #609785)",
+    gradient: "linear-gradient(135deg, #95E3C4, #52C7A0)",
     image: "/images/roles/lecturer-assistant.jpg",
   },
 };
@@ -161,9 +162,76 @@ function HoverListItem({ children, className = "" }) {
   );
 }
 
-// รวมข้อความทั้งหมดของแต่ละ section ไว้ค้นหา (ไม่สนตัวพิมพ์เล็ก-ใหญ่)
-function buildCorpus(...parts) {
-  return JSON.stringify(parts).toLowerCase();
+// ครอบเนื้อหาให้กว้างไม่เกิน 7xl และอยู่กึ่งกลาง
+function Wrap({ children }) {
+  return <div className="max-w-7xl mx-auto">{children}</div>;
+}
+
+// แถบพื้นหลังเต็มความกว้างพื้นที่เนื้อหา — ไล่สีจางเข้าหาพื้นหลังหลักด้านบน/ล่าง
+// เพื่อให้ต่อกับส่วนอื่นเนียน ไม่เป็นขอบแข็ง พร้อมลายจุดและวงกลมเบลอตกแต่ง
+const BAND_THEMES = {
+  sky: { plain: true }, // ไม่มีสีพื้นหลัง (เดิม: tint "#E3EEFB")
+  violet: { tint: "#FFFFFF", image: "/dot.png", size: "1890px auto", pad: "pt-10 pb-7 md:pb-9" },
+  mint: { tint: "#F3FDFF", image: "/grid.png", size: "1288px auto", pad: "py-6 md:py-8" },
+};
+
+function Band({ variant = "sky", children }) {
+  const t = BAND_THEMES[variant] || BAND_THEMES.sky;
+
+  // แถบที่ไม่มีพื้นหลัง — ใช้สีพื้นของหน้าตามปกติ
+  if (t.plain) {
+    return (
+      <section className="relative my-4">
+        <div className="relative max-w-7xl mx-auto">{children}</div>
+      </section>
+    );
+  }
+
+  // แถบที่ใช้รูปเป็นพื้นหลัง (public/grid.png, public/dot.png)
+  if (t.image) {
+    return (
+      <section
+        className={`relative -mx-5 md:-mx-9 px-5 md:px-9 ${t.pad} my-4 overflow-hidden`}
+        style={{
+          backgroundColor: t.tint,
+          backgroundImage: `url("${t.image}")`,
+          backgroundSize: t.size, // ปรับขนาดลาย (ตาราง/จุด) ได้ที่ BAND_THEMES
+          backgroundRepeat: "repeat",
+          backgroundPosition: "top left",
+        }}
+      >
+        <div className="relative max-w-7xl mx-auto">{children}</div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="relative -mx-5 md:-mx-9 px-5 md:px-9 py-12 my-4 overflow-hidden"
+      style={{
+        background: `linear-gradient(180deg, ${C.bg} 0%, ${t.tint} 16%, ${t.tint} 84%, ${C.bg} 100%)`,
+      }}
+    >
+      <div
+        className="pointer-events-none absolute -top-16 -left-20 w-80 h-80 rounded-full blur-3xl"
+        style={{ background: t.blobA }}
+      />
+      <div
+        className="pointer-events-none absolute -bottom-20 -right-16 w-96 h-96 rounded-full blur-3xl"
+        style={{ background: t.blobB }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          backgroundImage: "radial-gradient(rgba(30,86,135,0.14) 1.2px, transparent 1.2px)",
+          backgroundSize: "22px 22px",
+          WebkitMaskImage: "linear-gradient(180deg, transparent 0%, #000 25%, #000 75%, transparent 100%)",
+          maskImage: "linear-gradient(180deg, transparent 0%, #000 25%, #000 75%, transparent 100%)",
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto">{children}</div>
+    </section>
+  );
 }
 
 const QUICK_NAV = [
@@ -175,63 +243,12 @@ const QUICK_NAV = [
   ["faq", "คำถามที่พบบ่อย"],
 ];
 
-const FAQS = [
-  {
-    question: "ใครสามารถยื่นคำขอเบิกค่าตอบแทนการสอนได้บ้าง?",
-    answer: "ผู้มีสิทธิ์ยื่นคำขอเบิกสามารถตรวจสอบได้จากส่วนผู้มีสิทธิ์ยื่นคำขอเบิก โดยระบบจะแยกบทบาทและรายละเอียดของผู้ใช้งานแต่ละประเภทไว้อย่างชัดเจน",
-  },
-  {
-    question: "ต้องเตรียมเอกสารอะไรบ้างก่อนยื่นคำขอ?",
-    answer: "สามารถตรวจสอบรายการเอกสารที่ต้องใช้ได้จากส่วนเอกสารประกอบการเบิก ซึ่งแยกข้อมูลที่เกี่ยวข้องไว้ให้ตรวจสอบก่อนเริ่มยื่นคำขอ",
-  },
-  {
-    question: "ขั้นตอนการยื่นและตรวจสอบคำขอเป็นอย่างไร?",
-    answer: "เริ่มจากตรวจสอบสิทธิ์และข้อมูลที่เกี่ยวข้อง เตรียมเอกสาร จากนั้นยื่นคำขอและติดตามสถานะตามขั้นตอนที่ระบบกำหนด",
-  },
-  {
-    question: "สามารถตรวจสอบอัตราค่าตอบแทนได้ที่ไหน?",
-    answer: "ดูรายละเอียดได้จากหัวข้ออัตราค่าตอบแทน ซึ่งรวบรวมอัตราค่าสอนอาจารย์และอัตราสำหรับ TA / ผู้ช่วยสอน",
-  },
-  {
-    question: "หากไม่พบข้อมูลที่ต้องการควรทำอย่างไร?",
-    answer: "สามารถใช้ช่องค้นหาด้านบนเพื่อค้นหาคำว่า อัตรา เอกสาร ขั้นตอน หรือหัวข้อที่เกี่ยวข้องกับสิ่งที่ต้องการตรวจสอบ",
-  },
-];
-
-export default function Home({ query = "" }) {
+export default function Home() {
   const [openFaq, setOpenFaq] = useState(null);
-  const q = query.trim().toLowerCase();
-  const matches = (corpus) => q === "" || corpus.includes(q);
-
-  const corpora = useMemo(
-    () => ({
-      scope: buildCorpus("ขอบเขตการเบิก", SCOPE),
-      users: buildCorpus("ผู้มีสิทธิ์ยื่นคำขอเบิก", USER_TYPES),
-      rates: buildCorpus("อัตราค่าตอบแทน", TEACHING_RATE, TA_RATES),
-      conditions: buildCorpus("เงื่อนไขและหลักเกณฑ์", CONDITIONS),
-      documents: buildCorpus("เอกสารประกอบการเบิก", DOCUMENTS),
-      process: buildCorpus("ขั้นตอนการยื่นและตรวจสอบคำขอเบิก", PROCESS_STEPS),
-      timing: buildCorpus("ช่วงเวลาที่เกี่ยวข้อง", TIMING),
-      features: buildCorpus("สำหรับอาจารย์ สำหรับเจ้าหน้าที่", TEACHER_FEATURES, STAFF_FEATURES),
-    }),
-    []
-  );
-
-  const visible = {
-    scope: matches(corpora.scope),
-    users: matches(corpora.users),
-    rates: matches(corpora.rates),
-    conditions: matches(corpora.conditions),
-    documents: matches(corpora.documents),
-    process: matches(corpora.process),
-    timing: matches(corpora.timing),
-    features: matches(corpora.features),
-  };
-
-  const anyVisible = Object.values(visible).some(Boolean);
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
+    <div className="w-full">
+      <Wrap>
       {/* Hero / Website Preview */}
       <div
         className="relative mb-14"
@@ -267,7 +284,7 @@ export default function Home({ query = "" }) {
                 defaultValue=""
                 onChange={(e) => {
                   const id = e.target.value;
-                  if (id) window.location.hash = id;
+                  if (id) scrollToSection(id);
                   e.target.selectedIndex = 0;
                 }}
                 aria-label="เลือกเมนูภายในหน้า"
@@ -300,6 +317,10 @@ export default function Home({ query = "" }) {
                 <a
                   key={id}
                   href={`#${id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollToSection(id);
+                  }}
                   className="flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
                   style={{
                     background: C.tealSoft,
@@ -340,19 +361,6 @@ export default function Home({ query = "" }) {
         </div>
       </div>
 
-      {q !== "" && (
-        <p className="text-sm mb-4" style={{ color: C.sub }}>
-          ผลการค้นหาสำหรับ <span className="font-semibold" style={{ color: C.tealDark }}>"{query}"</span>
-        </p>
-      )}
-
-      {!anyVisible && (
-        <SectionCard className="p-10 mb-8 flex flex-col items-center text-center" hoverable={false}>
-          <SearchX size={32} style={{ color: C.sub }} className="mb-3" />
-          <p className="font-semibold text-sm" style={{ color: C.ink }}>ไม่พบข้อมูลที่ตรงกับคำค้นหา</p>
-          <p className="text-xs mt-1" style={{ color: C.sub }}>ลองค้นหาด้วยคำอื่น เช่น "อัตรา" "เอกสาร" หรือ "ขั้นตอน"</p>
-        </SectionCard>
-      )}
      {/* เอกสารประกาศและระเบียบที่เกี่ยวข้อง */}
 <div id="documents" className="mb-4 scroll-mt-6 -mt-9">
 
@@ -453,7 +461,7 @@ export default function Home({ query = "" }) {
   </div>
 </div>
       {/* ขอบเขตการเบิก */}
-      {visible.scope && (
+      {(
 
         <section id="scope" className="scroll-mt-6 mb-8">
           <div className="px-1 mb-4">
@@ -549,9 +557,12 @@ export default function Home({ query = "" }) {
         </section>
       )}
 
+      </Wrap>
+
+      <Band variant="violet">
       {/* ผู้มีสิทธิ์ / ผู้ใช้งานหลัก */}
-      {visible.users && (
-        <SectionCard id="users" className="scroll-mt-6 p-6 mb-8" hoverable={false}>
+      {(
+        <SectionCard id="users" className="scroll-mt-6 p-6 mb-0" hoverable={false}>
           <SectionTitle
             icon={Users}
             title="ผู้มีสิทธิ์ยื่นคำขอเบิก"
@@ -588,12 +599,20 @@ export default function Home({ query = "" }) {
                       />
                     ) : null}
 
+                    {/* ไอคอนใหญ่จาง ๆ ตกแต่งมุมการ์ด (ใช้เมื่อยังไม่มีรูป) */}
+                    {React.createElement(style.icon, {
+                      size: 110,
+                      strokeWidth: 1.2,
+                      className: "absolute -right-3 -top-3 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6",
+                      style: { color: "rgba(255,255,255,0.35)" },
+                    })}
+
                     {/* gradient เพื่อให้ข้อความอ่านง่าย */}
                     <div
                       className="absolute inset-0"
                       style={{
                         background:
-                          "linear-gradient(to top, rgba(10,38,45,0.78) 0%, rgba(10,38,45,0.12) 65%, rgba(10,38,45,0.02) 100%)",
+                          "linear-gradient(to top, rgba(20,55,100,0.42) 0%, rgba(20,55,100,0.05) 60%, rgba(255,255,255,0.10) 100%)",
                       }}
                     />
 
@@ -601,9 +620,9 @@ export default function Home({ query = "" }) {
                     <span
                       className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold"
                       style={{
-                        background: "rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.30)",
                         color: "#FFFFFF",
-                        border: "1px solid rgba(255,255,255,0.28)",
+                        border: "1px solid rgba(255,255,255,0.5)",
                         backdropFilter: "blur(8px)",
                       }}
                     >
@@ -612,7 +631,7 @@ export default function Home({ query = "" }) {
 
                     {/* ชื่อบทบาทวางบนภาพ */}
                     <div className="absolute left-5 right-5 bottom-4">
-                      <p className="font-bold text-base text-white leading-6">
+                      <p className="font-bold text-base text-white leading-6" style={{ textShadow: "0 1px 6px rgba(15,50,100,0.45)" }}>
                         {u.role}
                       </p>
                     </div>
@@ -640,8 +659,11 @@ export default function Home({ query = "" }) {
         </SectionCard>
       )}
 
+      </Band>
+
+      <Wrap>
       {/* อัตราค่าตอบแทน */}
-      {visible.rates && (
+      {(
         <SectionCard id="rates" className="scroll-mt-6 p-6 mb-8" hoverable={false}>
           <SectionTitle
             icon={Wallet}
@@ -755,8 +777,8 @@ export default function Home({ query = "" }) {
       )}
 
       {/* เงื่อนไข/หลักเกณฑ์ */}
-      {visible.conditions && (
-        <section className="mb-8 px-1">
+      {(
+        <section id="conditions" className="scroll-mt-6 mb-8 px-1">
           <SectionTitle icon={Info} title="เงื่อนไขและหลักเกณฑ์" accent={C.ember} />
           <div className="border-t" style={{ borderColor: C.border }}>
             {CONDITIONS.map((c, index) => (
@@ -779,9 +801,9 @@ export default function Home({ query = "" }) {
       )}
 
       {/* เอกสารประกอบ */}
-      {visible.documents && (
+      {(
         <SectionCard
-          id="documents"
+          id="required-docs"
           className="scroll-mt-6 p-6 mb-8 border-transparent"
           hoverable={false}
         >
@@ -867,9 +889,12 @@ export default function Home({ query = "" }) {
         </SectionCard>
       )}
 
+      </Wrap>
+
+      <Band variant="mint">
       {/* ขั้นตอน */}
-      {visible.process && (
-        <SectionCard id="process" className="scroll-mt-6 p-6 mb-8">
+      {(
+        <SectionCard id="process" className="scroll-mt-6 p-6 mb-0">
           <SectionTitle icon={ListChecks} title="ขั้นตอนการยื่นและตรวจสอบคำขอเบิก" />
           <div className="space-y-1">
             {PROCESS_STEPS.map((s, i) => (
@@ -892,9 +917,12 @@ export default function Home({ query = "" }) {
         </SectionCard>
       )}
 
+      </Band>
+
+      <Wrap>
       {/* ช่วงเวลาที่เกี่ยวข้อง */}
-      {visible.timing && (
-        <SectionCard className="p-6 mb-8">
+      {(
+        <SectionCard id="timing" className="scroll-mt-6 p-6 mb-8">
           <SectionTitle icon={CalendarClock} title="ช่วงเวลาที่เกี่ยวข้อง" />
           <HoverCard className="flex items-center gap-4 rounded-2xl p-4 border" baseBg={C.tealSoft} baseBorder={C.tealSoft}>
             <span className="px-4 py-2 rounded-full text-sm font-bold text-white shrink-0" style={{ background: C.tealDark }}>
@@ -905,6 +933,9 @@ export default function Home({ query = "" }) {
         </SectionCard>
       )}
 
+      </Wrap>
+
+      <Band variant="sky">
       {/* FAQ */}
       <section id="faq" className="scroll-mt-6 mb-8">
         <SectionCard className="p-6 md:p-8" hoverable={false}>
@@ -962,10 +993,14 @@ export default function Home({ query = "" }) {
       </section>
 
 
+      </Band>
+
+      <Wrap>
       {/* ฟังก์ชันที่จะมีในระบบ */}
-      {visible.features && (
+      {(
         <div
-          className="grid sm:grid-cols-2 gap-8 mb-8 px-1"
+          id="features"
+          className="scroll-mt-6 grid sm:grid-cols-2 gap-8 mb-8 px-1"
         >
           <div className="sm:pr-6 sm:border-r" style={{ borderColor: C.border }}>
             <p className="font-bold text-sm mb-3" style={{ color: C.ink }}>สำหรับอาจารย์</p>
@@ -993,6 +1028,7 @@ export default function Home({ query = "" }) {
         </div>
       )}
 
+      </Wrap>
     </div>
   );
 }
