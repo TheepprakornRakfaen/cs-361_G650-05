@@ -10,6 +10,7 @@ import {
   ChevronRight,
   SearchX,
   CornerDownLeft,
+  Mail,
 } from "lucide-react";
 import { C } from "../theme";
 import { getInitial } from "../data/users";
@@ -53,6 +54,11 @@ export default function Topbar({
   onLogout,
   onOpenProfile,
   onSearchSelect,
+  isHome = false,
+  showBell = true,
+  unreadCount = 0,
+  onBellClick,
+  onContactClick,
 }) {
   // ชื่อที่แสดงมาจากผู้ใช้ที่ล็อกอินจริง (ไม่ fix ชื่อไว้แล้ว)
   const userName = user?.name || "";
@@ -111,7 +117,7 @@ export default function Topbar({
 
   return (
     <header
-      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-30"
+      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-50"
       style={{
         background: C.tealDark,
       }}
@@ -259,17 +265,38 @@ export default function Topbar({
 
       {/* Right */}
       <div className="flex items-center gap-4 shrink-0">
-        {/* Notification */}
-        <button
-          className="relative w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-all"
-          style={{ color: "#FFFFFF" }}
-        >
-          <Bell
-            size={19}
-            fill="#FFFFFF"
-            strokeWidth={2}
-          />
-        </button>
+        {isHome ? (
+          /* หน้าแรก: ปุ่มติดต่อเรา */
+          <button
+            onClick={onContactClick}
+            className="flex items-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white border border-white/40 hover:bg-white/10 transition-all active:scale-[0.98] shrink-0"
+          >
+            <Mail size={17} />
+            <span className="hidden sm:inline">ติดต่อเรา</span>
+          </button>
+        ) : showBell ? (
+          /* หน้าอื่น: กระดิ่งแจ้งเตือน กดแล้วไปหน้าแจ้งเตือน */
+          <button
+            onClick={onBellClick}
+            className="relative w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-all"
+            style={{ color: "#FFFFFF" }}
+            aria-label={
+              unreadCount > 0
+                ? `การแจ้งเตือน (${unreadCount} รายการใหม่)`
+                : "การแจ้งเตือน"
+            }
+          >
+            <Bell size={19} fill="#FFFFFF" strokeWidth={2} />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                style={{ background: C.rose, boxShadow: `0 0 0 2px ${C.tealDark}` }}
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        ) : null}
 
         {/* เข้าสู่ระบบ / โปรไฟล์ */}
         {isLoggedIn ? (

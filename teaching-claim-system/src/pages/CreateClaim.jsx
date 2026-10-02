@@ -17,6 +17,7 @@ import {
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import Field from "../components/Field";
+import Select from "../components/Select";
 import SummaryRow from "../components/SummaryRow";
 import NumberCombo from "../components/NumberCombo";
 import {
@@ -593,7 +594,7 @@ export default function CreateClaim({
           {step === 1 && (
             <div className="space-y-5">
               <Field label="ภาคการศึกษา" required>
-                <select
+                <Select
                   className="fld"
                   value={selectedTermId ?? ""}
                   onChange={(e) => {
@@ -638,11 +639,11 @@ export default function CreateClaim({
                       {term.semester}/{term.year}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               <Field label="รอบการยื่น" required error={errors.round}>
-                <select
+                <Select
                   className="fld"
                   value={selectedPeriodId ?? ""}
                   onChange={(e) => {
@@ -695,7 +696,7 @@ export default function CreateClaim({
                       </option>
                     );
                   })}
-                </select>
+                </Select>
                 {termError && (
                   <p className="text-xs mt-1.5" style={{ color: C.rose }}>
                     {termError}
@@ -726,7 +727,7 @@ export default function CreateClaim({
                     <span>{courseError}</span>
                   </div>
                 ) : normalizedCourses.length > 0 ? (
-                  <select
+                  <Select
                     className="fld"
                     value={form.courseCode}
                     onChange={(e) => {
@@ -753,7 +754,7 @@ export default function CreateClaim({
                         {item.section_no ? ` (${item.section_no})` : ""}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
+import Select from "../components/Select";
 import HeroCarousel from "../components/HeroCarousel";
 import { scrollToSection } from "../utils/scroll";
 import { FAQS } from "../data/searchIndex";
@@ -280,15 +281,14 @@ export default function Home() {
         >
             {/* มือถือ: dropdown เดียวให้กดลูกศรลงเลือกเมนู แทนกริดที่แน่นเกินไป */}
             <div className="sm:hidden relative">
-              <select
-                defaultValue=""
+              <Select
+                value=""
                 onChange={(e) => {
                   const id = e.target.value;
                   if (id) scrollToSection(id);
-                  e.target.selectedIndex = 0;
                 }}
                 aria-label="เลือกเมนูภายในหน้า"
-                className="w-full appearance-none rounded-xl pl-4 pr-10 py-3 text-sm font-semibold"
+                className="w-full rounded-xl pl-4 pr-3.5 py-3 text-sm font-semibold"
                 style={{
                   background: C.tealSoft,
                   color: C.tealDark,
@@ -303,12 +303,7 @@ export default function Home() {
                     {label}
                   </option>
                 ))}
-              </select>
-              <ChevronDown
-                size={18}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                style={{ color: C.tealDark }}
-              />
+              </Select>
             </div>
 
             {/* sm ขึ้นไป: กริดเมนูด่วนแบบเดิม */}

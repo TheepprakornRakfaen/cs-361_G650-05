@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   Search,
-  ChevronDown,
   Plus,
   Clock,
   FilePlus2,
@@ -10,6 +9,7 @@ import {
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
+import Select from "../components/Select";
 
 export default function CreateClaimList({
   rounds = [],
@@ -91,12 +91,12 @@ export default function CreateClaimList({
         </div>
 
         <div className="relative">
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value)
             }
-            className="appearance-none rounded-full border pl-4 pr-9 py-2.5 text-sm font-medium bg-white outline-none"
+            className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[10rem]"
             style={{
               borderColor: C.border,
               color: C.ink,
@@ -113,13 +113,7 @@ export default function CreateClaimList({
             <option value="Closed">
               ปิดรับ
             </option>
-          </select>
-
-          <ChevronDown
-            size={15}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-            style={{ color: C.sub }}
-          />
+          </Select>
         </div>
       </div>
 

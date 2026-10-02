@@ -12,6 +12,7 @@ import {
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
+import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
 
 export default function MyClaims({
@@ -142,12 +143,12 @@ export default function MyClaims({
           />
         </div>
 
-        <select
+        <Select
           value={statusFilter}
           onChange={(e) =>
             setStatusFilter(e.target.value)
           }
-          className="rounded-full border px-4 py-2.5 text-sm font-medium bg-white outline-none"
+          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[10rem]"
           style={{
             borderColor: C.border,
             color: C.ink,
@@ -172,7 +173,7 @@ export default function MyClaims({
           <option value="Rejected">
             ไม่อนุมัติ
           </option>
-        </select>
+        </Select>
       </div>
 
       {/* Status Summary */}

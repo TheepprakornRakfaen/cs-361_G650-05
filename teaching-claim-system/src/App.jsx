@@ -16,6 +16,8 @@ import CreateClaim from "./pages/CreateClaim";
 import ClaimDetail from "./pages/ClaimDetail";
 import CreateClaimList from "./pages/CreateClaimList";
 import Profile from "./pages/Profile";
+import Contact from "./pages/Contact";
+import Notifications from "./pages/Notifications";
 
 import {
   loadState,
@@ -31,6 +33,11 @@ import {
 } from "./services/auth";
 
 import { buildUserCourses } from "./data/rates";
+import {
+  buildNotifications,
+  loadReadIds,
+  saveReadIds,
+} from "./data/notifications";
 import { getTerms, getPeriods } from "./api/termApi";
 import { getCourses } from "./api/courseApi";
 
@@ -44,6 +51,8 @@ const SUBTITLE_MAP = {
   rounds: "รอบการยื่น",
   detail: "รายละเอียดคำขอ",
   profile: "ข้อมูลส่วนตัว",
+  contact: "ติดต่อเรา",
+  notifications: "การแจ้งเตือน",
 };
 
 /*
@@ -58,6 +67,7 @@ const PROTECTED_VIEWS = new Set([
   "claim-create",
   "detail",
   "profile",
+  "notifications",
 ]);
 
 const SYSTEM_ROUNDS = [
@@ -307,6 +317,28 @@ export default function App() {
    */
   const courses = buildUserCourses(currentUser, allCourses, claims);
 
+  /*
+   * การแจ้งเตือน (สร้างจากสถานะคำขอของผู้ใช้ + ข่าวสาร)
+   * สถานะอ่านแล้วเก็บใน localStorage แยกตามผู้ใช้
+   */
+  const [readIds, setReadIds] = useState([]);
+
+  useEffect(() => {
+    setReadIds(currentUser ? loadReadIds(currentUser.username) : []);
+  }, [currentUser]);
+
+  const notifications = buildNotifications(claims);
+  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
+
+  const markRead = (ids) => {
+    const list = Array.isArray(ids) ? ids : [ids];
+    setReadIds((prev) => {
+      const next = Array.from(new Set([...prev, ...list]));
+      if (currentUser) saveReadIds(currentUser.username, next);
+      return next;
+    });
+  };
+
   const storedRounds = Array.isArray(state?.rounds) ? state.rounds : [];
 
   const rounds = [...SYSTEM_ROUNDS, ...storedRounds];
@@ -545,6 +577,22 @@ export default function App() {
           />
         );
 
+      case "notifications":
+        return (
+          <Notifications
+            notifications={notifications}
+            readIds={readIds}
+            onRead={markRead}
+            onReadAll={() => markRead(notifications.map((n) => n.id))}
+            goDetail={goDetail}
+          />
+        );
+
+      case "contact":
+        return (
+          <Contact user={currentUser} onDone={() => setView("home")} />
+        );
+
       default:
         return <Home query={search} />;
     }
@@ -608,6 +656,11 @@ export default function App() {
         user={currentUser}
         onLogout={handleLogout}
         onOpenProfile={() => setView("profile")}
+        isHome={view === "home"}
+        showBell={view !== "contact"}
+        unreadCount={unreadCount}
+        onBellClick={() => setView("notifications")}
+        onContactClick={() => setView("contact")}
       />
 
       {/* =========================
