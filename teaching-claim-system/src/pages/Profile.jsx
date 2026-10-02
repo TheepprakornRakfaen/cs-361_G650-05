@@ -11,6 +11,7 @@ import {
   UserRound,
   Camera,
   X,
+  ChevronRight,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -18,6 +19,13 @@ import SectionCard from "../components/SectionCard";
 import { getInitial } from "../data/users";
 
 const AVATAR_BG = `linear-gradient(135deg, #F07A7E, ${C.rose})`;
+
+/*
+ * การ์ดสถานะในส่วน "สรุปการเบิกค่าสอน" ที่กดแล้วไปหน้าคำขอของฉัน (กรองตามสถานะนั้น)
+ * ตอนนี้ทำเฉพาะแบบร่าง — จะให้การ์ดอื่นกดได้ ให้เพิ่มชื่อสถานะในนี้
+ * เช่น ["Draft", "Pending", "Approved"]
+ */
+const CLICKABLE_STATUSES = ["Draft"];
 
 function InfoRow({ icon: Icon, label, value }) {
   return (
@@ -53,6 +61,7 @@ export default function Profile({
   courses = [],
   claims = [],
   onLogin,
+  onOpenClaims,
 }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState("");
@@ -439,33 +448,52 @@ export default function Profile({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {Object.entries(STATUS_STYLE).map(
-                ([key, style]) => (
-                  <div
-                    key={key}
-                    className="rounded-2xl px-4 py-3"
-                    style={{
-                      background: style.bg,
-                    }}
-                  >
-                    <p
-                      className="text-xs font-semibold"
-                      style={{
-                        color: style.fg,
-                      }}
-                    >
-                      {style.label}
-                    </p>
+                ([key, style]) => {
+                  const clickable =
+                    CLICKABLE_STATUSES.includes(key) &&
+                    Boolean(onOpenClaims);
 
-                    <p
-                      className="text-2xl font-extrabold figure mt-0.5"
+                  // การ์ดที่กดได้เป็นปุ่ม พากลับไปหน้าคำขอของฉันที่กรองสถานะนั้นไว้
+                  const Card = clickable ? "button" : "div";
+
+                  return (
+                    <Card
+                      key={key}
+                      {...(clickable && {
+                        type: "button",
+                        onClick: () => onOpenClaims(key),
+                        title: `ดูรายการ${style.label}`,
+                      })}
+                      className={`rounded-2xl px-4 py-3 text-left ${
+                        clickable
+                          ? "transition-transform hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                          : ""
+                      }`}
                       style={{
-                        color: style.fg,
+                        background: style.bg,
                       }}
                     >
-                      {counts[key] || 0}
-                    </p>
-                  </div>
-                )
+                      <p
+                        className="text-xs font-semibold flex items-center justify-between gap-1"
+                        style={{
+                          color: style.fg,
+                        }}
+                      >
+                        {style.label}
+                        {clickable && <ChevronRight size={14} />}
+                      </p>
+
+                      <p
+                        className="text-2xl font-extrabold figure mt-0.5"
+                        style={{
+                          color: style.fg,
+                        }}
+                      >
+                        {counts[key] || 0}
+                      </p>
+                    </Card>
+                  );
+                }
               )}
             </div>
           </SectionCard>

@@ -83,6 +83,24 @@ const SYSTEM_ROUNDS = [
 export default function App() {
   const [view, setView] = useState("home");
 
+  /*
+   * ตัวกรองสถานะตอนเปิดหน้า "คำขอของฉัน" จากที่อื่น
+   * เช่น กดการ์ด "แบบร่าง" ในหน้าโปรไฟล์ → แสดงเฉพาะแบบร่าง
+   */
+  const [myClaimsFilter, setMyClaimsFilter] = useState("All");
+
+  const openMyClaims = (status = "All") => {
+    setMyClaimsFilter(status);
+    setView("myclaims");
+  };
+
+  // ออกจากหน้าคำขอของฉันแล้ว รอบหน้าเปิดจากเมนูให้กลับมาแสดงทั้งหมด
+  useEffect(() => {
+    if (view !== "myclaims") {
+      setMyClaimsFilter("All");
+    }
+  }, [view]);
+
   const [collapsed, setCollapsed] = useState(false);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -511,7 +529,12 @@ export default function App() {
 
       case "myclaims":
         return (
-          <MyClaims claims={claims} goDetail={goDetail} goCreate={goCreate} />
+          <MyClaims
+            claims={claims}
+            goDetail={goDetail}
+            goCreate={goCreate}
+            initialStatus={myClaimsFilter}
+          />
         );
 
       case "create":
@@ -574,6 +597,7 @@ export default function App() {
             courses={courses}
             claims={claims}
             onLogin={() => setView("login")}
+            onOpenClaims={openMyClaims}
           />
         );
 
