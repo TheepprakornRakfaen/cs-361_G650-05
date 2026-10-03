@@ -119,7 +119,9 @@ export default function Topbar({
     <header
       className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-50"
       style={{
-        background: C.tealDark,
+        background: `linear-gradient(90deg, ${C.tealDark} 0%, #2B6CA8 100%)`,
+        borderBottom: "1px solid rgba(255,255,255,0.12)",
+        boxShadow: "0 4px 14px rgba(16,35,59,0.18)",
       }}
     >
       {/* Left */}
@@ -269,7 +271,7 @@ export default function Topbar({
           /* หน้าแรก: ปุ่มติดต่อเรา */
           <button
             onClick={onContactClick}
-            className="flex items-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white border border-white/40 hover:bg-white/10 transition-all active:scale-[0.98] shrink-0"
+            className="flex items-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-all active:scale-[0.98] shrink-0"
           >
             <Mail size={17} />
             <span className="hidden sm:inline">ติดต่อเรา</span>

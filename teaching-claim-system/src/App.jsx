@@ -90,6 +90,24 @@ const SYSTEM_ROUNDS = [
 export default function App() {
   const [view, setView] = useState("home");
 
+  /*
+   * ตัวกรองสถานะตอนเปิดหน้า "คำขอของฉัน" จากที่อื่น
+   * เช่น กดการ์ด "แบบร่าง" ในหน้าโปรไฟล์ → แสดงเฉพาะแบบร่าง
+   */
+  const [myClaimsFilter, setMyClaimsFilter] = useState("All");
+
+  const openMyClaims = (status = "All") => {
+    setMyClaimsFilter(status);
+    setView("myclaims");
+  };
+
+  // ออกจากหน้าคำขอของฉันแล้ว รอบหน้าเปิดจากเมนูให้กลับมาแสดงทั้งหมด
+  useEffect(() => {
+    if (view !== "myclaims") {
+      setMyClaimsFilter("All");
+    }
+  }, [view]);
+
   const [collapsed, setCollapsed] = useState(false);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -101,6 +119,17 @@ export default function App() {
   const [presetCourse, setPresetCourse] = useState("");
 
   const [presetRound, setPresetRound] = useState(null);
+
+  // หน้าที่จะพาไปหลังล็อกอินสำเร็จ (เช่น กดปุ่ม "เข้าสู่ระบบเพื่อยื่นคำขอ" จากหน้าแรก)
+  const [afterLoginView, setAfterLoginView] = useState(null);
+
+  // ออกจากขั้นตอนสร้างคำขอแล้วให้ล้างค่าที่จำไว้ ไม่ให้ค้างไปรอบถัดไป
+  useEffect(() => {
+    if (!["create", "rounds", "claim-create"].includes(view)) {
+      setPresetCourse("");
+      setPresetRound(null);
+    }
+  }, [view]);
 
   const [editingClaimId, setEditingClaimId] = useState(null);
 
@@ -453,28 +482,33 @@ export default function App() {
   /*
    * สร้างคำขอใหม่
    */
+  const goLoginThenCreate = () => {
+    setAfterLoginView("create");
+    setView("login");
+  };
+
   const goCreate = () => {
     setPresetCourse("");
     setPresetRound(null);
     setEditingClaimId(null);
-    setView("claim-create");
+    setView("create"); // ไปหน้าเลือกรอบก่อน (สร้างได้เฉพาะรอบที่เปิดรับ)
   };
 
   /*
    * สร้างคำขอจากรายวิชา
    */
   const goCreateFor = (courseCode) => {
-    setPresetCourse(courseCode);
+    setPresetCourse(courseCode); // จำวิชาไว้ แล้วให้เลือกรอบที่เปิดรับก่อน
     setPresetRound(null);
     setEditingClaimId(null);
-    setView("claim-create");
+    setView("create");
   };
 
   /*
    * สร้างคำขอจากรอบ
    */
   const goCreateForRound = (round) => {
-    setPresetCourse("");
+    // ไม่ล้าง presetCourse เพื่อคงวิชาที่เลือกมาจากหน้ารายวิชา
     setPresetRound(round);
     setEditingClaimId(null);
     setView("claim-create");
@@ -566,7 +600,7 @@ export default function App() {
   const renderPage = () => {
     switch (view) {
       case "home":
-        return <Home query={search} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
 
       case "dashboard":
         return (
@@ -591,7 +625,12 @@ export default function App() {
 
       case "myclaims":
         return (
-          <MyClaims claims={claims} goDetail={goDetail} goCreate={goCreate} />
+          <MyClaims
+            claims={claims}
+            goDetail={goDetail}
+            goCreate={goCreate}
+            initialStatus={myClaimsFilter}
+          />
         );
 
       case "create":
@@ -654,6 +693,7 @@ export default function App() {
             courses={courses}
             claims={claims}
             onLogin={() => setView("login")}
+            onOpenClaims={openMyClaims}
           />
         );
 
@@ -674,7 +714,7 @@ export default function App() {
         );
 
       default:
-        return <Home query={search} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
     }
   };
 
@@ -706,10 +746,14 @@ export default function App() {
     return (
       <Login
         notice={needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : ""}
-        onBack={() => setView("home")}
+        onBack={() => {
+          setAfterLoginView(null);
+          setView("home");
+        }}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          setView(needsLogin ? view : "home");
+          setView(needsLogin ? view : afterLoginView || "home");
+          setAfterLoginView(null);
         }}
       />
     );
@@ -776,7 +820,9 @@ export default function App() {
           <main className="flex-1 overflow-y-auto">
             <div className="p-5 md:p-9">{renderPage()}</div>
 
-            {view === "home" && <Footer />}
+            {view === "home" && (
+              <Footer onContactClick={() => setView("contact")} />
+            )}
           </main>
         </div>
       </div>

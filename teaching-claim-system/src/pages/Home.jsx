@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import {
   ShieldCheck,
   XCircle,
@@ -17,6 +17,8 @@ import {
   Mic,
   UserPlus,
   ChevronDown,
+  CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -82,12 +84,27 @@ const DEFAULT_ROLE_STYLE = { icon: UserCheck, gradient: `linear-gradient(135deg,
 
 function SectionTitle({ icon: Icon, title, sub, accent = C.tealDark }) {
   return (
-    <div className="mb-5 pl-4 border-l-[3px]" style={{ borderColor: accent }}>
-      <div className="flex items-center gap-2">
-        <Icon size={16} style={{ color: accent }} strokeWidth={2.25} />
-        <h3 className="font-bold text-lg tracking-tight" style={{ color: C.ink }}>{title}</h3>
+    <div className="mb-6 flex items-center gap-3.5">
+      {/* ไอคอนในกล่องสี — ภาษาเดียวกับ PageHeader ของหน้าอื่น */}
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${accent}1A` }}
+      >
+        <Icon size={19} style={{ color: accent }} strokeWidth={2.25} />
       </div>
-      {sub && <p className="text-sm mt-1" style={{ color: C.sub }}>{sub}</p>}
+      <div className="min-w-0">
+        <h3
+          className="font-bold text-lg md:text-xl tracking-tight leading-tight"
+          style={{ color: C.ink }}
+        >
+          {title}
+        </h3>
+        {sub && (
+          <p className="text-sm mt-1" style={{ color: C.sub }}>
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -235,6 +252,141 @@ function Band({ variant = "sky", children }) {
   );
 }
 
+// การ์ดสรุปรอบการยื่นที่เปิดรับอยู่ (ดึงจากข้อมูลรอบเดียวกับหน้าสร้างคำขอ)
+function RoundStatus({ rounds }) {
+  const openRounds = useMemo(() => {
+    const seen = new Set();
+    return rounds.filter((r) => {
+      if (r.status !== "Open") return false;
+      const key = `${r.label}|${r.period}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rounds]);
+
+  const hasOpen = openRounds.length > 0;
+  const shown = openRounds.slice(0, 2);
+
+  return (
+    <div
+      className="rounded-2xl border bg-white p-4 md:p-5 w-full md:w-80 shrink-0"
+      style={{ borderColor: C.border, boxShadow: "0 8px 22px rgba(30,86,135,0.08)" }}
+    >
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="relative flex w-2.5 h-2.5">
+          {hasOpen && (
+            <span
+              className="absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping"
+              style={{ background: "#1E8E4F" }}
+            />
+          )}
+          <span
+            className="relative inline-flex w-2.5 h-2.5 rounded-full"
+            style={{ background: hasOpen ? "#1E8E4F" : C.sub }}
+          />
+        </span>
+        <p className="text-xs font-bold" style={{ color: hasOpen ? "#1E8E4F" : C.sub }}>
+          {hasOpen ? "รอบที่เปิดรับตอนนี้" : "ยังไม่มีรอบที่เปิดรับ"}
+        </p>
+      </div>
+
+      {hasOpen ? (
+        <ul className="space-y-2.5">
+          {shown.map((r) => (
+            <li key={`${r.label}|${r.period}`} className="flex items-start gap-2.5">
+              <CalendarClock size={16} className="mt-0.5 shrink-0" style={{ color: C.tealDark }} />
+              <div className="min-w-0">
+                <p className="text-sm font-bold leading-5" style={{ color: C.ink }}>
+                  {r.label} · {r.period}
+                </p>
+                {r.deadline && (
+                  <p className="text-xs mt-0.5" style={{ color: C.sub }}>
+                    ส่งหลักฐานภายใน {r.deadline}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs leading-5" style={{ color: C.sub }}>
+          เมื่อมีรอบใหม่เปิดรับ ข้อมูลจะแสดงที่นี่
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ===== ลูกเล่นหน้าแรก =====
+// 1) ส่วนต่าง ๆ ค่อย ๆ เลื่อนขึ้นพร้อมเฟดเมื่อเลื่อนหน้าจอมาถึง
+// 2) ปุ่มเมนูด่วนมีแถบสีเข้มกวาดเข้ามาจากซ้ายตอนเมาส์ชี้
+// CSS อยู่ในตัวไฟล์นี้ ไม่ต้องแก้ index.css
+const HOME_FX_CSS = `
+.rv-hidden { opacity: 0; transform: translateY(40px); }
+.rv-in { animation: rvUp 0.75s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+@keyframes rvUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nav-sweep { position: relative; overflow: hidden; z-index: 0; }
+.nav-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: ${C.tealDark};
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: -1;
+}
+.nav-sweep:hover::before, .nav-sweep:focus-visible::before {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.nav-sweep { transition: color 0.3s ease; }
+.nav-sweep:hover, .nav-sweep:focus-visible { color: #FFFFFF !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-hidden { opacity: 1; transform: none; }
+  .rv-in { animation: none; }
+  .nav-sweep::before { transition: none; }
+}
+`;
+
+const REVEAL_IDS = ["documents", "scope", "users", "rates", "conditions", "required-docs", "process", "timing", "faq", "features"];
+
+function useScrollReveal() {
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const els = REVEAL_IDS.map((id) => document.getElementById(id)).filter(Boolean);
+    els.forEach((el) => el.classList.add("rv-hidden"));
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          const el = e.target;
+          el.classList.remove("rv-hidden");
+          el.classList.add("rv-in");
+          el.addEventListener("animationend", () => el.classList.remove("rv-in"), { once: true });
+          io.unobserve(el);
+        });
+      },
+      { threshold: 0.06 },
+    );
+    els.forEach((el) => io.observe(el));
+
+    return () => {
+      io.disconnect();
+      els.forEach((el) => el.classList.remove("rv-hidden", "rv-in"));
+    };
+  }, []);
+}
+
 const QUICK_NAV = [
   ["documents", "ประกาศและเอกสาร"],
   ["scope", "ขอบเขตการเบิก"],
@@ -244,11 +396,13 @@ const QUICK_NAV = [
   ["faq", "คำถามที่พบบ่อย"],
 ];
 
-export default function Home() {
+export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [] }) {
   const [openFaq, setOpenFaq] = useState(null);
+  useScrollReveal();
 
   return (
     <div className="w-full">
+      <style>{HOME_FX_CSS}</style>
       <Wrap>
       {/* Hero / Website Preview */}
       <div
@@ -316,7 +470,7 @@ export default function Home() {
                     e.preventDefault();
                     scrollToSection(id);
                   }}
-                  className="flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+                  className="nav-sweep flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium"
                   style={{
                     background: C.tealSoft,
                     color: C.tealDark,
@@ -349,9 +503,33 @@ export default function Home() {
                 ทั้งประเภทค่าตอบแทน ผู้มีสิทธิ์ อัตราหรือหลักเกณฑ์ เงื่อนไข
                 เอกสารประกอบ ขั้นตอน และช่วงเวลาที่เกี่ยวข้อง
               </p>
+
+              {/* ปุ่มเรียกใช้งานหลัก */}
+              <div className="flex flex-col sm:flex-row gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => (isLoggedIn ? goCreate?.() : onLogin?.())}
+                  className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-full font-bold text-sm text-white transition-transform hover:-translate-y-0.5"
+                  style={{
+                    background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                    boxShadow: "0 8px 18px rgba(30,86,135,0.25)",
+                  }}
+                >
+                  {isLoggedIn ? "เริ่มยื่นคำขอ" : "เข้าสู่ระบบเพื่อยื่นคำขอ"}
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection("process")}
+                  className="inline-flex items-center justify-center h-11 px-6 rounded-full font-semibold text-sm border bg-white transition-colors hover:bg-[#E8F0FA]"
+                  style={{ borderColor: C.border, color: C.tealDark }}
+                >
+                  ดูวิธียื่นคำขอ
+                </button>
+              </div>
             </div>
 
-            
+            <RoundStatus rounds={rounds} />
           </div>
         </div>
       </div>
@@ -992,36 +1170,39 @@ export default function Home() {
 
       <Wrap>
       {/* ฟังก์ชันที่จะมีในระบบ */}
-      {(
-        <div
-          id="features"
-          className="scroll-mt-6 grid sm:grid-cols-2 gap-8 mb-8 px-1"
-        >
-          <div className="sm:pr-6 sm:border-r" style={{ borderColor: C.border }}>
-            <p className="font-bold text-sm mb-3" style={{ color: C.ink }}>สำหรับอาจารย์</p>
-            <ul className="space-y-1">
-              {TEACHER_FEATURES.map((f) => (
-                <HoverListItem key={f} className="flex items-start gap-2 text-xs px-2 py-1.5 -mx-2">
-                  <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: C.teal }} />
-                  <span style={{ color: C.sub }}>{f}</span>
-                </HoverListItem>
-              ))}
-            </ul>
-          </div>
-
-          <div className="sm:pl-2">
-            <p className="font-bold text-sm mb-3" style={{ color: C.ink }}>สำหรับเจ้าหน้าที่</p>
-            <ul className="space-y-1">
-              {STAFF_FEATURES.map((f) => (
-                <HoverListItem key={f} className="flex items-start gap-2 text-xs px-2 py-1.5 -mx-2">
-                  <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: C.teal }} />
-                  <span style={{ color: C.sub }}>{f}</span>
-                </HoverListItem>
-              ))}
-            </ul>
-          </div>
+      <div id="features" className="scroll-mt-6 mb-0">
+        <SectionTitle
+          icon={Presentation}
+          title="ระบบนี้ช่วยอะไรได้บ้าง"
+          sub="ฟังก์ชันที่รองรับการใช้งานของแต่ละบทบาท"
+        />
+        <div className="grid md:grid-cols-2 gap-5">
+          {[
+            { title: "สำหรับอาจารย์", icon: GraduationCap, accent: C.tealDark, items: TEACHER_FEATURES },
+            { title: "สำหรับเจ้าหน้าที่", icon: UserCog, accent: C.violet, items: STAFF_FEATURES },
+          ].map(({ title, icon: Icon, accent, items }) => (
+            <SectionCard key={title} className="p-6" hoverable={false}>
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: `${accent}1A` }}
+                >
+                  <Icon size={20} style={{ color: accent }} />
+                </div>
+                <p className="font-bold text-base" style={{ color: C.ink }}>{title}</p>
+              </div>
+              <ul className="space-y-1">
+                {items.map((f) => (
+                  <HoverListItem key={f} className="flex items-start gap-2.5 text-sm leading-6 px-2 py-1.5 -mx-2">
+                    <CheckCircle2 size={17} className="mt-1 shrink-0" style={{ color: accent }} />
+                    <span style={{ color: C.ink }}>{f}</span>
+                  </HoverListItem>
+                ))}
+              </ul>
+            </SectionCard>
+          ))}
         </div>
-      )}
+      </div>
 
       </Wrap>
     </div>

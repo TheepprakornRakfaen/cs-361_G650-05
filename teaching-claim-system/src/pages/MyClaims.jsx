@@ -19,10 +19,12 @@ export default function MyClaims({
   claims = [],
   goDetail,
   goCreate,
+  // สถานะที่ให้กรองไว้ตั้งแต่เปิดหน้า เช่น "Draft" เมื่อกดมาจากการ์ดแบบร่างในโปรไฟล์
+  initialStatus = "All",
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
-    useState("All");
+    useState(initialStatus);
 
   const counts = useMemo(() => {
     const result = {
