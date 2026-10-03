@@ -38,8 +38,15 @@ import {
   loadReadIds,
   saveReadIds,
 } from "./data/notifications";
-import { getTerms, getPeriods } from "./api/termApi";
-import { getCourses } from "./api/courseApi";
+// import { getTerms, getPeriods } from "./api/termApi";
+// import { getCourses } from "./api/courseApi";
+import {
+  syncCurrentUser,
+  getTerms,
+  getPeriods,
+  getCourses,
+  getClaims,
+} from "./services/api";
 
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
@@ -258,6 +265,79 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    async function connectBackend() {
+      /*
+      * 1. Sync Cognito user กับ backend
+      *
+      * ถ้าตรงนี้ fail:
+      * ผู้ใช้ยังถือว่า Login สำเร็จอยู่
+      */
+      try {
+        const profile =
+          await syncCurrentUser();
+
+        console.log(
+          "POST /api/auth/me:",
+          profile
+        );
+      } catch (error) {
+        console.error(
+          "POST /api/auth/me failed:",
+          error
+        );
+      }
+
+      /*
+      * 2. ทดสอบ Backend APIs
+      */
+      try {
+        const [
+          terms,
+          periods,
+          courses,
+          claims,
+        ] = await Promise.all([
+          getTerms(),
+          getPeriods(),
+          getCourses(),
+          getClaims(),
+        ]);
+
+        console.log(
+          "GET /api/term:",
+          terms
+        );
+
+        console.log(
+          "GET /api/period:",
+          periods
+        );
+
+        console.log(
+          "GET /api/courses:",
+          courses
+        );
+
+        console.log(
+          "GET /api/claims:",
+          claims
+        );
+      } catch (error) {
+        console.error(
+          "Backend API test failed:",
+          error
+        );
+      }
+    }
+
+    connectBackend();
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser) return;
