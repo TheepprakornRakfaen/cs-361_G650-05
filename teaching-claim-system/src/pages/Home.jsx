@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import {
   ShieldCheck,
   XCircle,
@@ -318,6 +318,75 @@ function RoundStatus({ rounds }) {
   );
 }
 
+// ===== ลูกเล่นหน้าแรก =====
+// 1) ส่วนต่าง ๆ ค่อย ๆ เลื่อนขึ้นพร้อมเฟดเมื่อเลื่อนหน้าจอมาถึง
+// 2) ปุ่มเมนูด่วนมีแถบสีเข้มกวาดเข้ามาจากซ้ายตอนเมาส์ชี้
+// CSS อยู่ในตัวไฟล์นี้ ไม่ต้องแก้ index.css
+const HOME_FX_CSS = `
+.rv-hidden { opacity: 0; transform: translateY(40px); }
+.rv-in { animation: rvUp 0.75s cubic-bezier(0.22, 0.61, 0.36, 1) backwards; }
+@keyframes rvUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nav-sweep { position: relative; overflow: hidden; z-index: 0; }
+.nav-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: ${C.tealDark};
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: -1;
+}
+.nav-sweep:hover::before, .nav-sweep:focus-visible::before {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+.nav-sweep { transition: color 0.3s ease; }
+.nav-sweep:hover, .nav-sweep:focus-visible { color: #FFFFFF !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-hidden { opacity: 1; transform: none; }
+  .rv-in { animation: none; }
+  .nav-sweep::before { transition: none; }
+}
+`;
+
+const REVEAL_IDS = ["documents", "scope", "users", "rates", "conditions", "required-docs", "process", "timing", "faq", "features"];
+
+function useScrollReveal() {
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const els = REVEAL_IDS.map((id) => document.getElementById(id)).filter(Boolean);
+    els.forEach((el) => el.classList.add("rv-hidden"));
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (!e.isIntersecting) return;
+          const el = e.target;
+          el.classList.remove("rv-hidden");
+          el.classList.add("rv-in");
+          el.addEventListener("animationend", () => el.classList.remove("rv-in"), { once: true });
+          io.unobserve(el);
+        });
+      },
+      { threshold: 0.06 },
+    );
+    els.forEach((el) => io.observe(el));
+
+    return () => {
+      io.disconnect();
+      els.forEach((el) => el.classList.remove("rv-hidden", "rv-in"));
+    };
+  }, []);
+}
+
 const QUICK_NAV = [
   ["documents", "ประกาศและเอกสาร"],
   ["scope", "ขอบเขตการเบิก"],
@@ -329,9 +398,11 @@ const QUICK_NAV = [
 
 export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [] }) {
   const [openFaq, setOpenFaq] = useState(null);
+  useScrollReveal();
 
   return (
     <div className="w-full">
+      <style>{HOME_FX_CSS}</style>
       <Wrap>
       {/* Hero / Website Preview */}
       <div
@@ -399,7 +470,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
                     e.preventDefault();
                     scrollToSection(id);
                   }}
-                  className="flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium transition-all duration-200 hover:-translate-y-0.5"
+                  className="nav-sweep flex items-center justify-center min-h-12 rounded-xl px-3 py-2 whitespace-nowrap text-xs md:text-sm font-medium"
                   style={{
                     background: C.tealSoft,
                     color: C.tealDark,
