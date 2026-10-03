@@ -107,7 +107,7 @@ export default function Contact({ user, onDone }) {
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto" style={{ animation: "fadein 0.4s ease-out" }}>
+    <div className="w-full max-w-4xl mx-auto" style={{ animation: "fadein 0.4s ease-out" }}>
       <PageHeader
         icon={Mail}
         title="ติดต่อเรา"

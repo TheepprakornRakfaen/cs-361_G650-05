@@ -17,6 +17,7 @@ import {
   Mic,
   UserPlus,
   ChevronDown,
+  CheckCircle2,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -82,12 +83,27 @@ const DEFAULT_ROLE_STYLE = { icon: UserCheck, gradient: `linear-gradient(135deg,
 
 function SectionTitle({ icon: Icon, title, sub, accent = C.tealDark }) {
   return (
-    <div className="mb-5 pl-4 border-l-[3px]" style={{ borderColor: accent }}>
-      <div className="flex items-center gap-2">
-        <Icon size={16} style={{ color: accent }} strokeWidth={2.25} />
-        <h3 className="font-bold text-lg tracking-tight" style={{ color: C.ink }}>{title}</h3>
+    <div className="mb-6 flex items-center gap-3.5">
+      {/* ไอคอนในกล่องสี — ภาษาเดียวกับ PageHeader ของหน้าอื่น */}
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${accent}1A` }}
+      >
+        <Icon size={19} style={{ color: accent }} strokeWidth={2.25} />
       </div>
-      {sub && <p className="text-sm mt-1" style={{ color: C.sub }}>{sub}</p>}
+      <div className="min-w-0">
+        <h3
+          className="font-bold text-lg md:text-xl tracking-tight leading-tight"
+          style={{ color: C.ink }}
+        >
+          {title}
+        </h3>
+        {sub && (
+          <p className="text-sm mt-1" style={{ color: C.sub }}>
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -244,7 +260,7 @@ const QUICK_NAV = [
   ["faq", "คำถามที่พบบ่อย"],
 ];
 
-export default function Home() {
+export default function Home({ isLoggedIn = false, goCreate }) {
   const [openFaq, setOpenFaq] = useState(null);
 
   return (
@@ -992,36 +1008,39 @@ export default function Home() {
 
       <Wrap>
       {/* ฟังก์ชันที่จะมีในระบบ */}
-      {(
-        <div
-          id="features"
-          className="scroll-mt-6 grid sm:grid-cols-2 gap-8 mb-8 px-1"
-        >
-          <div className="sm:pr-6 sm:border-r" style={{ borderColor: C.border }}>
-            <p className="font-bold text-sm mb-3" style={{ color: C.ink }}>สำหรับอาจารย์</p>
-            <ul className="space-y-1">
-              {TEACHER_FEATURES.map((f) => (
-                <HoverListItem key={f} className="flex items-start gap-2 text-xs px-2 py-1.5 -mx-2">
-                  <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: C.teal }} />
-                  <span style={{ color: C.sub }}>{f}</span>
-                </HoverListItem>
-              ))}
-            </ul>
-          </div>
-
-          <div className="sm:pl-2">
-            <p className="font-bold text-sm mb-3" style={{ color: C.ink }}>สำหรับเจ้าหน้าที่</p>
-            <ul className="space-y-1">
-              {STAFF_FEATURES.map((f) => (
-                <HoverListItem key={f} className="flex items-start gap-2 text-xs px-2 py-1.5 -mx-2">
-                  <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: C.teal }} />
-                  <span style={{ color: C.sub }}>{f}</span>
-                </HoverListItem>
-              ))}
-            </ul>
-          </div>
+      <div id="features" className="scroll-mt-6 mb-0">
+        <SectionTitle
+          icon={Presentation}
+          title="ระบบนี้ช่วยอะไรได้บ้าง"
+          sub="ฟังก์ชันที่รองรับการใช้งานของแต่ละบทบาท"
+        />
+        <div className="grid md:grid-cols-2 gap-5">
+          {[
+            { title: "สำหรับอาจารย์", icon: GraduationCap, accent: C.tealDark, items: TEACHER_FEATURES },
+            { title: "สำหรับเจ้าหน้าที่", icon: UserCog, accent: C.violet, items: STAFF_FEATURES },
+          ].map(({ title, icon: Icon, accent, items }) => (
+            <SectionCard key={title} className="p-6" hoverable={false}>
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: C.border }}>
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: `${accent}1A` }}
+                >
+                  <Icon size={20} style={{ color: accent }} />
+                </div>
+                <p className="font-bold text-base" style={{ color: C.ink }}>{title}</p>
+              </div>
+              <ul className="space-y-1">
+                {items.map((f) => (
+                  <HoverListItem key={f} className="flex items-start gap-2.5 text-sm leading-6 px-2 py-1.5 -mx-2">
+                    <CheckCircle2 size={17} className="mt-1 shrink-0" style={{ color: accent }} />
+                    <span style={{ color: C.ink }}>{f}</span>
+                  </HoverListItem>
+                ))}
+              </ul>
+            </SectionCard>
+          ))}
         </div>
-      )}
+      </div>
 
       </Wrap>
     </div>

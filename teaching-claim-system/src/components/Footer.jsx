@@ -56,7 +56,7 @@ export default function Footer() {
   const year = new Date().getFullYear() + 543;
 
   return (
-    <footer className="relative w-full mt-10 text-white overflow-hidden">
+    <footer className="relative w-full mt-0 text-white overflow-hidden">
       <div
         className="h-1 w-full"
         style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}

@@ -53,7 +53,7 @@ export default function Notifications({
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto" style={{ animation: "fadein 0.4s ease-out" }}>
+    <div className="w-full max-w-none" style={{ animation: "fadein 0.4s ease-out" }}>
       <PageHeader
         icon={Bell}
         title="การแจ้งเตือน"

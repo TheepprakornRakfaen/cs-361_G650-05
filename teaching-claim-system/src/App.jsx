@@ -113,6 +113,14 @@ export default function App() {
 
   const [presetRound, setPresetRound] = useState(null);
 
+  // ออกจากขั้นตอนสร้างคำขอแล้วให้ล้างค่าที่จำไว้ ไม่ให้ค้างไปรอบถัดไป
+  useEffect(() => {
+    if (!["create", "rounds", "claim-create"].includes(view)) {
+      setPresetCourse("");
+      setPresetRound(null);
+    }
+  }, [view]);
+
   const [editingClaimId, setEditingClaimId] = useState(null);
 
   // =========================
@@ -395,24 +403,24 @@ export default function App() {
     setPresetCourse("");
     setPresetRound(null);
     setEditingClaimId(null);
-    setView("claim-create");
+    setView("create"); // ไปหน้าเลือกรอบก่อน (สร้างได้เฉพาะรอบที่เปิดรับ)
   };
 
   /*
    * สร้างคำขอจากรายวิชา
    */
   const goCreateFor = (courseCode) => {
-    setPresetCourse(courseCode);
+    setPresetCourse(courseCode); // จำวิชาไว้ แล้วให้เลือกรอบที่เปิดรับก่อน
     setPresetRound(null);
     setEditingClaimId(null);
-    setView("claim-create");
+    setView("create");
   };
 
   /*
    * สร้างคำขอจากรอบ
    */
   const goCreateForRound = (round) => {
-    setPresetCourse("");
+    // ไม่ล้าง presetCourse เพื่อคงวิชาที่เลือกมาจากหน้ารายวิชา
     setPresetRound(round);
     setEditingClaimId(null);
     setView("claim-create");
@@ -504,7 +512,7 @@ export default function App() {
   const renderPage = () => {
     switch (view) {
       case "home":
-        return <Home query={search} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} />;
 
       case "dashboard":
         return (
@@ -618,7 +626,7 @@ export default function App() {
         );
 
       default:
-        return <Home query={search} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} />;
     }
   };
 
