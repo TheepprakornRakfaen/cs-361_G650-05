@@ -36,8 +36,7 @@ import {
   loadReadIds,
   saveReadIds,
 } from "./data/notifications";
-// import { getTerms, getPeriods } from "./api/termApi";
-// import { getCourses } from "./api/courseApi";
+
 import {
   syncCurrentUser,
   getTerms,
@@ -48,6 +47,11 @@ import {
 } from "./services/api";
 
 import { uploadClaimEvidence } from "./services/evidence";
+
+import {
+  buildClaimApiPayload,
+  normalizeClaimsResponse,
+} from "./services/claimMapper";
 
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
@@ -335,7 +339,8 @@ export default function App() {
 
   const [claimsError, setClaimsError] = useState("");
 
-  const loadClaims = async () => {
+  const loadClaims =
+    async () => {
       setClaimsLoading(true);
       setClaimsError("");
 
@@ -344,18 +349,9 @@ export default function App() {
           await getClaims();
 
         const nextClaims =
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data?.claims)
-              ? data.claims
-              : Array.isArray(data?.items)
-                ? data.items
-                : [];
-
-        console.log(
-          "Claims from backend:",
-          nextClaims
-        );
+          normalizeClaimsResponse(
+            data
+          );
 
         setApiClaims(
           nextClaims
@@ -865,9 +861,10 @@ export default function App() {
       *
       * ส่ง form ไปดู contract ของ Lambda จริงก่อน
       */
-      const payload = {
-        ...form,
-      };
+      const payload =
+      buildClaimApiPayload(
+        form
+      );
 
       console.log(
         "POST /api/claims payload:",
