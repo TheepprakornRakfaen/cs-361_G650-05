@@ -174,6 +174,8 @@ export default function CreateClaim({
       code: course.code || course.course_code || "",
       name: course.name || course.course_name_th || course.course_name_en || "",
 
+      sectionId: course.section_id ?? course.sectionId ?? course.id ?? null,
+
       // assignment จาก API
       position: role,
       positionLabel,
@@ -268,6 +270,11 @@ export default function CreateClaim({
   });
 
   const [errors, setErrors] = useState({});
+
+  const [
+    evidenceFile,
+    setEvidenceFile,
+  ] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -462,18 +469,50 @@ export default function CreateClaim({
   }
 
   function handleFile(file) {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
-    const fileError = validateFile(file);
+    const fileError =
+      validateFile(file);
 
     setErrors((current) => ({
       ...current,
       file: fileError,
     }));
 
-    if (fileError) return;
+    if (fileError) {
+      /*
+      * ถ้าไฟล์ใหม่ไม่ผ่าน validation
+      * ไม่เก็บ File object
+      */
+      setEvidenceFile(null);
+      return;
+    }
 
-    set("fileName", file.name);
+    /*
+    * เก็บ File object จริงไว้ใน memory
+    * สำหรับ upload S3 ภายหลัง
+    */
+    setEvidenceFile(file);
+
+    /*
+    * เก็บชื่อไว้ใน form
+    * สำหรับแสดงผลใน UI
+    */
+    set(
+      "fileName",
+      file.name
+    );
+
+    console.log(
+      "Evidence selected:",
+      {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      }
+    );
   }
 
   /*
@@ -491,7 +530,7 @@ export default function CreateClaim({
       return;
     }
 
-    onSubmit?.(buildPayload());
+    onSubmit?.(buildPayload(),evidenceFile);
   }
 
   return (
@@ -1081,13 +1120,13 @@ export default function CreateClaim({
                   }}
                 >
                   PDF, JPG, PNG ไม่เกิน {MAX_FILE_MB} MB ·
-                  เวอร์ชันนี้จัดเก็บเฉพาะชื่อไฟล์ใน localStorage
+                  ไฟล์จะถูกอัปโหลดเป็นหลักฐานประกอบคำขอ
                 </p>
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={ALLOWED_FILE_EXTENSIONS.join(",")}
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                   hidden
                   onChange={(e) => handleFile(e.target.files[0])}
                 />
@@ -1138,9 +1177,61 @@ export default function CreateClaim({
                     >
                       {form.fileName}
                     </p>
+                    <div>
+                      <p
+                        className="text-sm font-medium"
+                        style={{
+                          color: C.ink,
+                        }}
+                      >
+                        {form.fileName}
+                      </p>
+
+                      {evidenceFile && (
+                        <p
+                          className="text-xs mt-0.5"
+                          style={{
+                            color: C.sub,
+                          }}
+                        >
+                          {(
+                            evidenceFile.size /
+                            1024 /
+                            1024
+                          ).toFixed(2)}{" "}
+                          MB
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  <button type="button" onClick={() => set("fileName", "")}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEvidenceFile(null);
+
+                      set(
+                        "fileName",
+                        ""
+                      );
+
+                      setErrors((current) => ({
+                        ...current,
+                        file: "",
+                      }));
+
+                      /*
+                      * ล้าง input ด้วย
+                      * เพื่อให้เลือกไฟล์เดิมซ้ำได้
+                      */
+                      if (
+                        fileInputRef.current
+                      ) {
+                        fileInputRef.current.value =
+                          "";
+                      }
+                    }}
+                  >
                     <Trash2
                       size={16}
                       style={{
@@ -1244,7 +1335,7 @@ export default function CreateClaim({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => onSaveDraft?.(buildPayload())}
+                onClick={() => onSaveDraft?.(buildPayload(),evidenceFile)}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={normalizedCourses.length === 0}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"

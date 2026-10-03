@@ -48,6 +48,9 @@ import {
   getClaims,
 } from "./services/api";
 
+import { createClaim } from "./services/api";
+import { uploadClaimEvidence } from "./services/evidence";
+
 const SUBTITLE_MAP = {
   home: "หน้าแรก",
   dashboard: "แดชบอร์ด",
@@ -549,24 +552,85 @@ export default function App() {
   /*
    * Submit คำขอ (สร้างใหม่ หรือยื่นคำขอที่แก้ไข)
    */
-  const handleSubmit = (form) => {
-    const savedClaim = editingClaimId
-      ? updateClaimFromForm(editingClaimId, form, "Pending")
-      : addClaim(form, "Pending", currentUser?.username);
+  const handleSubmit = async (form, evidenceFile) => {
+    try {
+      /*
+      * STEP 1
+      * สร้าง Claim จริงก่อน
+      */
+      const claimResponse =
+        await createClaim(
+          /* payload ของ Claim API */
+        );
 
-    /*
-     * โหลดข้อมูลใหม่จาก localStorage
-     */
-    const latestState = loadState();
+      console.log(
+        "Claim created:",
+        claimResponse
+      );
 
-    setState(latestState);
+      /*
+      * STEP 2
+      * เอา claimId จริงจาก Backend
+      */
+      const claimId =
+        getClaimIdFromResponse(
+          claimResponse
+        );
 
-    setEditingClaimId(null);
+      if (!claimId) {
+        throw new Error(
+          "Backend created the claim but did not return claimId"
+        );
+      }
 
-    setSelectedClaimId(savedClaim.id);
+      /*
+      * STEP 3
+      * ถ้ามีไฟล์ → Upload ไป S3
+      */
+      if (evidenceFile) {
+        const evidence =
+          await uploadClaimEvidence(
+            claimId,
+            evidenceFile
+          );
 
-    setView("detail");
+        console.log(
+          "Evidence uploaded:",
+          evidence
+        );
+      }
+
+      /*
+      * STEP 4
+      * ไปหน้ารายละเอียด
+      */
+      setEditingClaimId(null);
+      setSelectedClaimId(claimId);
+      setView("detail");
+    } catch (error) {
+      console.error(
+        "Submit claim failed:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "ไม่สามารถยื่นคำขอได้"
+      );
+    }
   };
+
+  function getClaimIdFromResponse(data) {
+    return (
+      data?.claimId ||
+      data?.claim_id ||
+      data?.id ||
+      data?.claim?.claimId ||
+      data?.claim?.claim_id ||
+      data?.claim?.id ||
+      null
+    );
+  }
 
   /*
    * บันทึกร่างคำขอ (สร้างร่างใหม่ หรืออัปเดตร่างเดิม)
