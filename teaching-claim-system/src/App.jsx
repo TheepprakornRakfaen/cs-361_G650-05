@@ -672,62 +672,118 @@ export default function App() {
     });
   };
 
-  const rounds =
-    periods.map(
-      (period) => {
-        const formatDate =
-          (value) => {
-            if (!value) {
-              return "";
-            }
-
-            return new Intl.DateTimeFormat(
-              "th-TH",
-              {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              }
-            ).format(
-              new Date(value)
-            );
-          };
-
-        const rawStatus =
-          String(
-            period.status ||
-              ""
-          ).toUpperCase();
-
-        const status =
-          rawStatus === "OPEN"
-            ? "Open"
-            : "Closed";
-
-        return {
-          id:
-            period.id,
-
-          label:
-            period.label ||
-            `รอบเดือน ${period.month || "-"}`,
-
-          period:
-            `${formatDate(
-              period.open_at
-            )} - ${formatDate(
-              period.close_at
-            )}`,
-
-          deadline:
-            formatDate(
-              period.close_at
-            ),
-
-          status,
-        };
+  const rounds = periods.map(
+  (period) => {
+    const formatDate = (
+      value
+    ) => {
+      if (!value) {
+        return "";
       }
-    );
+
+      return new Intl.DateTimeFormat(
+        "th-TH",
+        {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }
+      ).format(
+        new Date(value)
+      );
+    };
+
+    /*
+     * Database:
+     * 0 = Closed
+     * 1 = Open
+     *
+     * รองรับกรณี API ส่ง
+     * number / string / "OPEN"
+     */
+    const statusValue =
+      String(
+        period.status ?? ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const statusEnabled =
+      period.status === 1 ||
+      period.status === "1" ||
+      statusValue === "OPEN";
+
+    /*
+     * ตรวจช่วงเวลาเปิดจริงด้วย
+     */
+    const now =
+      new Date();
+
+    const openAt =
+      period.open_at
+        ? new Date(
+            period.open_at
+          )
+        : null;
+
+    const closeAt =
+      period.close_at
+        ? new Date(
+            period.close_at
+          )
+        : null;
+
+    const withinPeriod =
+      (!openAt ||
+        now >= openAt) &&
+      (!closeAt ||
+        now <= closeAt);
+
+    const isOpen =
+      statusEnabled &&
+      withinPeriod;
+
+    return {
+      id:
+        period.id,
+
+      termId:
+        period.term_id,
+
+      month:
+        period.month,
+
+      label:
+        period.label ||
+        `รอบเดือน ${
+          period.month || "-"
+        }`,
+
+      period:
+        `${formatDate(
+          period.open_at
+        )} - ${formatDate(
+          period.close_at
+        )}`,
+
+      deadline:
+        formatDate(
+          period.close_at
+        ),
+
+      openAt:
+        period.open_at,
+
+      closeAt:
+        period.close_at,
+
+      status:
+        isOpen
+          ? "Open"
+          : "Closed",
+    };
+  }
+);
 
   /*
    * เปิด/ปิด Sidebar
