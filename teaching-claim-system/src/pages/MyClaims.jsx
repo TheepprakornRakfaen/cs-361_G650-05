@@ -29,7 +29,7 @@ export default function MyClaims({
   const counts = useMemo(() => {
     const result = {
       Draft: 0,
-      Pending: 0,
+      Submitted: 0,
       Approved: 0,
       Rejected: 0,
     };
@@ -80,8 +80,8 @@ export default function MyClaims({
       "#5B6672",
     ],
     [
-      "Pending",
-      "รอตรวจสอบ",
+      "Submitted",
+      "ยื่นแล้ว / รอตรวจสอบ",
       "#FEF6D8",
       "#9A7B06",
     ],
@@ -164,8 +164,8 @@ export default function MyClaims({
             แบบร่าง
           </option>
 
-          <option value="Pending">
-            รอตรวจสอบ
+          <option value="Submitted">
+            ยื่นแล้ว / รอตรวจสอบ
           </option>
 
           <option value="Approved">

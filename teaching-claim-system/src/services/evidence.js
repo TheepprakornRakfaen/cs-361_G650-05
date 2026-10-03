@@ -1,9 +1,26 @@
-import { getIdToken } from "./auth";
+import {
+  getIdToken,
+} from "./auth";
 
 const API_URL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+  import.meta.env.VITE_API_URL?.replace(
+    /\/$/,
+    ""
+  );
 
-function getContentType(file) {
+const MAX_FILE_SIZE =
+  10 * 1024 * 1024;
+
+const ALLOWED_TYPES =
+  new Set([
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+  ]);
+
+function getContentType(
+  file
+) {
   if (file.type) {
     return file.type;
   }
@@ -11,7 +28,9 @@ function getContentType(file) {
   const name =
     file.name.toLowerCase();
 
-  if (name.endsWith(".pdf")) {
+  if (
+    name.endsWith(".pdf")
+  ) {
     return "application/pdf";
   }
 
@@ -22,14 +41,18 @@ function getContentType(file) {
     return "image/jpeg";
   }
 
-  if (name.endsWith(".png")) {
+  if (
+    name.endsWith(".png")
+  ) {
     return "image/png";
   }
 
-  return "application/octet-stream";
+  return "";
 }
 
-async function readJson(response) {
+async function readJson(
+  response
+) {
   const text =
     await response.text();
 
@@ -68,6 +91,28 @@ export async function uploadClaimEvidence(
     );
   }
 
+  if (
+    file.size >
+    MAX_FILE_SIZE
+  ) {
+    throw new Error(
+      "ไฟล์ต้องมีขนาดไม่เกิน 10 MB"
+    );
+  }
+
+  const contentType =
+    getContentType(file);
+
+  if (
+    !ALLOWED_TYPES.has(
+      contentType
+    )
+  ) {
+    throw new Error(
+      "รองรับเฉพาะ PDF, JPG และ PNG"
+    );
+  }
+
   const token =
     await getIdToken();
 
@@ -77,21 +122,8 @@ export async function uploadClaimEvidence(
     );
   }
 
-  const contentType =
-    getContentType(file);
-
-  console.log(
-    "Requesting evidence upload URL...",
-    {
-      claimId,
-      fileName: file.name,
-      contentType,
-      fileSize: file.size,
-    }
-  );
-
   /*
-   * STEP 1:
+   * STEP 1
    * ขอ Presigned URL
    */
   const presignResponse =
@@ -110,15 +142,16 @@ export async function uploadClaimEvidence(
             token,
         },
 
-        body: JSON.stringify({
-          fileName:
-            file.name,
+        body:
+          JSON.stringify({
+            fileName:
+              file.name,
 
-          contentType,
+            contentType,
 
-          fileSize:
-            file.size,
-        }),
+            fileSize:
+              file.size,
+          }),
       }
     );
 
@@ -126,12 +159,6 @@ export async function uploadClaimEvidence(
     await readJson(
       presignResponse
     );
-
-  console.log(
-    "Presign response:",
-    presignResponse.status,
-    presignData
-  );
 
   if (
     !presignResponse.ok
@@ -151,12 +178,11 @@ export async function uploadClaimEvidence(
   }
 
   /*
-   * STEP 2:
-   * Upload File object จริงไป S3
+   * STEP 2
+   * PUT file → S3
    *
-   * ห้ามส่ง Cognito JWT ตรงนี้
-   * เพราะ authorization อยู่ใน
-   * Presigned URL แล้ว
+   * ห้ามใส่ Cognito Authorization
+   * ใน request นี้
    */
   const uploadResponse =
     await fetch(
@@ -173,28 +199,15 @@ export async function uploadClaimEvidence(
       }
     );
 
-  console.log(
-    "S3 upload status:",
-    uploadResponse.status
-  );
-
   if (
     !uploadResponse.ok
   ) {
-    const text =
-      await uploadResponse.text();
-
-    console.error(
-      "S3 upload response:",
-      text
-    );
-
     throw new Error(
       `S3_UPLOAD_FAILED_${uploadResponse.status}`
     );
   }
 
-  const result = {
+  return {
     evidenceId:
       presignData.evidenceId,
 
@@ -218,11 +231,4 @@ export async function uploadClaimEvidence(
         "ETag"
       ),
   };
-
-  console.log(
-    "Evidence uploaded successfully:",
-    result
-  );
-
-  return result;
 }

@@ -17,7 +17,7 @@ export const C = {
 
 export const STATUS_STYLE = {
   Draft: { bg: "#EDF0F2", fg: "#5B6672", label: "แบบร่าง" },
-  Pending: { bg: "#FEF6D8", fg: "#9A7B06", label: "รอตรวจสอบ" },
+  Submitted: { bg: "#FEF6D8", fg: "#9A7B06", label: "ยื่นแล้ว / รอตรวจสอบ" },
   Approved: { bg: "#DFF5E6", fg: "#1E8E4F", label: "อนุมัติแล้ว" },
   Rejected: { bg: "#FBE2E2", fg: "#C23B3B", label: "ไม่อนุมัติ" },
 };

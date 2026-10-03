@@ -98,6 +98,16 @@ export function createClaimId(claims = []) {
 
 function claimFieldsFromForm(form) {
   return {
+
+    termId:
+      form.termId || "",
+
+    periodId:
+      form.periodId || "",
+
+    sectionId:
+      form.sectionId || "",
+
     courseCode:
       form.courseCode?.trim() || "-",
 

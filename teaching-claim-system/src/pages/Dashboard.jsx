@@ -22,7 +22,7 @@ export default function Dashboard({
   const counts = useMemo(() => {
     const c = {
       Draft: 0,
-      Pending: 0,
+      Submitted: 0,
       Approved: 0,
       Rejected: 0,
     };
@@ -92,7 +92,7 @@ export default function Dashboard({
           {[
             ["ทั้งหมด", claims.length],
             ["แบบร่าง", counts.Draft],
-            ["รอตรวจสอบ", counts.Pending],
+            ["รอตรวจสอบ", counts.Submitted],
             ["อนุมัติแล้ว", counts.Approved],
           ].map(([label, val]) => (
             <div

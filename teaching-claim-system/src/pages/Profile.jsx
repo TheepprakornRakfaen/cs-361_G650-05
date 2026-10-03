@@ -165,7 +165,7 @@ export default function Profile({
   const counts = useMemo(() => {
     const result = {
       Draft: 0,
-      Pending: 0,
+      Submitted: 0,
       Approved: 0,
       Rejected: 0,
     };

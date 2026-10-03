@@ -133,6 +133,7 @@ function validateFile(file) {
 
 export default function CreateClaim({
   presetCourse,
+  presetSectionId,
   presetRound,
   initialClaim,
   courses = [],
@@ -200,10 +201,33 @@ export default function CreateClaim({
   const normalizedCourses = courses.map(normalizeCourse).filter(Boolean);
 
   const firstCourse =
-    normalizedCourses.find((c) => c.code === presetCourse) ||
+    normalizedCourses.find(
+      (course) =>
+        presetSectionId != null &&
+        String(
+          course.sectionId
+        ) ===
+          String(
+            presetSectionId
+          )
+    ) ||
+    normalizedCourses.find(
+      (course) =>
+        course.code ===
+        presetCourse
+    ) ||
     normalizedCourses[0];
 
   const [step, setStep] = useState(1);
+
+  const initialTerm =
+    terms.find(
+      (term) =>
+        String(term.id) ===
+        String(
+          selectedTermId
+        )
+    );
 
   const [form, setForm] = useState(() => {
     if (initialClaim) {
@@ -213,6 +237,7 @@ export default function CreateClaim({
         round: initialClaim.round || "",
 
         periodId: initialClaim.periodId || "",
+        sectionId: initialClaim.sectionId || "",
         courseCode: initialClaim.courseCode || "",
         courseName: initialClaim.courseName || "",
         rate: Number(initialClaim.rate || 0),
@@ -243,9 +268,13 @@ export default function CreateClaim({
     }
 
     return {
-      semester: "1/2569",
+      semester:
+        initialTerm
+          ? `${initialTerm.semester}/${initialTerm.year}`
+          : "",
 
-      termId: "",
+      termId:
+        selectedTermId ?? "",
 
       round: presetRound
         ? `${presetRound.label || ""} · ${presetRound.period || ""}`
@@ -254,6 +283,8 @@ export default function CreateClaim({
           : "",
 
       periodId: presetRound?.id || "",
+
+      sectionId: presetSectionId ?? firstCourse?.sectionId ?? "",
 
       courseCode: presetCourse || firstCourse?.code || "",
 
@@ -278,7 +309,21 @@ export default function CreateClaim({
 
   const fileInputRef = useRef(null);
 
-  const course = normalizedCourses.find((c) => c.code === form.courseCode);
+  const course =
+    normalizedCourses.find(
+      (item) =>
+        String(
+          item.sectionId
+        ) ===
+        String(
+          form.sectionId
+        )
+    ) ||
+    normalizedCourses.find(
+      (item) =>
+        item.code ===
+        form.courseCode
+    );
 
   // อัตรามาจากตำแหน่งในรายวิชาที่ได้รับมอบหมายเท่านั้น (ไม่ใช้ค่าที่อยู่ในฟอร์ม)
   const rate = Number(course?.rate || 0);
@@ -368,36 +413,64 @@ export default function CreateClaim({
    * preset course
    */
   useEffect(() => {
-    if (presetCourse && course) {
+    if (
+      (
+        presetCourse ||
+        presetSectionId
+      ) &&
+      course
+    ) {
       setForm((current) => ({
         ...current,
-        courseCode: course.code,
-        courseName: course.name || "",
-        rate: Number(course.rate || 0),
+
+        sectionId:
+          course.sectionId ??
+          "",
+
+        courseCode:
+          course.code,
+
+        courseName:
+          course.name || "",
+
+        rate:
+          Number(
+            course.rate || 0
+          ),
       }));
     }
-  }, [presetCourse, course?.code]);
+  }, [
+    presetCourse,
+    presetSectionId,
+    course?.sectionId,
+  ]);
 
   function validateStep1() {
     const nextErrors = {};
 
-    if (!form.round) {
-      nextErrors.round = "กรุณาเลือกรอบการยื่น";
+    if (!form.termId) {
+      nextErrors.termId =
+        "กรุณาเลือกภาคการศึกษา";
     }
 
-    if (!form.courseCode) {
-      nextErrors.courseCode = "กรุณาระบุรายวิชา";
+    if (!form.periodId) {
+      nextErrors.round =
+        "กรุณาเลือกรอบการยื่น";
+    }
+
+    if (!form.sectionId) {
+      nextErrors.courseCode =
+        "กรุณาเลือกรายวิชาและ Section";
     } else if (!course) {
       nextErrors.courseCode =
-        "รายวิชานี้ไม่ได้อยู่ในรายวิชาที่คุณได้รับมอบหมาย";
-    } /*else if (rate <= 0) {
-      nextErrors.courseCode =
-        "ไม่พบอัตราค่าตอบแทนของตำแหน่งนี้ กรุณาติดต่อเจ้าหน้าที่";
-    }*/
+        "ไม่พบ Teaching Assignment นี้";
+    }
 
-    setErrors(nextErrors);
+    setErrors(
+      nextErrors
+    );
 
-    return Object.keys(nextErrors).length === 0;
+    return ( Object.keys(nextErrors).length === 0 );
   }
 
   function validateStep2() {
@@ -610,8 +683,8 @@ export default function CreateClaim({
                 }}
               >
                 {isEditing
-                  ? "กำลังแก้ไขคำขอ — บันทึกร่างหรือยื่นใหม่ได้"
-                  : "ข้อมูลจะถูกบันทึกไว้ในเครื่องนี้"}
+                  ? "กำลังแก้ไขแบบร่าง"
+                  : "ตรวจสอบข้อมูลให้ครบก่อนยื่นคำขอ"}
               </p>
             </div>
 
@@ -632,10 +705,10 @@ export default function CreateClaim({
           {/* STEP 1 */}
           {step === 1 && (
             <div className="space-y-5">
-              <Field label="ภาคการศึกษา" required>
+              <Field label="ภาคการศึกษา" required error={errors.termId}>
                 <Select
                   className="fld"
-                  value={selectedTermId ?? ""}
+                  value={form.termId ?? ""}
                   onChange={(e) => {
                     const value = e.target.value;
                     const termId = value ? Number(value) : null;
@@ -657,6 +730,7 @@ export default function CreateClaim({
                       round: "",
 
                       // เปลี่ยนภาคแล้วต้องเลือกรายวิชาใหม่
+                      sectionId: "",
                       courseCode: "",
                       courseName: "",
                       rate: 0,
@@ -684,7 +758,7 @@ export default function CreateClaim({
               <Field label="รอบการยื่น" required error={errors.round}>
                 <Select
                   className="fld"
-                  value={selectedPeriodId ?? ""}
+                  value={form.periodId ?? ""}
                   onChange={(e) => {
                     const value = e.target.value;
                     const periodId = value ? Number(value) : null;
@@ -705,7 +779,7 @@ export default function CreateClaim({
 
                     onPeriodChange?.(periodId);
                   }}
-                  disabled={!selectedTermId || periodLoading}
+                  disabled={!form.termId || periodLoading}
                 >
                   <option value="">
                     {!selectedTermId
@@ -768,31 +842,56 @@ export default function CreateClaim({
                 ) : normalizedCourses.length > 0 ? (
                   <Select
                     className="fld"
-                    value={form.courseCode}
+                    value={form.sectionId ?? ""}
                     onChange={(e) => {
-                      const selected = normalizedCourses.find(
-                        (item) => item.code === e.target.value,
-                      );
+                      const value = e.target.value;
+                      const selected =
+                        normalizedCourses.find(
+                          (item) => String(item.sectionId) === String(value)
+                        );
 
                       setForm((current) => ({
-                        ...current,
-                        courseCode: e.target.value,
-                        courseName: selected?.name || "",
-                        rate: Number(selected?.rate || 0),
-                      }));
+                          ...current,
+
+                          sectionId:
+                            selected?.sectionId ??
+                            "",
+
+                          courseCode:
+                            selected?.code ||
+                            "",
+
+                          courseName:
+                            selected?.name ||
+                            "",
+
+                          rate:
+                            Number(
+                              selected?.rate ||
+                                0
+                            ),
+                        })
+                      );
                     }}
                   >
-                    <option value="">เลือกรายวิชา</option>
+                    <option value="">
+                      เลือกรายวิชา
+                    </option>
 
-                    {normalizedCourses.map((item) => (
-                      <option
-                        key={`${item.code}-${item.section_no ?? ""}`}
-                        value={item.code}
-                      >
-                        {item.code} – {item.name || "ไม่ระบุชื่อ"}
-                        {item.section_no ? ` (${item.section_no})` : ""}
-                      </option>
-                    ))}
+                    {normalizedCourses.map(
+                      (item) => (
+                        <option
+                          key={item.sectionId}
+                          value={item.sectionId}
+                        >
+                          {item.code} –{" "}
+                          {item.name || "ไม่ระบุชื่อ"}
+                          {item.section_no
+                            ? ` (Section ${item.section_no})`
+                            : ""}
+                        </option>
+                      )
+                    )}
                   </Select>
                 ) : (
                   <div
@@ -1169,14 +1268,6 @@ export default function CreateClaim({
                       }}
                     />
 
-                    <p
-                      className="text-sm font-medium"
-                      style={{
-                        color: C.ink,
-                      }}
-                    >
-                      {form.fileName}
-                    </p>
                     <div>
                       <p
                         className="text-sm font-medium"

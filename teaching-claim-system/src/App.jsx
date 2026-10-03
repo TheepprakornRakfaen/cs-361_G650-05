@@ -28,11 +28,9 @@ import {
 
 import {
   getAuthenticatedUser,
-  getIdToken,
   logoutFromCognito,
 } from "./services/auth";
 
-import { buildUserCourses } from "./data/rates";
 import {
   buildNotifications,
   loadReadIds,
@@ -46,9 +44,9 @@ import {
   getPeriods,
   getCourses,
   getClaims,
+  createClaim,
 } from "./services/api";
 
-import { createClaim } from "./services/api";
 import { uploadClaimEvidence } from "./services/evidence";
 
 const SUBTITLE_MAP = {
@@ -80,16 +78,6 @@ const PROTECTED_VIEWS = new Set([
   "notifications",
 ]);
 
-const SYSTEM_ROUNDS = [
-  {
-    id: "current-1-2569",
-    label: "รอบการยื่นภาคการศึกษา 1/2569",
-    period: "1 มิถุนายน - 31 กรกฎาคม 2569",
-    deadline: "31 กรกฎาคม 2569",
-    status: "Open",
-  },
-];
-
 export default function App() {
   const [view, setView] = useState("home");
 
@@ -119,6 +107,8 @@ export default function App() {
 
   const [selectedClaimId, setSelectedClaimId] = useState(null);
 
+  const [presetSectionId, setPresetSectionId] = useState(null);
+
   const [presetCourse, setPresetCourse] = useState("");
 
   const [presetRound, setPresetRound] = useState(null);
@@ -130,6 +120,7 @@ export default function App() {
   useEffect(() => {
     if (!["create", "rounds", "claim-create"].includes(view)) {
       setPresetCourse("");
+      setPresetSectionId(null);
       setPresetRound(null);
     }
   }, [view]);
@@ -152,110 +143,241 @@ export default function App() {
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseError, setCourseError] = useState("");
 
-  const loadTerms = async (token) => {
-    setTermLoading(true);
-    setTermError("");
+  const loadTerms =
+    async () => {
+      setTermLoading(true);
+      setTermError("");
 
-    try {
-      const data = await getTerms(token);
+      try {
+        const data =
+          await getTerms();
 
-      const nextTerms = Array.isArray(data?.terms) ? data.terms : [];
+        const nextTerms =
+          Array.isArray(
+            data?.terms
+          )
+            ? data.terms
+            : Array.isArray(data)
+              ? data
+              : [];
 
-      setTerms(nextTerms);
+        setTerms(
+          nextTerms
+        );
 
-      return nextTerms;
-    } catch (error) {
-      console.error("Load terms error:", error);
-      setTerms([]);
-      setTermError(error?.message || "ไม่สามารถโหลดภาคการศึกษาได้");
+        return nextTerms;
+      } catch (error) {
+        console.error(
+          "Load terms error:",
+          error
+        );
 
-      return [];
-    } finally {
-      setTermLoading(false);
-    }
-  };
+        setTerms([]);
 
-  const loadPeriods = async (termId, token) => {
-    if (!termId) {
-      setPeriods([]);
-      setSelectedPeriodId(null);
-      return [];
-    }
+        setTermError(
+          error?.message ||
+          "ไม่สามารถโหลดภาคการศึกษาได้"
+        );
 
-    setPeriodLoading(true);
-    setTermError("");
+        return [];
+      } finally {
+        setTermLoading(false);
+      }
+    };
 
-    try {
-      const data = await getPeriods(termId, token);
+  const loadPeriods =
+    async (termId) => {
+      if (!termId) {
+        setPeriods([]);
+        setSelectedPeriodId(
+          null
+        );
 
-      const nextPeriods = Array.isArray(data?.periods) ? data.periods : [];
-
-      setPeriods(nextPeriods);
-
-      return nextPeriods;
-    } catch (error) {
-      console.error("Load periods error:", error);
-      setPeriods([]);
-      setSelectedPeriodId(null);
-      setTermError(error?.message || "ไม่สามารถโหลดรอบการยื่นได้");
-
-      return [];
-    } finally {
-      setPeriodLoading(false);
-    }
-  };
-
-  const loadCourses = async (termId, token) => {
-    if (!termId) {
-      setApiCourses([]);
-      setCourseError("");
-      return [];
-    }
-
-    setCourseLoading(true);
-    setCourseError("");
-
-    try {
-      const data = await getCourses(termId, token);
-      const nextCourses = Array.isArray(data?.courses) ? data.courses : [];
-
-      setApiCourses(nextCourses);
-
-      return nextCourses;
-    } catch (error) {
-      console.error("Load courses error:", error);
-      setApiCourses([]);
-      setCourseError(error?.message || "ไม่สามารถโหลดรายวิชาได้");
-      return [];
-    } finally {
-      setCourseLoading(false);
-    }
-  };
-
-  const handleTermChange = async (termId) => {
-    setSelectedTermId(termId);
-    setPeriods([]);
-    setSelectedPeriodId(null);
-    setApiCourses([]);
-
-    if (!termId) return;
-
-    try {
-      const token = await getIdToken();
-
-      if (!token) {
-        throw new Error("ไม่พบ token สำหรับเข้าสู่ระบบ");
+        return [];
       }
 
-      await Promise.all([
-        loadPeriods(termId, token),
-        loadCourses(termId, token),
-      ]);
-    } catch (error) {
-      console.error("Load term-dependent data error:", error);
-    }
-  };
+      setPeriodLoading(true);
+      setTermError("");
 
+      try {
+        const data =
+          await getPeriods(
+            termId
+          );
+
+        const nextPeriods =
+          Array.isArray(
+            data?.periods
+          )
+            ? data.periods
+            : Array.isArray(data)
+              ? data
+              : [];
+
+        setPeriods(
+          nextPeriods
+        );
+
+        return nextPeriods;
+      } catch (error) {
+        console.error(
+          "Load periods error:",
+          error
+        );
+
+        setPeriods([]);
+
+        setSelectedPeriodId(
+          null
+        );
+
+        setTermError(
+          error?.message ||
+          "ไม่สามารถโหลดรอบการยื่นได้"
+        );
+
+        return [];
+      } finally {
+        setPeriodLoading(false);
+      }
+    };
+
+  const loadCourses =
+    async (termId) => {
+      if (!termId) {
+        setApiCourses([]);
+        setCourseError("");
+
+        return [];
+      }
+
+      setCourseLoading(true);
+      setCourseError("");
+
+      try {
+        const data =
+          await getCourses(
+            termId
+          );
+
+        const nextCourses =
+          Array.isArray(
+            data?.courses
+          )
+            ? data.courses
+            : Array.isArray(data)
+              ? data
+              : [];
+
+        setApiCourses(
+          nextCourses
+        );
+
+        return nextCourses;
+      } catch (error) {
+        console.error(
+          "Load courses error:",
+          error
+        );
+
+        setApiCourses([]);
+
+        setCourseError(
+          error?.message ||
+          "ไม่สามารถโหลดรายวิชาได้"
+        );
+
+        return [];
+      } finally {
+        setCourseLoading(false);
+      }
+    };
+
+  const handleTermChange =
+    async (termId) => {
+      setSelectedTermId(
+        termId
+      );
+
+      setPeriods([]);
+
+      setSelectedPeriodId(
+        null
+      );
+
+      setApiCourses([]);
+
+      if (!termId) {
+        return;
+      }
+
+      try {
+        await Promise.all([
+          loadPeriods(
+            termId
+          ),
+
+          loadCourses(
+            termId
+          ),
+        ]);
+      } catch (error) {
+        console.error(
+          "Load term-dependent data error:",
+          error
+        );
+      }
+    };
+
+  const [apiClaims, setApiClaims] = useState([]);
+
+  const [claimsLoading, setClaimsLoading,] = useState(false);
+
+  const [claimsError, setClaimsError] = useState("");
+
+  const loadClaims = async () => {
+      setClaimsLoading(true);
+      setClaimsError("");
+
+      try {
+        const data =
+          await getClaims();
+
+        const nextClaims =
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data?.claims)
+              ? data.claims
+              : Array.isArray(data?.items)
+                ? data.items
+                : [];
+
+        console.log(
+          "Claims from backend:",
+          nextClaims
+        );
+
+        setApiClaims(
+          nextClaims
+        );
+
+        return nextClaims;
+      } catch (error) {
+        console.error(
+          "Load claims error:",
+          error
+        );
+
+        setClaimsError(
+          error?.message ||
+          "ไม่สามารถโหลดคำขอได้"
+        );
+
+        return [];
+      } finally {
+        setClaimsLoading(false);
+      }
+    };
   /*
    * ผู้ใช้ที่เข้าสู่ระบบอยู่ (null = ยังไม่เข้าสู่ระบบ)
    * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
@@ -300,99 +422,99 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) {
+      setApiClaims([]);
+      setTerms([]);
+      setPeriods([]);
+      setApiCourses([]);
+      setSelectedTermId(
+        null
+      );
+      setSelectedPeriodId(
+        null
+      );
+
       return;
     }
 
-    async function connectBackend() {
-      /*
-      * 1. Sync Cognito user กับ backend
-      *
-      * ถ้าตรงนี้ fail:
-      * ผู้ใช้ยังถือว่า Login สำเร็จอยู่
-      */
-      try {
-        const profile =
-          await syncCurrentUser();
-
-        console.log(
-          "POST /api/auth/me:",
-          profile
-        );
-      } catch (error) {
-        console.error(
-          "POST /api/auth/me failed:",
-          error
-        );
-      }
-
-      /*
-      * 2. ทดสอบ Backend APIs
-      */
-      try {
-        const [
-          terms,
-          periods,
-          courses,
-          claims,
-        ] = await Promise.all([
-          getTerms(),
-          getPeriods(),
-          getCourses(),
-          getClaims(),
-        ]);
-
-        console.log(
-          "GET /api/term:",
-          terms
-        );
-
-        console.log(
-          "GET /api/period:",
-          periods
-        );
-
-        console.log(
-          "GET /api/courses:",
-          courses
-        );
-
-        console.log(
-          "GET /api/claims:",
-          claims
-        );
-      } catch (error) {
-        console.error(
-          "Backend API test failed:",
-          error
-        );
-      }
-    }
-
-    connectBackend();
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (!currentUser) return;
-
     let active = true;
 
-    async function loadInitialData() {
+    async function bootstrap() {
+      /*
+      * Sync Cognito user
+      * กับ backend
+      */
       try {
-        const token = await getIdToken();
-
-        if (!token) {
-          throw new Error("ไม่พบ token สำหรับเข้าสู่ระบบ");
-        }
-
-        if (active) {
-          await loadTerms(token);
-        }
+        await syncCurrentUser();
       } catch (error) {
-        console.error("Load initial data error:", error);
+        console.error(
+          "User sync failed:",
+          error
+        );
       }
+
+      /*
+      * Claims กับ Terms
+      * โหลดพร้อมกันได้
+      */
+      const [
+        nextTerms,
+      ] =
+        await Promise.all([
+          loadTerms(),
+
+          loadClaims().catch(
+            () => []
+          ),
+        ]);
+
+      if (
+        !active ||
+        nextTerms.length === 0
+      ) {
+        return;
+      }
+
+      /*
+      * หา term ปัจจุบัน
+      * ถ้า backend ไม่มี flag
+      * ใช้ตัวแรกเป็น fallback
+      */
+      const defaultTerm =
+        nextTerms.find(
+          (term) =>
+            term.is_current ===
+              true ||
+            term.is_active ===
+              true ||
+            String(
+              term.status ||
+                ""
+            ).toUpperCase() ===
+              "OPEN"
+        ) ||
+        nextTerms[0];
+
+      const termId =
+        Number(
+          defaultTerm.id
+        );
+
+      setSelectedTermId(
+        termId
+      );
+
+      await Promise.all([
+        loadPeriods(
+          termId
+        ),
+
+        loadCourses(
+          termId
+        ),
+      ]);
     }
 
-    loadInitialData();
+    bootstrap();
 
     return () => {
       active = false;
@@ -404,30 +526,133 @@ export default function App() {
   /*
    * บันทึก localStorage ทุกครั้งที่ state เปลี่ยน
    */
-  useEffect(() => {
-    saveState(state);
-  }, [state]);
+  const localDrafts =
+    Array.isArray(
+      state?.claims
+    )
+      ? state.claims.filter(
+          (claim) =>
+            claim.status ===
+              "Draft" &&
+            currentUser &&
+            claim.owner ===
+              currentUser.username
+        )
+      : [];
 
   /*
-   * ป้องกันข้อมูลเสีย
-   */
-  const allClaims = Array.isArray(state?.claims) ? state.claims : [];
+  * API Claims + local Draft
+  *
+  * local Draft เป็น temporary
+  * จนกว่า #24 backend จะเสร็จ
+  */
+  const claims = [
+    ...localDrafts,
+    ...apiClaims.filter(
+      (apiClaim) =>
+        !localDrafts.some(
+          (draft) =>
+            String(
+              draft.id
+            ) ===
+            String(
+              apiClaim.id
+            )
+        )
+    ),
+  ].sort((a, b) => {
+    const aTime =
+      new Date(
+        a.createdAt || 0
+      ).getTime();
+
+    const bTime =
+      new Date(
+        b.createdAt || 0
+      ).getTime();
+
+    return bTime - aTime;
+  });
 
   /*
-   * แต่ละคนเห็นเฉพาะคำขอของตัวเอง (owner = username ของคนที่สร้าง)
-   * หมายเหตุ: คำขอเก่าที่สร้างก่อนมี owner จะไม่แสดงให้ใครเห็น
-   */
-  const claims = allClaims.filter(
-    (claim) => currentUser && claim.owner === currentUser.username,
-  );
+  * Courses จาก Teaching Assignment API
+  */
+  const courses =
+    apiCourses.map(
+      (course) => {
+        const role =
+          course.role || "";
 
-  const allCourses = Array.isArray(state?.courses) ? state.courses : [];
+        return {
+          ...course,
 
-  /*
-   * รายวิชาที่ผู้ใช้ได้รับมอบหมาย + อัตราตามตำแหน่ง + ชั่วโมงที่ใช้ไป
-   * (ไม่มีวิชาที่ได้รับมอบหมาย = [] → ยื่นเบิกไม่ได้)
-   */
-  const courses = buildUserCourses(currentUser, allCourses, claims);
+          sectionId:
+            course.section_id ??
+            course.sectionId ??
+            course.id,
+
+          code:
+            course.course_code ??
+            course.code ??
+            "",
+
+          name:
+            course.course_name_th ??
+            course.course_name_en ??
+            course.name ??
+            "",
+
+          position:
+            role,
+
+          positionLabel:
+            role ===
+            "INSTRUCTOR"
+              ? "อาจารย์ผู้สอน"
+              : role === "TA"
+                ? "ผู้ช่วยสอน (TA)"
+                : role ||
+                  "ไม่ระบุตำแหน่ง",
+
+          used:
+            Number(
+              course.hour ??
+              course.used ??
+              0
+            ),
+
+          quota:
+            Number(
+              course.max_hour ??
+              course.quota ??
+              45
+            ),
+
+          remaining:
+            Number(
+              course.remaining_hour ??
+              course.remaining ??
+              Math.max(
+                Number(
+                  course.max_hour ??
+                    45
+                ) -
+                  Number(
+                    course.hour ??
+                      0
+                  ),
+                0
+              )
+            ),
+
+          rate:
+            Number(
+              course.rate ||
+              0
+            ),
+        };
+      }
+    );
 
   /*
    * การแจ้งเตือน (สร้างจากสถานะคำขอของผู้ใช้ + ข่าวสาร)
@@ -451,9 +676,62 @@ export default function App() {
     });
   };
 
-  const storedRounds = Array.isArray(state?.rounds) ? state.rounds : [];
+  const rounds =
+    periods.map(
+      (period) => {
+        const formatDate =
+          (value) => {
+            if (!value) {
+              return "";
+            }
 
-  const rounds = [...SYSTEM_ROUNDS, ...storedRounds];
+            return new Intl.DateTimeFormat(
+              "th-TH",
+              {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              }
+            ).format(
+              new Date(value)
+            );
+          };
+
+        const rawStatus =
+          String(
+            period.status ||
+              ""
+          ).toUpperCase();
+
+        const status =
+          rawStatus === "OPEN"
+            ? "Open"
+            : "Closed";
+
+        return {
+          id:
+            period.id,
+
+          label:
+            period.label ||
+            `รอบเดือน ${period.month || "-"}`,
+
+          period:
+            `${formatDate(
+              period.open_at
+            )} - ${formatDate(
+              period.close_at
+            )}`,
+
+          deadline:
+            formatDate(
+              period.close_at
+            ),
+
+          status,
+        };
+      }
+    );
 
   /*
    * เปิด/ปิด Sidebar
@@ -495,27 +773,53 @@ export default function App() {
     setPresetRound(null);
     setEditingClaimId(null);
     setView("create"); // ไปหน้าเลือกรอบก่อน (สร้างได้เฉพาะรอบที่เปิดรับ)
+    setPresetSectionId(null);
   };
 
   /*
    * สร้างคำขอจากรายวิชา
    */
-  const goCreateFor = (courseCode) => {
-    setPresetCourse(courseCode); // จำวิชาไว้ แล้วให้เลือกรอบที่เปิดรับก่อน
-    setPresetRound(null);
-    setEditingClaimId(null);
-    setView("create");
-  };
+  const goCreateFor =
+    (course) => {
+      setPresetCourse(
+        course?.code ||
+        course?.course_code ||
+        ""
+      );
+
+      setPresetSectionId(
+        course?.sectionId ??
+        course?.section_id ??
+        null
+      );
+
+      setPresetRound(null);
+      setEditingClaimId(null);
+
+      setView("create");
+    };
 
   /*
    * สร้างคำขอจากรอบ
    */
-  const goCreateForRound = (round) => {
-    // ไม่ล้าง presetCourse เพื่อคงวิชาที่เลือกมาจากหน้ารายวิชา
-    setPresetRound(round);
-    setEditingClaimId(null);
-    setView("claim-create");
-  };
+  const goCreateForRound =
+    (round) => {
+      setPresetRound(
+        round
+      );
+
+      setSelectedPeriodId(
+        Number(
+          round?.id
+        ) || null
+      );
+
+      setEditingClaimId(null);
+
+      setView(
+        "claim-create"
+      );
+    };
 
   /*
    * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
@@ -556,21 +860,37 @@ export default function App() {
     try {
       /*
       * STEP 1
-      * สร้าง Claim จริงก่อน
+      * ตอนนี้ยังไม่ map ตาม API Gateway Model
+      * เพราะ Model ไม่ได้ใช้แล้ว
+      *
+      * ส่ง form ไปดู contract ของ Lambda จริงก่อน
       */
-      const claimResponse =
-        await createClaim(
-          /* payload ของ Claim API */
-        );
+      const payload = {
+        ...form,
+      };
 
       console.log(
-        "Claim created:",
-        claimResponse
+        "POST /api/claims payload:",
+        payload
       );
 
       /*
       * STEP 2
-      * เอา claimId จริงจาก Backend
+      * Create Claim
+      */
+      const claimResponse =
+        await createClaim(
+          payload
+        );
+
+      console.log(
+        "POST /api/claims response:",
+        claimResponse
+      );
+
+      /*
+      * STEP 3
+      * ดึง claimId
       */
       const claimId =
         getClaimIdFromResponse(
@@ -579,16 +899,23 @@ export default function App() {
 
       if (!claimId) {
         throw new Error(
-          "Backend created the claim but did not return claimId"
+          "Backend สร้าง Claim แล้ว แต่ไม่ได้คืน claimId"
         );
       }
 
+      console.log(
+        "Created claimId:",
+        claimId
+      );
+
       /*
-      * STEP 3
-      * ถ้ามีไฟล์ → Upload ไป S3
+      * STEP 4
+      * Upload Evidence
       */
+      let evidence = null;
+
       if (evidenceFile) {
-        const evidence =
+        evidence =
           await uploadClaimEvidence(
             claimId,
             evidenceFile
@@ -596,17 +923,107 @@ export default function App() {
 
         console.log(
           "Evidence uploaded:",
-          evidence
+          {
+            evidenceId:
+              evidence.evidenceId,
+
+            claimId:
+              evidence.claimId,
+
+            objectKey:
+              evidence.objectKey,
+
+            fileName:
+              evidence.fileName,
+          }
         );
       }
 
       /*
-      * STEP 4
-      * ไปหน้ารายละเอียด
+      * STEP 5
+      * สร้าง Claim สำหรับแสดงบน UI
+      * ทันทีโดยไม่ต้องรอ GET
       */
-      setEditingClaimId(null);
-      setSelectedClaimId(claimId);
-      setView("detail");
+      const createdClaim = {
+        ...form,
+
+        id:
+          claimId,
+
+        claimId,
+
+        evidence:
+          evidence?.fileName ||
+          form.fileName ||
+          "",
+
+        evidenceId:
+          evidence?.evidenceId ||
+          null,
+
+        evidenceObjectKey:
+          evidence?.objectKey ||
+          null,
+
+        status:
+          claimResponse?.status ||
+          "Submitted",
+
+        createdAt:
+          claimResponse?.created_at ||
+          claimResponse?.createdAt ||
+          new Date().toISOString(),
+      };
+
+      /*
+      * STEP 6
+      * เพิ่ม Claim ใน state
+      */
+      setApiClaims(
+        (current) => [
+          createdClaim,
+
+          ...current.filter(
+            (claim) =>
+              String(
+                claim.id ??
+                claim.claimId ??
+                claim.claim_id
+              ) !==
+              String(
+                claimId
+              )
+          ),
+        ]
+      );
+
+      /*
+      * STEP 7
+      * ลอง refresh Claim จริงจาก backend
+      *
+      * ถ้าพัง เราก็ยังมี createdClaim
+      * ให้หน้า Detail ใช้อยู่
+      */
+      try {
+        await loadClaims();
+      } catch (error) {
+        console.error(
+          "Claim created but GET /api/claims refresh failed:",
+          error
+        );
+      }
+
+      setEditingClaimId(
+        null
+      );
+
+      setSelectedClaimId(
+        claimId
+      );
+
+      setView(
+        "detail"
+      );
     } catch (error) {
       console.error(
         "Submit claim failed:",
@@ -614,8 +1031,9 @@ export default function App() {
       );
 
       alert(
-        error.message ||
-          "ไม่สามารถยื่นคำขอได้"
+        error?.data?.message ||
+        error?.message ||
+        "ไม่สามารถยื่นคำขอได้"
       );
     }
   };
@@ -635,20 +1053,64 @@ export default function App() {
   /*
    * บันทึกร่างคำขอ (สร้างร่างใหม่ หรืออัปเดตร่างเดิม)
    */
-  const handleSaveDraft = (form) => {
-    const savedClaim = editingClaimId
-      ? updateClaimFromForm(editingClaimId, form, "Draft")
-      : addClaim(form, "Draft", currentUser?.username);
+  const handleSaveDraft = (form, evidenceFile) => {
+    /*
+     * File object เก็บใน
+     * localStorage ไม่ได้
+     *
+     * จึงไม่แกล้งเก็บชื่อไฟล์
+     * แล้วทำเหมือนยังมีไฟล์อยู่
+     */
+    const draftForm = {
+      ...form,
+      fileName: "",
+    };
 
-    const latestState = loadState();
+    const savedClaim =
+      editingClaimId
+        ? updateClaimFromForm(
+            editingClaimId,
+            draftForm,
+            "Draft"
+          )
+        : addClaim(
+            draftForm,
+            "Draft",
+            currentUser?.username
+          );
 
-    setState(latestState);
+    if (!savedClaim) {
+      alert(
+        "ไม่สามารถบันทึกแบบร่างได้"
+      );
 
-    setEditingClaimId(null);
+      return;
+    }
 
-    setSelectedClaimId(savedClaim.id);
+    if (evidenceFile) {
+      alert(
+        "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข"
+      );
+    }
 
-    setView("detail");
+    const latestState =
+      loadState();
+
+    setState(
+      latestState
+    );
+
+    setEditingClaimId(
+      null
+    );
+
+    setSelectedClaimId(
+      savedClaim.id
+    );
+
+    setView(
+      "detail"
+    );
   };
 
   /*
@@ -715,6 +1177,7 @@ export default function App() {
         return (
           <CreateClaim
             presetCourse={presetCourse}
+            presetSectionId={presetSectionId}
             presetRound={presetRound}
             initialClaim={editingClaim}
             courses={apiCourses}
@@ -742,9 +1205,22 @@ export default function App() {
         return (
           <ClaimDetail
             claim={selectedClaim}
-            course={courses.find(
-              (course) => course.code === selectedClaim?.courseCode,
-            )}
+            course={
+              courses.find(
+                (course) =>
+                  String(
+                    course.sectionId
+                  ) ===
+                  String(
+                    selectedClaim?.sectionId
+                  )
+              ) ||
+              courses.find(
+                (course) =>
+                  course.code ===
+                  selectedClaim?.courseCode
+              )
+            }
             goBack={() => setView("myclaims")}
             onEdit={goEditClaim}
           />

@@ -68,13 +68,14 @@ function claimNotification(claim) {
         title: `คำขอ ${claim.id} ไม่ได้รับการอนุมัติ`,
         description: `${course ? course.trim() + " · " : ""}กรุณาตรวจสอบรายละเอียดและแก้ไขตามที่เจ้าหน้าที่แจ้ง`,
       };
-    case "Pending":
+    case "Submitted":
       return {
-        ...base,
-        id: `claim-${claim.id}-Pending`,
-        kind: "pending",
+        id: `claim-${claim.id}-Submitted`,
+        type: "claim-submitted",
         title: `ส่งคำขอ ${claim.id} เรียบร้อยแล้ว`,
-        description: `${course ? course.trim() + " · " : ""}รอเจ้าหน้าที่ตรวจสอบ`,
+        message: `${claim.courseCode || "รายวิชา"} อยู่ระหว่างการตรวจสอบ`,
+        claimId: claim.id,
+        createdAt: claim.createdAt,
       };
     default:
       return null; // แบบร่างไม่ต้องแจ้งเตือน

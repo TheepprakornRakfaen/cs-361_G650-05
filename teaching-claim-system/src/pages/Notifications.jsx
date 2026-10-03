@@ -17,7 +17,7 @@ import { timeAgo } from "../data/notifications";
 const KIND_STYLE = {
   approved: { icon: CheckCircle2, bg: "#DFF5E6", fg: "#1E8E4F" },
   rejected: { icon: XCircle, bg: "#FBE2E2", fg: "#C23B3B" },
-  pending: { icon: Clock, bg: "#FEF6D8", fg: "#9A7B06" },
+  submitted: { icon: Clock, bg: "#FEF6D8", fg: "#9A7B06" },
   news: { icon: Megaphone, bg: C.tealSoft, fg: C.tealDark },
 };
 

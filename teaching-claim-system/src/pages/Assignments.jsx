@@ -141,7 +141,7 @@ export default function Assignments({
 
                 <button
                   type="button"
-                  onClick={() => goCreateFor?.(course.code)}
+                  onClick={() => goCreateFor?.(course)}
                   className="flex items-center gap-2 text-sm font-semibold transition-opacity hover:opacity-70"
                   style={{ color: C.tealDark }}
                 >
