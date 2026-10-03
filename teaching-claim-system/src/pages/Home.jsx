@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ShieldCheck,
   XCircle,
@@ -18,6 +18,7 @@ import {
   UserPlus,
   ChevronDown,
   CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -251,6 +252,72 @@ function Band({ variant = "sky", children }) {
   );
 }
 
+// การ์ดสรุปรอบการยื่นที่เปิดรับอยู่ (ดึงจากข้อมูลรอบเดียวกับหน้าสร้างคำขอ)
+function RoundStatus({ rounds }) {
+  const openRounds = useMemo(() => {
+    const seen = new Set();
+    return rounds.filter((r) => {
+      if (r.status !== "Open") return false;
+      const key = `${r.label}|${r.period}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rounds]);
+
+  const hasOpen = openRounds.length > 0;
+  const shown = openRounds.slice(0, 2);
+
+  return (
+    <div
+      className="rounded-2xl border bg-white p-4 md:p-5 w-full md:w-80 shrink-0"
+      style={{ borderColor: C.border, boxShadow: "0 8px 22px rgba(30,86,135,0.08)" }}
+    >
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="relative flex w-2.5 h-2.5">
+          {hasOpen && (
+            <span
+              className="absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping"
+              style={{ background: "#1E8E4F" }}
+            />
+          )}
+          <span
+            className="relative inline-flex w-2.5 h-2.5 rounded-full"
+            style={{ background: hasOpen ? "#1E8E4F" : C.sub }}
+          />
+        </span>
+        <p className="text-xs font-bold" style={{ color: hasOpen ? "#1E8E4F" : C.sub }}>
+          {hasOpen ? "รอบที่เปิดรับตอนนี้" : "ยังไม่มีรอบที่เปิดรับ"}
+        </p>
+      </div>
+
+      {hasOpen ? (
+        <ul className="space-y-2.5">
+          {shown.map((r) => (
+            <li key={`${r.label}|${r.period}`} className="flex items-start gap-2.5">
+              <CalendarClock size={16} className="mt-0.5 shrink-0" style={{ color: C.tealDark }} />
+              <div className="min-w-0">
+                <p className="text-sm font-bold leading-5" style={{ color: C.ink }}>
+                  {r.label} · {r.period}
+                </p>
+                {r.deadline && (
+                  <p className="text-xs mt-0.5" style={{ color: C.sub }}>
+                    ส่งหลักฐานภายใน {r.deadline}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs leading-5" style={{ color: C.sub }}>
+          เมื่อมีรอบใหม่เปิดรับ ข้อมูลจะแสดงที่นี่
+        </p>
+      )}
+    </div>
+  );
+}
+
 const QUICK_NAV = [
   ["documents", "ประกาศและเอกสาร"],
   ["scope", "ขอบเขตการเบิก"],
@@ -260,7 +327,7 @@ const QUICK_NAV = [
   ["faq", "คำถามที่พบบ่อย"],
 ];
 
-export default function Home({ isLoggedIn = false, goCreate }) {
+export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [] }) {
   const [openFaq, setOpenFaq] = useState(null);
 
   return (
@@ -365,9 +432,33 @@ export default function Home({ isLoggedIn = false, goCreate }) {
                 ทั้งประเภทค่าตอบแทน ผู้มีสิทธิ์ อัตราหรือหลักเกณฑ์ เงื่อนไข
                 เอกสารประกอบ ขั้นตอน และช่วงเวลาที่เกี่ยวข้อง
               </p>
+
+              {/* ปุ่มเรียกใช้งานหลัก */}
+              <div className="flex flex-col sm:flex-row gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => (isLoggedIn ? goCreate?.() : onLogin?.())}
+                  className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-full font-bold text-sm text-white transition-transform hover:-translate-y-0.5"
+                  style={{
+                    background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                    boxShadow: "0 8px 18px rgba(30,86,135,0.25)",
+                  }}
+                >
+                  {isLoggedIn ? "เริ่มยื่นคำขอ" : "เข้าสู่ระบบเพื่อยื่นคำขอ"}
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection("process")}
+                  className="inline-flex items-center justify-center h-11 px-6 rounded-full font-semibold text-sm border bg-white transition-colors hover:bg-[#E8F0FA]"
+                  style={{ borderColor: C.border, color: C.tealDark }}
+                >
+                  ดูวิธียื่นคำขอ
+                </button>
+              </div>
             </div>
 
-            
+            <RoundStatus rounds={rounds} />
           </div>
         </div>
       </div>

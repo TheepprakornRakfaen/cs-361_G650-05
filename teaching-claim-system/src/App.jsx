@@ -113,6 +113,9 @@ export default function App() {
 
   const [presetRound, setPresetRound] = useState(null);
 
+  // หน้าที่จะพาไปหลังล็อกอินสำเร็จ (เช่น กดปุ่ม "เข้าสู่ระบบเพื่อยื่นคำขอ" จากหน้าแรก)
+  const [afterLoginView, setAfterLoginView] = useState(null);
+
   // ออกจากขั้นตอนสร้างคำขอแล้วให้ล้างค่าที่จำไว้ ไม่ให้ค้างไปรอบถัดไป
   useEffect(() => {
     if (!["create", "rounds", "claim-create"].includes(view)) {
@@ -399,6 +402,11 @@ export default function App() {
   /*
    * สร้างคำขอใหม่
    */
+  const goLoginThenCreate = () => {
+    setAfterLoginView("create");
+    setView("login");
+  };
+
   const goCreate = () => {
     setPresetCourse("");
     setPresetRound(null);
@@ -512,7 +520,7 @@ export default function App() {
   const renderPage = () => {
     switch (view) {
       case "home":
-        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
 
       case "dashboard":
         return (
@@ -626,7 +634,7 @@ export default function App() {
         );
 
       default:
-        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} />;
+        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
     }
   };
 
@@ -658,10 +666,14 @@ export default function App() {
     return (
       <Login
         notice={needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : ""}
-        onBack={() => setView("home")}
+        onBack={() => {
+          setAfterLoginView(null);
+          setView("home");
+        }}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          setView(needsLogin ? view : "home");
+          setView(needsLogin ? view : afterLoginView || "home");
+          setAfterLoginView(null);
         }}
       />
     );
@@ -728,7 +740,9 @@ export default function App() {
           <main className="flex-1 overflow-y-auto">
             <div className="p-5 md:p-9">{renderPage()}</div>
 
-            {view === "home" && <Footer />}
+            {view === "home" && (
+              <Footer onContactClick={() => setView("contact")} />
+            )}
           </main>
         </div>
       </div>
