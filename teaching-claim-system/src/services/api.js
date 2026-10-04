@@ -152,6 +152,50 @@ export function createClaim(
   );
 }
 
+export function registerClaimEvidence(
+  claimId,
+  evidence
+) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/evidence`,
+    {
+      method: "POST",
+
+      body: {
+        evidence_id:
+          evidence.evidenceId,
+
+        object_key:
+          evidence.objectKey,
+
+        file_name:
+          evidence.fileName,
+
+        content_type:
+          evidence.contentType,
+
+        file_size:
+          evidence.fileSize,
+      },
+    }
+  );
+}
+
+export function getClaimEvidence(
+  claimId
+) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/evidence`,
+    {
+      method: "GET",
+    }
+  );
+}
+
 /*
  * =====================
  * Terms

@@ -44,6 +44,7 @@ import {
   getCourses,
   getClaims,
   createClaim,
+  registerClaimEvidence,
 } from "./services/api";
 
 import { uploadClaimEvidenceFiles } from "./services/evidence";
@@ -968,6 +969,10 @@ export default function App() {
       let uploadResult = { uploaded: [], failed: [] };
 
       if (evidenceFiles.length > 0) {
+        /*
+        * STEP 4.1
+        * Upload ทุกไฟล์ไป S3
+        */
         uploadResult =
           await uploadClaimEvidenceFiles(
             claimId,
@@ -978,6 +983,47 @@ export default function App() {
           "Evidence upload result:",
           uploadResult
         );
+
+        /*
+        * ถ้ามีไฟล์ใด upload ไม่สำเร็จ
+        * ไม่ register metadata ต่อ
+        */
+        if (
+          uploadResult.failed.length > 0
+        ) {
+          const failedMessage =
+            uploadResult.failed
+              .map(
+                (item) =>
+                  `${item.fileName}: ${item.message}`
+              )
+              .join("\n");
+
+          throw new Error(
+            `อัปโหลดหลักฐานไม่สำเร็จ\n${failedMessage}`
+          );
+        }
+
+        /*
+        * STEP 4.2
+        * หลัง S3 upload สำเร็จ
+        * บันทึก metadata ลง PostgreSQL
+        */
+        for (
+          const evidence of
+          uploadResult.uploaded
+        ) {
+          const registered =
+            await registerClaimEvidence(
+              claimId,
+              evidence
+            );
+
+          console.log(
+            "Evidence registered:",
+            registered
+          );
+        }
       }
 
       /*
