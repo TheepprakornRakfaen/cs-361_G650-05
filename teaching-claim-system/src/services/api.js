@@ -69,6 +69,20 @@ async function apiRequest(
       JSON.stringify(body);
   }
 
+  // log JSON ที่ส่งไป /api/claims ทุกครั้ง เพื่อตรวจ contract กับ Lambda
+  const isClaimsRequest =
+    path.startsWith("/api/claims");
+
+  const method =
+    fetchOptions.method || "GET";
+
+  if (isClaimsRequest) {
+    console.log(
+      `[API] ${method} ${path} body:`,
+      requestBody ?? "(no body)"
+    );
+  }
+
   const response =
     await fetch(
       `${API_URL}${path}`,
@@ -90,6 +104,13 @@ async function apiRequest(
     await parseResponse(
       response
     );
+
+  if (isClaimsRequest) {
+    console.log(
+      `[API] ${method} ${path} → ${response.status}`,
+      data
+    );
+  }
 
   if (!response.ok) {
     const error =
@@ -148,6 +169,18 @@ export function createClaim(
     {
       method: "POST",
       body: payload,
+    }
+  );
+}
+
+export function deleteClaim(claimId) {
+  return apiRequest(
+    "/api/claims",
+    {
+      method: "DELETE",
+      body: {
+        id: claimId,
+      },
     }
   );
 }

@@ -627,7 +627,8 @@ export default function CreateClaim({
       return;
     }
 
-    onSubmit?.(buildPayload(), evidenceFiles);
+    // 1 = ยื่นจริง
+    onSubmit?.({ ...buildPayload(), status: 1 }, evidenceFiles);
   }
 
   return (
@@ -1426,7 +1427,8 @@ export default function CreateClaim({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => onSaveDraft?.(buildPayload(), evidenceFiles)}
+                // 0 = แบบร่าง
+                onClick={() => onSaveDraft?.({ ...buildPayload(), status: 0 }, evidenceFiles)}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={normalizedCourses.length === 0}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1468,10 +1470,7 @@ export default function CreateClaim({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      handleSubmit();
-                      form.status = 1;
-                    }}
+                    onClick={handleSubmit}
                     className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,

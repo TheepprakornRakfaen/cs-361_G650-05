@@ -126,11 +126,30 @@ export async function uploadClaimEvidence(
    * STEP 1
    * ขอ Presigned URL
    */
+  const presignPath =
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/evidence/upload-url`;
+
+  const presignBody =
+    JSON.stringify({
+      fileName:
+        file.name,
+
+      contentType,
+
+      fileSize:
+        file.size,
+    });
+
+  console.log(
+    `[API] POST ${presignPath} body:`,
+    presignBody
+  );
+
   const presignResponse =
     await fetch(
-      `${API_URL}/api/claims/${encodeURIComponent(
-        claimId
-      )}/evidence/upload-url`,
+      `${API_URL}${presignPath}`,
       {
         method: "POST",
 
@@ -143,15 +162,7 @@ export async function uploadClaimEvidence(
         },
 
         body:
-          JSON.stringify({
-            fileName:
-              file.name,
-
-            contentType,
-
-            fileSize:
-              file.size,
-          }),
+          presignBody,
       }
     );
 
@@ -159,6 +170,11 @@ export async function uploadClaimEvidence(
     await readJson(
       presignResponse
     );
+
+  console.log(
+    `[API] POST ${presignPath} → ${presignResponse.status}`,
+    presignData
+  );
 
   if (
     !presignResponse.ok

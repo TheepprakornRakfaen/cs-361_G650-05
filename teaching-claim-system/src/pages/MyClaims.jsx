@@ -7,6 +7,7 @@ import {
   Search,
   Plus,
   ClipboardList,
+  Trash2,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -19,6 +20,7 @@ export default function MyClaims({
   claims = [],
   goDetail,
   goCreate,
+  onDelete,
   // สถานะที่ให้กรองไว้ตั้งแต่เปิดหน้า เช่น "Draft" เมื่อกดมาจากการ์ดแบบร่างในโปรไฟล์
   initialStatus = "All",
 }) {
@@ -234,6 +236,7 @@ export default function MyClaims({
                   "เดือน",
                   "จำนวนเงิน",
                   "สถานะ",
+                  "",
                 ].map((heading) => (
                   <th
                     key={heading}
@@ -301,13 +304,32 @@ export default function MyClaims({
                       status={claim.status}
                     />
                   </td>
+
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        // ไม่ให้คลิกทะลุไปเปิดหน้ารายละเอียด
+                        e.stopPropagation();
+                        onDelete?.(claim);
+                      }}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-[#FBE2E2]"
+                      style={{
+                        color: "#C23B3B",
+                      }}
+                      title="ลบคำขอ"
+                      aria-label={`ลบคำขอ #${claim.id}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
 
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-6 py-12 text-center"
                   >
                     <p

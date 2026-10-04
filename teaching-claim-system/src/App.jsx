@@ -24,6 +24,7 @@ import {
   saveState,
   addClaim,
   updateClaimFromForm,
+  deleteClaim as deleteLocalClaim,
 } from "./data/store";
 
 import {
@@ -44,6 +45,7 @@ import {
   getCourses,
   getClaims,
   createClaim,
+  deleteClaim,
   registerClaimEvidence,
 } from "./services/api";
 
@@ -1133,6 +1135,67 @@ export default function App() {
     }
   };
 
+  /*
+   * ลบคำขอ
+   * - ร่างใน localStorage → ลบในเครื่อง
+   * - คำขอจาก backend → DELETE /api/claims (body: claim_id, cognito_sub)
+   */
+  const handleDeleteClaim = async (claim) => {
+    if (
+      !window.confirm(
+        `ต้องการลบคำขอ #${claim.id} ใช่หรือไม่?`
+      )
+    ) {
+      return;
+    }
+
+    const isLocalDraft =
+      localDrafts.some(
+        (draft) =>
+          String(draft.id) ===
+          String(claim.id)
+      );
+
+    try {
+      if (isLocalDraft) {
+        setState(
+          deleteLocalClaim(claim.id)
+        );
+      } else {
+        await deleteClaim(
+          claim.id,
+          currentUser?.cognitoSub
+        );
+
+        setApiClaims((current) =>
+          current.filter(
+            (item) =>
+              String(item.id) !==
+              String(claim.id)
+          )
+        );
+      }
+
+      if (
+        String(selectedClaimId) ===
+        String(claim.id)
+      ) {
+        setSelectedClaimId(null);
+      }
+    } catch (error) {
+      console.error(
+        "Delete claim failed:",
+        error
+      );
+
+      alert(
+        error?.data?.message ||
+        error?.message ||
+        "ไม่สามารถลบคำขอได้"
+      );
+    }
+  };
+
   function getClaimIdFromResponse(data) {
     return (
       data?.claimId ||
@@ -1250,6 +1313,7 @@ export default function App() {
             claims={claims}
             goDetail={goDetail}
             goCreate={goCreate}
+            onDelete={handleDeleteClaim}
             initialStatus={myClaimsFilter}
           />
         );

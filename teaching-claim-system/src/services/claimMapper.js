@@ -20,7 +20,8 @@ function sessionToHour(
 }
 
 export function buildClaimApiPayload(form) {
-  const status = form.status || 0;
+  const status = form.status;
+  // console.log("Status:", status);
   const sessions =
     Array.isArray(
       form?.sessions
