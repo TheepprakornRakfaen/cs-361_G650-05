@@ -1,4 +1,8 @@
-import React from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
+
 import {
   ArrowLeft,
   FileText,
@@ -17,6 +21,10 @@ import {
   formatDuration,
   formatThaiDate,
 } from "../utils/time";
+
+import {
+  getClaimEvidence,
+} from "../services/api";
 
 const STEPS = [
   {
@@ -42,6 +50,111 @@ export default function ClaimDetail({
   goBack,
   onEdit,
 }) {
+  const [
+    evidenceItems,
+    setEvidenceItems,
+  ] = useState([]);
+
+  const [
+    evidenceLoading,
+    setEvidenceLoading,
+  ] = useState(false);
+
+  const [
+    evidenceError,
+    setEvidenceError,
+  ] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEvidence() {
+      const claimId =
+        claim?.claimId ||
+        claim?.id;
+
+      /*
+      * localStorage Draft เก่าอาจใช้
+      * CL-xxxx แทน UUID
+      */
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          String(claimId || "")
+        );
+
+      if (!isUuid) {
+        setEvidenceItems([]);
+        return;
+      }
+
+      setEvidenceLoading(true);
+      setEvidenceError("");
+
+      try {
+        const data =
+          await getClaimEvidence(
+            claimId
+          );
+
+        if (!active) {
+          return;
+        }
+
+        const items =
+          Array.isArray(
+            data?.evidence
+          )
+            ? data.evidence
+            : [];
+
+        setEvidenceItems(
+          items
+        );
+
+        console.log(
+          "GET Claim Evidence:",
+          {
+            claimId,
+            count:
+              data?.count,
+            hasEvidence:
+              data?.hasEvidence,
+            evidence:
+              items,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Load evidence error:",
+          error
+        );
+
+        if (active) {
+          setEvidenceItems([]);
+
+          setEvidenceError(
+            error?.data?.message ||
+            error?.message ||
+            "ไม่สามารถโหลดหลักฐานได้"
+          );
+        }
+      } finally {
+        if (active) {
+          setEvidenceLoading(false);
+        }
+      }
+    }
+
+    loadEvidence();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    claim?.id,
+    claim?.claimId,
+  ]);
+  
   if (!claim) {
     return (
       <div className="w-full">
@@ -356,21 +469,77 @@ export default function ClaimDetail({
             หลักฐานเพิ่มเติม
           </p>
 
-          {claim.evidence ? (
-            <div
-              className="flex items-center gap-2 text-sm"
-              style={{ color: C.tealDark }}
+          {evidenceLoading ? (
+            <p
+              className="text-sm"
+              style={{
+                color: C.sub,
+              }}
             >
-              <Paperclip size={15} />
+              กำลังโหลดหลักฐาน...
+            </p>
+          ) : evidenceError ? (
+            <p
+              className="text-sm"
+              style={{
+                color: C.rose,
+              }}
+            >
+              {evidenceError}
+            </p>
+          ) : evidenceItems.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {evidenceItems.map(
+                (item) => (
+                  <a
+                    key={item.id}
+                    href={
+                      item.download_url
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm hover:opacity-70"
+                    style={{
+                      color:
+                        C.tealDark,
+                    }}
+                  >
+                    <Paperclip
+                      size={15}
+                    />
 
-              <span className="underline underline-offset-2">
-                {claim.evidence}
-              </span>
+                    <span className="underline underline-offset-2">
+                      {item.file_name}
+                    </span>
+
+                    {item.file_size && (
+                      <span
+                        className="text-xs no-underline"
+                        style={{
+                          color:
+                            C.sub,
+                        }}
+                      >
+                        {(
+                          Number(
+                            item.file_size
+                          ) /
+                          1024 /
+                          1024
+                        ).toFixed(2)}
+                        {" MB"}
+                      </span>
+                    )}
+                  </a>
+                )
+              )}
             </div>
           ) : (
             <p
               className="text-sm"
-              style={{ color: C.sub }}
+              style={{
+                color: C.sub,
+              }}
             >
               ยังไม่มีไฟล์แนบ
             </p>
