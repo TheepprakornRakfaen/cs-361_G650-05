@@ -19,9 +19,8 @@ function sessionToHour(
   );
 }
 
-export function buildClaimApiPayload(
-  form
-) {
+export function buildClaimApiPayload(form) {
+  const status = form.status || 0;
   const sessions =
     Array.isArray(
       form?.sessions
@@ -67,7 +66,7 @@ export function buildClaimApiPayload(
 
     section_id:
       Number(form.sectionId),
-
+    status,
     date:
       session.date,
 

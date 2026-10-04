@@ -236,7 +236,7 @@ export default function CreateClaim({
         semester: initialClaim.semester || "1/2569",
         termId: initialClaim.termId || "",
         round: initialClaim.round || "",
-
+        status: initialClaim.status || 0,
         periodId: initialClaim.periodId || "",
         sectionId: initialClaim.sectionId || "",
         courseCode: initialClaim.courseCode || "",
@@ -1468,7 +1468,10 @@ export default function CreateClaim({
 
                   <button
                     type="button"
-                    onClick={handleSubmit}
+                    onClick={() => {
+                      handleSubmit();
+                      form.status = 1;
+                    }}
                     className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
