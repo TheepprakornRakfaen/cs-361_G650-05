@@ -48,6 +48,7 @@ const HOUR_OPTIONS = Array.from({ length: MAX_HOURS_PER_DAY + 1 }, (_, i) => i);
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
 const MAX_NOTES_LENGTH = 500;
 const MAX_FILE_MB = 10;
+const MAX_FILES = 5;
 const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 
 // วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง (ใช้กับ min/max ของ input type="date")
@@ -302,10 +303,11 @@ export default function CreateClaim({
 
   const [errors, setErrors] = useState({});
 
+  // หลักฐานแนบได้หลายไฟล์ (เก็บ File object จริงไว้ upload ตอนยื่น)
   const [
-    evidenceFile,
-    setEvidenceFile,
-  ] = useState(null);
+    evidenceFiles,
+    setEvidenceFiles,
+  ] = useState([]);
 
   const fileInputRef = useRef(null);
 
@@ -541,51 +543,73 @@ export default function CreateClaim({
     setStep((current) => current - 1);
   }
 
-  function handleFile(file) {
-    if (!file) {
+  function syncFileName(files) {
+    set(
+      "fileName",
+      files.map((file) => file.name).join(", ")
+    );
+  }
+
+  function handleFiles(fileList) {
+    const incoming = Array.from(fileList || []);
+
+    if (incoming.length === 0) {
       return;
     }
 
-    const fileError =
-      validateFile(file);
+    const accepted = [...evidenceFiles];
+    const problems = [];
+
+    const sameFile = (a, b) =>
+      a.name === b.name &&
+      a.size === b.size &&
+      a.lastModified === b.lastModified;
+
+    for (const file of incoming) {
+      const fileError = validateFile(file);
+
+      if (fileError) {
+        problems.push(`${file.name}: ${fileError}`);
+        continue;
+      }
+
+      if (accepted.some((existing) => sameFile(existing, file))) {
+        problems.push(`${file.name}: เลือกไฟล์นี้ไปแล้ว`);
+        continue;
+      }
+
+      if (accepted.length >= MAX_FILES) {
+        problems.push(`แนบได้ไม่เกิน ${MAX_FILES} ไฟล์ ข้าม ${file.name}`);
+        continue;
+      }
+
+      accepted.push(file);
+    }
+
+    setEvidenceFiles(accepted);
+    syncFileName(accepted);
 
     setErrors((current) => ({
       ...current,
-      file: fileError,
+      file: problems.join(" · "),
+    }));
+  }
+
+  function removeFile(index) {
+    const next = evidenceFiles.filter((_, i) => i !== index);
+
+    setEvidenceFiles(next);
+    syncFileName(next);
+
+    setErrors((current) => ({
+      ...current,
+      file: "",
     }));
 
-    if (fileError) {
-      /*
-      * ถ้าไฟล์ใหม่ไม่ผ่าน validation
-      * ไม่เก็บ File object
-      */
-      setEvidenceFile(null);
-      return;
+    // ล้าง input เพื่อให้เลือกไฟล์เดิมซ้ำได้
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
-
-    /*
-    * เก็บ File object จริงไว้ใน memory
-    * สำหรับ upload S3 ภายหลัง
-    */
-    setEvidenceFile(file);
-
-    /*
-    * เก็บชื่อไว้ใน form
-    * สำหรับแสดงผลใน UI
-    */
-    set(
-      "fileName",
-      file.name
-    );
-
-    console.log(
-      "Evidence selected:",
-      {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      }
-    );
   }
 
   /*
@@ -603,7 +627,7 @@ export default function CreateClaim({
       return;
     }
 
-    onSubmit?.(buildPayload(),evidenceFile);
+    onSubmit?.(buildPayload(), evidenceFiles);
   }
 
   return (
@@ -1186,7 +1210,7 @@ export default function CreateClaim({
                 onDrop={(e) => {
                   e.preventDefault();
 
-                  handleFile(e.dataTransfer.files[0]);
+                  handleFiles(e.dataTransfer.files);
                 }}
               >
                 <div
@@ -1209,7 +1233,7 @@ export default function CreateClaim({
                     color: C.ink,
                   }}
                 >
-                  เลือกไฟล์ หรือลากมาวางที่นี่
+                  เลือกไฟล์ หรือลากมาวางที่นี่ (แนบได้สูงสุด {MAX_FILES} ไฟล์)
                 </p>
 
                 <p
@@ -1218,7 +1242,7 @@ export default function CreateClaim({
                     color: C.sub,
                   }}
                 >
-                  PDF, JPG, PNG ไม่เกิน {MAX_FILE_MB} MB ·
+                  PDF, JPG, PNG ไฟล์ละไม่เกิน {MAX_FILE_MB} MB ·
                   ไฟล์จะถูกอัปโหลดเป็นหลักฐานประกอบคำขอ
                 </p>
 
@@ -1227,7 +1251,12 @@ export default function CreateClaim({
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                   hidden
-                  onChange={(e) => handleFile(e.target.files[0])}
+                  multiple
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    // ล้างค่า เพื่อให้เลือกไฟล์ชื่อเดิมซ้ำหลังลบได้
+                    e.target.value = "";
+                  }}
                 />
 
                 <button
@@ -1239,7 +1268,7 @@ export default function CreateClaim({
                     color: C.tealDark,
                   }}
                 >
-                  เลือกไฟล์
+                  {evidenceFiles.length > 0 ? "เพิ่มไฟล์" : "เลือกไฟล์"}
                 </button>
               </div>
 
@@ -1253,83 +1282,50 @@ export default function CreateClaim({
                 </p>
               )}
 
-              {form.fileName && (
-                <div
-                  className="mt-4 flex items-center justify-between rounded-2xl border px-5 py-3.5"
-                  style={{
-                    borderColor: C.border,
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <FileText
-                      size={18}
-                      style={{
-                        color: C.tealDark,
-                      }}
-                    />
+              {evidenceFiles.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs" style={{ color: C.sub }}>
+                    แนบแล้ว {evidenceFiles.length} / {MAX_FILES} ไฟล์
+                  </p>
 
-                    <div>
-                      <p
-                        className="text-sm font-medium"
-                        style={{
-                          color: C.ink,
-                        }}
+                  {evidenceFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${file.size}-${file.lastModified}`}
+                      className="flex items-center justify-between rounded-2xl border px-5 py-3.5"
+                      style={{ borderColor: C.border }}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText
+                          size={18}
+                          style={{ color: C.tealDark }}
+                        />
+
+                        <div className="min-w-0">
+                          <p
+                            className="text-sm font-medium truncate"
+                            style={{ color: C.ink }}
+                          >
+                            {file.name}
+                          </p>
+
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: C.sub }}
+                          >
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        aria-label={`ลบไฟล์ ${file.name}`}
                       >
-                        {form.fileName}
-                      </p>
-
-                      {evidenceFile && (
-                        <p
-                          className="text-xs mt-0.5"
-                          style={{
-                            color: C.sub,
-                          }}
-                        >
-                          {(
-                            evidenceFile.size /
-                            1024 /
-                            1024
-                          ).toFixed(2)}{" "}
-                          MB
-                        </p>
-                      )}
+                        <Trash2 size={16} style={{ color: C.sub }} />
+                      </button>
                     </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEvidenceFile(null);
-
-                      set(
-                        "fileName",
-                        ""
-                      );
-
-                      setErrors((current) => ({
-                        ...current,
-                        file: "",
-                      }));
-
-                      /*
-                      * ล้าง input ด้วย
-                      * เพื่อให้เลือกไฟล์เดิมซ้ำได้
-                      */
-                      if (
-                        fileInputRef.current
-                      ) {
-                        fileInputRef.current.value =
-                          "";
-                      }
-                    }}
-                  >
-                    <Trash2
-                      size={16}
-                      style={{
-                        color: C.sub,
-                      }}
-                    />
-                  </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -1390,7 +1386,11 @@ export default function CreateClaim({
 
               <SummaryRow
                 label="หลักฐานแนบ"
-                value={form.fileName || "ไม่มีไฟล์แนบ"}
+                value={
+                  evidenceFiles.length > 0
+                    ? `${evidenceFiles.length} ไฟล์: ${form.fileName}`
+                    : "ไม่มีไฟล์แนบ"
+                }
               />
 
               {!form.fileName && (
@@ -1426,7 +1426,7 @@ export default function CreateClaim({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => onSaveDraft?.(buildPayload(),evidenceFile)}
+                onClick={() => onSaveDraft?.(buildPayload(), evidenceFiles)}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={normalizedCourses.length === 0}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"

@@ -46,7 +46,7 @@ import {
   createClaim,
 } from "./services/api";
 
-import { uploadClaimEvidence } from "./services/evidence";
+import { uploadClaimEvidenceFiles } from "./services/evidence";
 
 import {
   buildClaimApiPayload,
@@ -908,7 +908,7 @@ export default function App() {
   /*
    * Submit คำขอ (สร้างใหม่ หรือยื่นคำขอที่แก้ไข)
    */
-  const handleSubmit = async (form, evidenceFile) => {
+  const handleSubmit = async (form, evidenceFiles = []) => {
     try {
       /*
       * STEP 1
@@ -965,30 +965,18 @@ export default function App() {
       * STEP 4
       * Upload Evidence
       */
-      let evidence = null;
+      let uploadResult = { uploaded: [], failed: [] };
 
-      if (evidenceFile) {
-        evidence =
-          await uploadClaimEvidence(
+      if (evidenceFiles.length > 0) {
+        uploadResult =
+          await uploadClaimEvidenceFiles(
             claimId,
-            evidenceFile
+            evidenceFiles
           );
 
         console.log(
-          "Evidence uploaded:",
-          {
-            evidenceId:
-              evidence.evidenceId,
-
-            claimId:
-              evidence.claimId,
-
-            objectKey:
-              evidence.objectKey,
-
-            fileName:
-              evidence.fileName,
-          }
+          "Evidence upload result:",
+          uploadResult
         );
       }
 
@@ -1006,17 +994,14 @@ export default function App() {
         claimId,
 
         evidence:
-          evidence?.fileName ||
-          form.fileName ||
-          "",
+          uploadResult.uploaded.length > 0
+            ? uploadResult.uploaded
+                .map((item) => item.fileName)
+                .join(", ")
+            : form.fileName || "",
 
-        evidenceId:
-          evidence?.evidenceId ||
-          null,
-
-        evidenceObjectKey:
-          evidence?.objectKey ||
-          null,
+        evidenceFiles:
+          uploadResult.uploaded,
 
         status:
           claimResponse?.status ||
@@ -1077,6 +1062,17 @@ export default function App() {
       setView(
         "detail"
       );
+
+      // คำขอถูกสร้างแล้ว แต่บางไฟล์อัปโหลดไม่สำเร็จ → แจ้งให้ชัดเจน
+      if (uploadResult.failed.length > 0) {
+        alert(
+          "ยื่นคำขอแล้ว แต่อัปโหลดไฟล์ไม่สำเร็จ " +
+            `${uploadResult.failed.length} ไฟล์:\n` +
+            uploadResult.failed
+              .map((item) => `- ${item.fileName}: ${item.message}`)
+              .join("\n")
+        );
+      }
     } catch (error) {
       console.error(
         "Submit claim failed:",
@@ -1106,7 +1102,7 @@ export default function App() {
   /*
    * บันทึกร่างคำขอ (สร้างร่างใหม่ หรืออัปเดตร่างเดิม)
    */
-  const handleSaveDraft = (form, evidenceFile) => {
+  const handleSaveDraft = (form, evidenceFiles = []) => {
     /*
      * File object เก็บใน
      * localStorage ไม่ได้
@@ -1140,7 +1136,7 @@ export default function App() {
       return;
     }
 
-    if (evidenceFile) {
+    if (evidenceFiles.length > 0) {
       alert(
         "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข"
       );

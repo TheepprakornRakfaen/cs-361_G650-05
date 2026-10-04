@@ -232,3 +232,25 @@ export async function uploadClaimEvidence(
       ),
   };
 }
+
+/*
+ * อัปโหลดหลายไฟล์ต่อ 1 คำขอ (ทีละไฟล์ตามลำดับ)
+ * ไม่หยุดทั้งชุดเมื่อบางไฟล์พลาด — คืน { uploaded, failed } ให้ผู้เรียกแจ้งผู้ใช้
+ */
+export async function uploadClaimEvidenceFiles(claimId, files = []) {
+  const uploaded = [];
+  const failed = [];
+
+  for (const file of files) {
+    try {
+      uploaded.push(await uploadClaimEvidence(claimId, file));
+    } catch (error) {
+      failed.push({
+        fileName: file?.name || "",
+        message: error?.message || "อัปโหลดไม่สำเร็จ",
+      });
+    }
+  }
+
+  return { uploaded, failed };
+}
