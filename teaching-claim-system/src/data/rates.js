@@ -14,6 +14,9 @@ import {
 } from "./infoData";
 import { getAssignments } from "./users";
 
+// อัตราค่าตอบแทนต่อชั่วโมงที่ใช้คำนวณจริงตอนนี้ (บาท) — จำนวนเงิน = ชั่วโมง × HOURLY_RATE
+export const HOURLY_RATE = 40;
+
 export const POSITIONS = {
   lecturer: "อาจารย์ผู้บรรยาย",
   activityAssistant: ACTIVITY_ASSISTANT_RATE.role,

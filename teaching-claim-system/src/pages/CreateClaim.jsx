@@ -27,6 +27,7 @@ import {
   formatThaiDate,
   roundMoney,
 } from "../utils/time";
+import { HOURLY_RATE } from "../data/rates";
 
 const STEP_TITLES = [
   "ข้อมูล",
@@ -327,8 +328,8 @@ export default function CreateClaim({
         form.courseCode
     );
 
-  // อัตรามาจากตำแหน่งในรายวิชาที่ได้รับมอบหมายเท่านั้น (ไม่ใช้ค่าที่อยู่ในฟอร์ม)
-  const rate = Number(course?.rate || 0);
+  // อัตราคงที่ต่อชั่วโมง (ดู HOURLY_RATE ใน rates.js)
+  const rate = HOURLY_RATE;
 
   const quota = Number(course?.quota) || 45;
 
@@ -960,17 +961,9 @@ export default function CreateClaim({
                     คงเหลือ {course.remaining} ชม.
                   </p>
 
-                  {course.rate > 0 ? (
-                    <p className="text-xs mt-1" style={{ color: C.sub }}>
-                      อัตรา ฿{rate.toLocaleString()} / ชั่วโมง
-                      {" · "}
-                      {course.rateSource}
-                    </p>
-                  ) : (
-                    <p className="text-xs mt-1" style={{ color: C.sub }}>
-                      อัตราค่าตอบแทนจะอ้างอิงจากข้อมูลการมอบหมายงาน
-                    </p>
-                  )}
+                  <p className="text-xs mt-1" style={{ color: C.sub }}>
+                    อัตรา ฿{rate.toLocaleString()} / ชั่วโมง
+                  </p>
                 </div>
               )}
 
@@ -1139,11 +1132,9 @@ export default function CreateClaim({
                   {" / ชั่วโมง"}
                 </div>
 
-                {course && (
-                  <p className="text-xs mt-1.5" style={{ color: C.sub }}>
-                    ตามตำแหน่ง {course.positionLabel} · {course.rateSource}
-                  </p>
-                )}
+                <p className="text-xs mt-1.5" style={{ color: C.sub }}>
+                  อัตราคงที่ทุกตำแหน่ง
+                </p>
               </Field>
 
               <Field label="จำนวนเงิน">

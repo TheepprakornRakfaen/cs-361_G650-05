@@ -1,3 +1,6 @@
+import { HOURLY_RATE } from "../data/rates";
+import { roundMoney } from "../utils/time";
+
 function sessionToHour(
   session
 ) {
@@ -169,6 +172,15 @@ export function normalizeClaim(
         : [],
 
     hours,
+
+    // backend ไม่ได้ส่งเงินมา → คำนวณเองจาก hour × HOURLY_RATE
+    rate:
+      HOURLY_RATE,
+
+    amount:
+      roundMoney(
+        hours * HOURLY_RATE
+      ),
 
     notes:
       raw.note || "",
