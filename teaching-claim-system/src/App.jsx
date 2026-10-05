@@ -16,6 +16,7 @@ import CreateClaim from "./pages/CreateClaim";
 import ClaimDetail from "./pages/ClaimDetail";
 import CreateClaimList from "./pages/CreateClaimList";
 import Profile from "./pages/Profile";
+import { applyProfileEdits } from "./data/profile";
 import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
 
@@ -399,7 +400,7 @@ export default function App() {
         const user = await getAuthenticatedUser();
 
         if (active) {
-          setCurrentUser(user);
+          setCurrentUser(applyProfileEdits(user));
         }
       } catch {
         if (active) {
@@ -1445,6 +1446,7 @@ export default function App() {
             claims={claims}
             onLogin={() => setView("login")}
             onOpenClaims={openMyClaims}
+            onUserUpdate={setCurrentUser}
           />
         );
 
@@ -1502,7 +1504,7 @@ export default function App() {
           setView("home");
         }}
         onLoginSuccess={(user) => {
-          setCurrentUser(user);
+          setCurrentUser(applyProfileEdits(user));
           setView(needsLogin ? view : afterLoginView || "home");
           setAfterLoginView(null);
         }}

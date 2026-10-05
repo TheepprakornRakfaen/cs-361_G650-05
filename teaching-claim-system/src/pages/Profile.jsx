@@ -12,11 +12,35 @@ import {
   Camera,
   X,
   ChevronRight,
+  Pencil,
+  Save,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import { getInitial } from "../data/users";
+import {
+  saveProfileEdits,
+  applyProfileEdits,
+  validateProfile,
+} from "../data/profile";
+
+// ช่องในฟอร์มแก้ไขข้อมูลส่วนตัว (อีเมลมาจากบัญชีเข้าสู่ระบบ แก้ไม่ได้)
+const PROFILE_FIELDS = [
+  { key: "name", label: "ชื่อ-นามสกุล", icon: UserRound, required: true },
+  { key: "staffId", label: "รหัสบุคลากร / รหัสนักศึกษา", icon: Contact },
+  { key: "phone", label: "เบอร์โทรศัพท์", icon: Phone, inputMode: "tel", placeholder: "เช่น 0812345678" },
+  { key: "faculty", label: "คณะ", icon: Building2 },
+  { key: "department", label: "สาขาวิชา", icon: GraduationCap },
+];
+
+function toForm(user) {
+  return Object.fromEntries(
+    PROFILE_FIELDS.map(({ key }) => [key, user?.[key] || ""])
+  );
+}
 
 const AVATAR_BG = `linear-gradient(135deg, #F07A7E, ${C.rose})`;
 
@@ -62,9 +86,80 @@ export default function Profile({
   claims = [],
   onLogin,
   onOpenClaims,
+  onUserUpdate,
 }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState("");
+
+  // แก้ไขข้อมูลส่วนตัว
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(() => toForm(user));
+  const [formErrors, setFormErrors] = useState({});
+  // { type: "success" | "error", text }
+  const [saveMessage, setSaveMessage] = useState(null);
+
+  // ข้อความบันทึกสำเร็จหายเองหลัง 3 วินาที
+  useEffect(() => {
+    if (saveMessage?.type !== "success") return undefined;
+    const timer = setTimeout(() => setSaveMessage(null), 3000);
+    return () => clearTimeout(timer);
+  }, [saveMessage]);
+
+  const startEdit = () => {
+    setForm(toForm(user));
+    setFormErrors({});
+    setSaveMessage(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setForm(toForm(user));
+    setFormErrors({});
+    setSaveMessage(null);
+    setEditing(false);
+  };
+
+  const handleFieldChange = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    // พิมพ์แก้แล้วเอา error ของช่องนั้นออก
+    setFormErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleSaveProfile = (event) => {
+    event.preventDefault();
+
+    const errors = validateProfile(form);
+    setFormErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      setSaveMessage({
+        type: "error",
+        text: "กรุณาตรวจสอบข้อมูลที่กรอกอีกครั้ง",
+      });
+      return;
+    }
+
+    try {
+      saveProfileEdits(user.username, form);
+      onUserUpdate?.(applyProfileEdits(user));
+      setEditing(false);
+      setSaveMessage({
+        type: "success",
+        text: "บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว",
+      });
+    } catch (error) {
+      console.error("Cannot save profile:", error);
+      setSaveMessage({
+        type: "error",
+        text: "ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+      });
+    }
+  };
 
   const fileInputRef = useRef(null);
 
@@ -371,48 +466,192 @@ export default function Profile({
           className="p-6 h-fit"
           hoverable={false}
         >
-          <h3
-            className="font-bold mb-2"
-            style={{ color: C.ink }}
-          >
-            ข้อมูลส่วนตัว
-          </h3>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <h3
+              className="font-bold"
+              style={{ color: C.ink }}
+            >
+              ข้อมูลส่วนตัว
+            </h3>
 
-          <InfoRow
-            icon={UserRound}
-            label="ชื่อ-นามสกุล"
-            value={user.name}
-          />
+            {!editing && (
+              <button
+                type="button"
+                onClick={startEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors hover:bg-[#D6E4F5]"
+                style={{
+                  background: C.tealSoft,
+                  color: C.tealDark,
+                }}
+              >
+                <Pencil size={13} />
+                แก้ไขข้อมูล
+              </button>
+            )}
+          </div>
 
-          <InfoRow
-            icon={Contact}
-            label="รหัสบุคลากร / รหัสนักศึกษา"
-            value={user.staffId}
-          />
+          {saveMessage && (
+            <div
+              role={saveMessage.type === "error" ? "alert" : "status"}
+              className="flex items-start gap-2 rounded-xl px-3 py-2.5 my-2 text-xs font-semibold"
+              style={{
+                background:
+                  saveMessage.type === "success"
+                    ? STATUS_STYLE.Approved.bg
+                    : STATUS_STYLE.Rejected.bg,
+                color:
+                  saveMessage.type === "success"
+                    ? STATUS_STYLE.Approved.fg
+                    : STATUS_STYLE.Rejected.fg,
+              }}
+            >
+              {saveMessage.type === "success" ? (
+                <CheckCircle2 size={15} className="shrink-0" />
+              ) : (
+                <AlertCircle size={15} className="shrink-0" />
+              )}
+              {saveMessage.text}
+            </div>
+          )}
 
-          <InfoRow
-            icon={Mail}
-            label="อีเมล"
-            value={user.email}
-          />
+          {editing ? (
+            <form
+              onSubmit={handleSaveProfile}
+              noValidate
+              className="flex flex-col gap-3 mt-2"
+            >
+              {PROFILE_FIELDS.map(
+                ({ key, label, required, inputMode, placeholder }) => (
+                  <label key={key} className="block">
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: C.sub }}
+                    >
+                      {label}
+                      {required && (
+                        <span style={{ color: C.rose }}> *</span>
+                      )}
+                    </span>
 
-          <InfoRow
-            icon={Phone}
-            label="เบอร์โทรศัพท์"
-            value={user.phone}
-          />
+                    <input
+                      type="text"
+                      value={form[key]}
+                      onChange={(e) =>
+                        handleFieldChange(key, e.target.value)
+                      }
+                      inputMode={inputMode}
+                      placeholder={placeholder}
+                      maxLength={key === "phone" ? 12 : 100}
+                      aria-invalid={Boolean(formErrors[key])}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3E7FC1]/30"
+                      style={{
+                        borderColor: formErrors[key]
+                          ? C.rose
+                          : C.border,
+                        color: C.ink,
+                      }}
+                    />
 
-          <InfoRow
-            icon={Building2}
-            label="คณะ"
-            value={user.faculty}
-          />
+                    {formErrors[key] && (
+                      <span
+                        className="block text-xs mt-1"
+                        style={{ color: C.rose }}
+                      >
+                        {formErrors[key]}
+                      </span>
+                    )}
+                  </label>
+                )
+              )}
 
-          <InfoRow
-            icon={GraduationCap}
-            label="สาขาวิชา"
-            value={user.department}
-          />
+              <div>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: C.sub }}
+                >
+                  อีเมล
+                </span>
+                <p
+                  className="mt-1 rounded-xl px-3 py-2 text-sm break-words"
+                  style={{
+                    background: "#F1F4F7",
+                    color: C.sub,
+                  }}
+                >
+                  {user.email || "-"}
+                </p>
+                <span
+                  className="block text-[11px] mt-1"
+                  style={{ color: C.sub }}
+                >
+                  อีเมลใช้เข้าสู่ระบบ แก้ไขไม่ได้
+                </span>
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="flex-1 px-4 py-2 rounded-full border text-sm font-semibold transition-colors hover:bg-[#F1F4F7]"
+                  style={{
+                    borderColor: C.border,
+                    color: C.sub,
+                  }}
+                >
+                  ยกเลิก
+                </button>
+
+                <button
+                  type="submit"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  style={{
+                    background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                  }}
+                >
+                  <Save size={14} />
+                  บันทึก
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <InfoRow
+                icon={UserRound}
+                label="ชื่อ-นามสกุล"
+                value={user.name}
+              />
+
+              <InfoRow
+                icon={Contact}
+                label="รหัสบุคลากร / รหัสนักศึกษา"
+                value={user.staffId}
+              />
+
+              <InfoRow
+                icon={Mail}
+                label="อีเมล"
+                value={user.email}
+              />
+
+              <InfoRow
+                icon={Phone}
+                label="เบอร์โทรศัพท์"
+                value={user.phone}
+              />
+
+              <InfoRow
+                icon={Building2}
+                label="คณะ"
+                value={user.faculty}
+              />
+
+              <InfoRow
+                icon={GraduationCap}
+                label="สาขาวิชา"
+                value={user.department}
+              />
+            </>
+          )}
         </SectionCard>
 
         <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
