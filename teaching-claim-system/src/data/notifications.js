@@ -42,6 +42,17 @@ export const ANNOUNCEMENTS = [
 const baht = (n) =>
   Number(n || 0).toLocaleString("th-TH", { maximumFractionDigits: 2 });
 
+/*
+ * รหัสคำขอแบบสั้นสำหรับแสดงผล
+ * - UUID จาก backend (c284d8f4-a2f0-...) → "#C284D8F4" (8 ตัวแรก)
+ * - รหัสแบบเดิม (CL-2026-0005) → "#CL-2026-0005"
+ */
+export function shortClaimId(id) {
+  const text = String(id ?? "");
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(text);
+  return `#${isUuid ? text.slice(0, 8).toUpperCase() : text}`;
+}
+
 function claimNotification(claim) {
   const when = claim.updatedAt || claim.statusUpdatedAt || claim.createdAt;
   const base = {
@@ -57,7 +68,7 @@ function claimNotification(claim) {
         ...base,
         id: `claim-${claim.id}-Approved`,
         kind: "approved",
-        title: `คำขอ ${claim.id} ได้รับการอนุมัติแล้ว`,
+        title: `คำขอ ${shortClaimId(claim.id)} ได้รับการอนุมัติแล้ว`,
         description: `${course ? course.trim() + " · " : ""}ยอดเบิก ${baht(claim.amount)} บาท`,
       };
     case "Rejected":
@@ -65,17 +76,18 @@ function claimNotification(claim) {
         ...base,
         id: `claim-${claim.id}-Rejected`,
         kind: "rejected",
-        title: `คำขอ ${claim.id} ไม่ได้รับการอนุมัติ`,
+        title: `คำขอ ${shortClaimId(claim.id)} ไม่ได้รับการอนุมัติ`,
         description: `${course ? course.trim() + " · " : ""}กรุณาตรวจสอบรายละเอียดและแก้ไขตามที่เจ้าหน้าที่แจ้ง`,
       };
     case "Submitted":
       return {
+        ...base,
+        // ใช้เวลาที่ยื่นจริงถ้า backend ส่งมา
+        date: claim.submittedAt || when,
         id: `claim-${claim.id}-Submitted`,
-        type: "claim-submitted",
-        title: `ส่งคำขอ ${claim.id} เรียบร้อยแล้ว`,
-        message: `${claim.courseCode || "รายวิชา"} อยู่ระหว่างการตรวจสอบ`,
-        claimId: claim.id,
-        createdAt: claim.createdAt,
+        kind: "submitted",
+        title: `ส่งคำขอ ${shortClaimId(claim.id)} เรียบร้อยแล้ว`,
+        description: `${course ? course.trim() + " · " : ""}อยู่ระหว่างการตรวจสอบ`,
       };
     default:
       return null; // แบบร่างไม่ต้องแจ้งเตือน
