@@ -101,11 +101,34 @@ export async function loginWithCognito(
   email,
   password
 ) {
-  const result =
-    await signIn({
-      username: email.trim(),
-      password,
-    });
+  let result;
+
+  try {
+    result =
+      await signIn({
+        username: email.trim(),
+        password,
+      });
+  } catch (error) {
+    /*
+     * มี session เก่าค้างในเบราว์เซอร์ (เช่น token หมดอายุ
+     * หรือเคยล็อกอินบัญชีอื่นไว้) → ออกจากระบบเดิมก่อน แล้วล็อกอินใหม่
+     */
+    if (
+      error?.name !==
+      "UserAlreadyAuthenticatedException"
+    ) {
+      throw error;
+    }
+
+    await signOut();
+
+    result =
+      await signIn({
+        username: email.trim(),
+        password,
+      });
+  }
 
   /*
    * กรณีสร้าง user จาก AWS Console
