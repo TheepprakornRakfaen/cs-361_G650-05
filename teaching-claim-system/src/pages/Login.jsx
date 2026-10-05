@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Wallet,
   FileCheck2,
+  Loader2,
 } from "lucide-react";
 import { C } from "../theme";
 import { loginWithCognito, confirmNewPassword} from "../services/auth";
@@ -285,7 +286,12 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleSubmit}>
+              {/* ระหว่างกำลังเข้าสู่ระบบ ล็อกทุกช่อง/ปุ่มในฟอร์ม กันแก้ค่าหรือกดซ้ำ */}
+              <fieldset
+                disabled={loading}
+                className="flex flex-col gap-4 min-w-0 border-0 p-0 m-0"
+              >
               <div>
                 <label
                   className="text-xs font-semibold mb-1.5 block"
@@ -420,17 +426,29 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-xl font-bold text-sm text-white mt-1 transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
+                aria-busy={loading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm text-white mt-1 transition-transform duration-150 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait disabled:active:scale-100"
                 style={{
                   background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                 }}
               >
+                {/* ไอคอนหมุนระหว่างรอ Cognito ตอบกลับ */}
+                {loading && (
+                  <Loader2
+                    size={16}
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
+                )}
                 {loading
-                  ? "กำลังเข้าสู่ระบบ..."
+                  ? requiresNewPassword
+                    ? "กำลังบันทึกรหัสผ่านใหม่..."
+                    : "กำลังเข้าสู่ระบบ..."
                   : requiresNewPassword
                   ? "ยืนยันรหัสผ่านใหม่"
                   : "เข้าสู่ระบบ"}
               </button>
+              </fieldset>
             </form>
 
             <p className="text-xs text-center mt-8" style={{ color: C.sub }}>
