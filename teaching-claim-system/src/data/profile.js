@@ -6,7 +6,9 @@
  * (อีเมล / role มาจาก Cognito แก้ไม่ได้)
  */
 
-const storageKey = (username) => `teaching-claim:profile:${username}`;
+import { FACULTIES, getDepartments } from "./faculties";
+
+const storageKey =(username) => `teaching-claim:profile:${username}`;
 
 // ช่องที่อนุญาตให้แก้ไขได้
 export const EDITABLE_FIELDS = [
@@ -86,11 +88,17 @@ export function validateProfile(form) {
     errors.phone = "เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 9–10 หลัก";
   }
 
-  ["faculty", "department"].forEach((field) => {
-    if (String(form[field] || "").trim().length > 100) {
-      errors[field] = "ต้องไม่เกิน 100 ตัวอักษร";
-    }
-  });
+  // คณะ / สาขา ต้องเป็นตัวเลือกจากรายการ และสาขาต้องอยู่ในคณะที่เลือก
+  const faculty = String(form.faculty || "").trim();
+  const department = String(form.department || "").trim();
+
+  if (faculty && !FACULTIES.some((item) => item.name === faculty)) {
+    errors.faculty = "กรุณาเลือกคณะจากรายการ";
+  }
+
+  if (department && !getDepartments(faculty).includes(department)) {
+    errors.department = "กรุณาเลือกสาขาของคณะที่เลือก";
+  }
 
   return errors;
 }

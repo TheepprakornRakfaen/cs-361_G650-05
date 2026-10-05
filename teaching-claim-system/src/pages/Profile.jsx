@@ -20,7 +20,9 @@ import {
 
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
+import Select from "../components/Select";
 import { getInitial } from "../data/users";
+import { FACULTIES, getDepartments } from "../data/faculties";
 import {
   saveProfileEdits,
   applyProfileEdits,
@@ -32,8 +34,8 @@ const PROFILE_FIELDS = [
   { key: "name", label: "ชื่อ-นามสกุล", icon: UserRound, required: true },
   { key: "staffId", label: "รหัสบุคลากร / รหัสนักศึกษา", icon: Contact },
   { key: "phone", label: "เบอร์โทรศัพท์", icon: Phone, inputMode: "tel", placeholder: "เช่น 0812345678" },
-  { key: "faculty", label: "คณะ", icon: Building2 },
-  { key: "department", label: "สาขาวิชา", icon: GraduationCap },
+  { key: "faculty", label: "คณะ", icon: Building2, select: true },
+  { key: "department", label: "สาขาวิชา", icon: GraduationCap, select: true },
 ];
 
 function toForm(user) {
@@ -120,7 +122,12 @@ export default function Profile({
   };
 
   const handleFieldChange = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      // เปลี่ยนคณะ → ล้างสาขาเดิม เพราะอาจไม่ใช่ของคณะใหม่
+      ...(key === "faculty" && value !== prev.faculty && { department: "" }),
+    }));
     // พิมพ์แก้แล้วเอา error ของช่องนั้นออก
     setFormErrors((prev) => {
       if (!prev[key]) return prev;
@@ -521,8 +528,16 @@ export default function Profile({
               className="flex flex-col gap-3 mt-2"
             >
               {PROFILE_FIELDS.map(
-                ({ key, label, required, inputMode, placeholder }) => (
-                  <label key={key} className="block">
+                ({ key, label, required, inputMode, placeholder, select }) => {
+                  // คณะ / สาขา ใช้ dropdown — สาขามีเฉพาะของคณะที่เลือก
+                  const options =
+                    key === "faculty"
+                      ? FACULTIES.map((faculty) => faculty.name)
+                      : getDepartments(form.faculty);
+                  const Wrapper = select ? "div" : "label";
+
+                  return (
+                  <Wrapper key={key} className="block">
                     <span
                       className="text-xs font-semibold"
                       style={{ color: C.sub }}
@@ -533,6 +548,35 @@ export default function Profile({
                       )}
                     </span>
 
+                    {select ? (
+                      <Select
+                        value={form[key]}
+                        onChange={(e) =>
+                          handleFieldChange(key, e.target.value)
+                        }
+                        disabled={key === "department" && !form.faculty}
+                        aria-label={label}
+                        wrapperClassName="mt-1"
+                        className="w-full rounded-xl border px-3 py-2 text-sm bg-white outline-none"
+                        style={{
+                          borderColor: formErrors[key]
+                            ? C.rose
+                            : C.border,
+                          color: C.ink,
+                        }}
+                      >
+                        <option value="">
+                          {key === "department" && !form.faculty
+                            ? "เลือกคณะก่อน"
+                            : `เลือก${label}`}
+                        </option>
+                        {options.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
                     <input
                       type="text"
                       value={form[key]}
@@ -551,6 +595,7 @@ export default function Profile({
                         color: C.ink,
                       }}
                     />
+                    )}
 
                     {formErrors[key] && (
                       <span
@@ -560,8 +605,9 @@ export default function Profile({
                         {formErrors[key]}
                       </span>
                     )}
-                  </label>
-                )
+                  </Wrapper>
+                  );
+                }
               )}
 
               <div>
