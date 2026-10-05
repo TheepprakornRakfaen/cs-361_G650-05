@@ -1084,6 +1084,58 @@ export default function App() {
       );
 
       /*
+      * STEP 6.1
+      * ถ้ายื่นจากแบบร่างเดิม → ลบแบบร่างนั้นทิ้ง
+      * ไม่งั้นจะมีทั้งร่างเก่าและคำขอที่ยื่นแล้วซ้อนกัน
+      */
+      if (editingClaimId) {
+        const isLocalDraft =
+          localDrafts.some(
+            (draft) =>
+              String(draft.id) ===
+              String(editingClaimId)
+          );
+
+        if (isLocalDraft) {
+          setState(
+            deleteLocalClaim(editingClaimId)
+          );
+        } else {
+          const oldClaim = apiClaims.find(
+            (item) =>
+              String(item.id) ===
+              String(editingClaimId)
+          );
+
+          // ร่างที่อยู่ใน backend → ลบผ่าน API (ถ้าลบไม่ได้ก็ไม่ให้การยื่นล้ม)
+          if (
+            oldClaim?.status === "Draft" &&
+            String(oldClaim.id) !== String(claimId)
+          ) {
+            try {
+              await deleteClaim(
+                oldClaim.id,
+                currentUser?.cognitoSub
+              );
+
+              setApiClaims((current) =>
+                current.filter(
+                  (item) =>
+                    String(item.id) !==
+                    String(oldClaim.id)
+                )
+              );
+            } catch (error) {
+              console.error(
+                "Submitted but old draft delete failed:",
+                error
+              );
+            }
+          }
+        }
+      }
+
+      /*
       * STEP 7
       * ลอง refresh Claim จริงจาก backend
       *

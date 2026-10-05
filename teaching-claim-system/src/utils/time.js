@@ -46,6 +46,20 @@ export function formatThaiDate(iso) {
   });
 }
 
+// วันที่ (YYYY-MM-DD หรือ ISO จาก backend) → "ตุลาคม 2569"
+export function formatThaiMonth(value) {
+  const iso = String(value || "").slice(0, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return "";
+  }
+
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("th-TH", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 // ปัดเงินเป็นทศนิยม 2 ตำแหน่ง
 export function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;

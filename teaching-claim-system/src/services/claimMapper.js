@@ -1,5 +1,5 @@
 import { HOURLY_RATE } from "../data/rates";
-import { roundMoney } from "../utils/time";
+import { roundMoney, formatThaiMonth } from "../utils/time";
 
 function sessionToHour(
   session
@@ -147,6 +147,10 @@ export function normalizeClaim(
 
     teachingDate:
       raw.date || "",
+
+    // เดือนที่สอน เช่น "ตุลาคม 2569" (ใช้แสดงในตารางคำขอ)
+    month:
+      formatThaiMonth(raw.date),
 
     sessions:
       raw.date
