@@ -180,9 +180,9 @@ function HoverListItem({ children, className = "" }) {
   );
 }
 
-// ครอบเนื้อหาให้กว้างไม่เกิน 7xl และอยู่กึ่งกลาง
+// ครอบเนื้อหาให้เต็มความกว้างพื้นที่เนื้อหา (เหมือนหน้าอื่น)
 function Wrap({ children }) {
-  return <div className="max-w-7xl mx-auto">{children}</div>;
+  return <div className="w-full">{children}</div>;
 }
 
 // แถบพื้นหลังเต็มความกว้างพื้นที่เนื้อหา — ไล่สีจางเข้าหาพื้นหลังหลักด้านบน/ล่าง
@@ -200,7 +200,7 @@ function Band({ variant = "sky", children }) {
   if (t.plain) {
     return (
       <section className="relative my-4">
-        <div className="relative max-w-7xl mx-auto">{children}</div>
+        <div className="relative w-full">{children}</div>
       </section>
     );
   }
@@ -218,7 +218,7 @@ function Band({ variant = "sky", children }) {
           backgroundPosition: "top left",
         }}
       >
-        <div className="relative max-w-7xl mx-auto">{children}</div>
+        <div className="relative w-full">{children}</div>
       </section>
     );
   }
@@ -247,7 +247,7 @@ function Band({ variant = "sky", children }) {
           maskImage: "linear-gradient(180deg, transparent 0%, #000 25%, #000 75%, transparent 100%)",
         }}
       />
-      <div className="relative max-w-7xl mx-auto">{children}</div>
+      <div className="relative w-full">{children}</div>
     </section>
   );
 }
@@ -743,7 +743,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
             accent={C.violet}
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {USER_TYPES.map((u, index) => {
               const style = ROLE_STYLES[u.role] || DEFAULT_ROLE_STYLE;
 
