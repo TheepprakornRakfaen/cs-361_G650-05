@@ -1,5 +1,5 @@
 import { HOURLY_RATE } from "../data/rates";
-import { roundMoney, formatThaiMonth } from "../utils/time";
+import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
 
 function sessionToHour(
   session
@@ -36,30 +36,47 @@ export function buildClaimApiPayload(form) {
       : [];
 
   /*
-   * Backend + DB ปัจจุบัน:
-   * 1 Claim = 1 teach_date
+   * 1 Claim = หลายวันสอน (ตาราง claim_date)
+   * date ส่งเป็น array เสมอ แม้มีวันเดียว: [{ date, hour }]
    */
   if (
-    sessions.length !== 1
+    sessions.length === 0
   ) {
     throw new Error(
-      "ระบบ Backend ปัจจุบันรองรับวันสอน 1 วันต่อ 1 คำขอ"
+      "กรุณาระบุวันที่สอนอย่างน้อย 1 วัน"
     );
   }
 
-  const session =
-    sessions[0];
-
-  const hour =
-    sessionToHour(
-      session
+  // ชั่วโมงของแต่ละวัน → claim_date.hour
+  const date =
+    sessions.map(
+      (session) => ({
+        date: session.date,
+        hour: sessionToHour(session),
+      })
     );
 
-  if (hour <= 0) {
+  if (
+    date.some(
+      (item) => item.hour <= 0
+    )
+  ) {
     throw new Error(
-      "กรุณาระบุจำนวนชั่วโมงที่สอน"
+      "กรุณาระบุจำนวนชั่วโมงที่สอนให้ครบทุกวัน"
     );
   }
+
+  // ชั่วโมงรวมทุกวัน
+  const hour =
+    Number(
+      date
+        .reduce(
+          (sum, item) =>
+            sum + item.hour,
+          0
+        )
+        .toFixed(2)
+    );
 
   return {
     academic_term:
@@ -71,8 +88,7 @@ export function buildClaimApiPayload(form) {
     section_id:
       Number(form.sectionId),
     status,
-    date:
-      session.date,
+    date,
 
     hour,
 
@@ -97,21 +113,33 @@ export function normalizeClaim(
           ? "Cancelled"
           : "Draft";
 
+  /*
+   * date จาก GET เป็น array [{ id, claim_id, date, hour }] (ตาราง claim_date)
+   * รองรับรูปแบบเก่าที่ date เป็น string ตัวเดียวด้วย
+   */
+  const dateList = (
+    Array.isArray(raw.date)
+      ? raw.date
+      : raw.date
+        ? [{ date: raw.date, hour: raw.hour }]
+        : []
+  )
+    .filter((item) => item?.date)
+    .sort((a, b) =>
+      String(a.date).localeCompare(String(b.date))
+    );
+
+  // ชั่วโมงรวม: ใช้ค่าจาก backend ถ้ามี ไม่งั้นรวมจากแต่ละวัน
   const hours =
-    Number(
-      raw.hour || 0
-    );
+    raw.hour != null
+      ? Number(raw.hour)
+      : dateList.reduce(
+          (sum, item) => sum + Number(item.hour || 0),
+          0
+        );
 
-  const wholeHours =
-    Math.floor(hours);
-
-  const minutes =
-    Math.round(
-      (
-        hours -
-        wholeHours
-      ) * 60
-    );
+  const teachingDate =
+    dateList[0]?.date || "";
 
   return {
     ...raw,
@@ -145,35 +173,24 @@ export function normalizeClaim(
       raw.course_name_en ||
       "",
 
-    teachingDate:
-      raw.date || "",
+    // วันสอนวันแรก
+    teachingDate,
 
     // เดือนที่สอน เช่น "ตุลาคม 2569" (ใช้แสดงในตารางคำขอ)
     month:
-      formatThaiMonth(raw.date),
+      formatThaiMonth(teachingDate),
 
+    // วันสอนแต่ละวัน → รูปแบบเดียวกับ sessions ในฟอร์ม
     sessions:
-      raw.date
-        ? [
-            {
-              id:
-                `session-${raw.id}`,
+      dateList.map((item) => ({
+        id:
+          `session-${item.id ?? `${raw.id}-${item.date}`}`,
 
-              date:
-                raw.date,
+        date:
+          item.date,
 
-              hours:
-                String(
-                  wholeHours
-                ),
-
-              minutes:
-                String(
-                  minutes
-                ),
-            },
-          ]
-        : [],
+        ...hoursToParts(item.hour),
+      })),
 
     hours,
 
