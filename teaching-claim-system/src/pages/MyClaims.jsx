@@ -23,10 +23,94 @@ export default function MyClaims({
   onDelete,
   // สถานะที่ให้กรองไว้ตั้งแต่เปิดหน้า เช่น "Draft" เมื่อกดมาจากการ์ดแบบร่างในโปรไฟล์
   initialStatus = "All",
+  // ภาคปัจจุบัน เช่น "1/2569" ใช้เป็นค่าเริ่มต้นของตัวกรองภาค
+  currentTermLabel = "",
+  // ภาคทั้งหมดในระบบ (จาก /api/term) และรายวิชาที่สอนในภาคปัจจุบัน (จาก /api/courses)
+  termLabels = [],
+  courseCodes = [],
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
     useState(initialStatus);
+
+  // null = ผู้ใช้ยังไม่ได้เลือก → ใช้ภาคปัจจุบัน (ภาคโหลดจาก API ทีหลัง)
+  const [termChoice, setTermChoice] =
+    useState(null);
+  const [courseFilter, setCourseFilter] =
+    useState("All");
+
+  // ถ้าคำขอไม่มีข้อมูลภาคเลย อย่าตั้งค่าเริ่มต้นเป็นภาคปัจจุบัน ไม่งั้นตารางจะว่าง
+  const hasTermData = claims.some(
+    (claim) => claim.termLabel
+  );
+
+  const termFilter =
+    termChoice ??
+    (hasTermData && currentTermLabel
+      ? currentTermLabel
+      : "All");
+
+  // "1/2569" → เรียงปีใหม่ก่อน แล้วภาคมากก่อน
+  const termSortKey = (label) => {
+    const [semester, year] =
+      String(label).split("/");
+    return Number(year || 0) * 10 + Number(semester || 0);
+  };
+
+  const termOptions = useMemo(() => {
+    const labels = new Set([
+      ...termLabels,
+      ...claims
+        .map((claim) => claim.termLabel)
+        .filter(Boolean),
+    ]);
+
+    if (currentTermLabel) {
+      labels.add(currentTermLabel);
+    }
+
+    return [...labels].sort(
+      (a, b) =>
+        termSortKey(b) - termSortKey(a)
+    );
+  }, [claims, currentTermLabel, termLabels]);
+
+  // คำขอในภาค + รายวิชาที่เลือก (ใช้ทั้งการ์ดนับและตาราง)
+  const scoped = useMemo(
+    () =>
+      claims.filter(
+        (claim) =>
+          (termFilter === "All" ||
+            claim.termLabel === termFilter) &&
+          (courseFilter === "All" ||
+            claim.courseCode === courseFilter)
+      ),
+    [claims, termFilter, courseFilter]
+  );
+
+  // รายวิชาที่มีคำขอในภาคที่เลือก + วิชาที่สอนในภาคปัจจุบัน
+  const courseOptions = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...(termFilter === "All" ||
+          termFilter === currentTermLabel
+            ? courseCodes
+            : []),
+          ...claims
+            .filter(
+              (claim) =>
+                termFilter === "All" ||
+                claim.termLabel === termFilter
+            )
+            .map((claim) => claim.courseCode)
+            .filter(
+              (code) => code && code !== "-"
+            ),
+        ]),
+      ].sort(),
+    [claims, termFilter, currentTermLabel, courseCodes]
+  );
 
   const counts = useMemo(() => {
     const result = {
@@ -36,23 +120,29 @@ export default function MyClaims({
       Rejected: 0,
     };
 
-    claims.forEach((claim) => {
+    scoped.forEach((claim) => {
       if (result[claim.status] !== undefined) {
         result[claim.status] += 1;
       }
     });
 
     return result;
-  }, [claims]);
+  }, [scoped]);
 
   const filtered = useMemo(() => {
     const keyword =
       query.trim().toLowerCase();
 
-    return claims.filter((claim) => {
+    return scoped.filter((claim) => {
       const matchesQuery =
         keyword === "" ||
         String(claim.id)
+          .toLowerCase()
+          .includes(keyword) ||
+        String(claim.code || "")
+          .toLowerCase()
+          .includes(keyword) ||
+        String(claim.termLabel || "")
           .toLowerCase()
           .includes(keyword) ||
         String(claim.courseCode || "")
@@ -69,7 +159,7 @@ export default function MyClaims({
       );
     });
   }, [
-    claims,
+    scoped,
     query,
     statusFilter,
   ]);
@@ -146,6 +236,52 @@ export default function MyClaims({
             style={{ color: C.ink }}
           />
         </div>
+
+        <Select
+          value={termFilter}
+          onChange={(e) => {
+            setTermChoice(e.target.value);
+            // รายวิชาเดิมอาจไม่มีในภาคใหม่
+            setCourseFilter("All");
+          }}
+          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          style={{
+            borderColor: C.border,
+            color: C.ink,
+          }}
+        >
+          <option value="All">
+            ทุกภาค
+          </option>
+
+          {termOptions.map((label) => (
+            <option key={label} value={label}>
+              ภาค {label}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          value={courseFilter}
+          onChange={(e) =>
+            setCourseFilter(e.target.value)
+          }
+          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          style={{
+            borderColor: C.border,
+            color: C.ink,
+          }}
+        >
+          <option value="All">
+            ทุกรายวิชา
+          </option>
+
+          {courseOptions.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </Select>
 
         <Select
           value={statusFilter}
@@ -233,6 +369,7 @@ export default function MyClaims({
                 {[
                   "รหัสคำขอ",
                   "รายวิชา",
+                  "ภาค",
                   "เดือน",
                   "จำนวนเงิน",
                   "สถานะ",
@@ -266,7 +403,7 @@ export default function MyClaims({
                       color: C.ink,
                     }}
                   >
-                    #{claim.id}
+                    #{claim.code || claim.id}
                   </td>
 
                   <td
@@ -276,6 +413,15 @@ export default function MyClaims({
                     }}
                   >
                     {claim.courseCode || "-"}
+                  </td>
+
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    style={{
+                      color: C.sub,
+                    }}
+                  >
+                    {claim.termLabel || "-"}
                   </td>
 
                   <td
@@ -318,7 +464,7 @@ export default function MyClaims({
                         color: "#C23B3B",
                       }}
                       title="ลบคำขอ"
-                      aria-label={`ลบคำขอ #${claim.id}`}
+                      aria-label={`ลบคำขอ #${claim.code || claim.id}`}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -329,7 +475,7 @@ export default function MyClaims({
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-12 text-center"
                   >
                     <p

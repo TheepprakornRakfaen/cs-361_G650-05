@@ -219,6 +219,68 @@ export function normalizeClaim(
   };
 }
 
+/*
+ * รหัสคำขอสำหรับแสดงผล/ค้นหา (id จริงยังเป็น UUID เหมือนเดิม)
+ * รูปแบบ: <รหัสวิชา>-<ภาค/ปี 2 หลัก>-R<เดือนของรอบ>-<วันยื่น DDMMYY พ.ศ.>-<4 ตัวแรกของ id>
+ * เช่น CS223-1/69-R10-131069-6822
+ * ต่อท้าย 4 ตัวจาก id กันรหัสซ้ำเมื่อยื่นวิชาเดียวกันรอบเดียวกันในวันเดียวกัน
+ */
+export function buildClaimCode({
+  id,
+  courseCode,
+  termLabel,
+  periodMonth,
+  submittedAt,
+}) {
+  const parts = [];
+
+  if (courseCode && courseCode !== "-") {
+    parts.push(courseCode);
+  }
+
+  // "1/2569" → "1/69"
+  if (termLabel) {
+    parts.push(
+      String(termLabel).replace(
+        /\/\d{2}(\d{2})$/,
+        "/$1"
+      )
+    );
+  }
+
+  if (periodMonth) {
+    parts.push(
+      `R${String(periodMonth).padStart(2, "0")}`
+    );
+  }
+
+  const submitted =
+    submittedAt
+      ? new Date(submittedAt)
+      : null;
+
+  if (
+    submitted &&
+    !Number.isNaN(submitted.getTime())
+  ) {
+    const dd = String(submitted.getDate()).padStart(2, "0");
+    const mm = String(submitted.getMonth() + 1).padStart(2, "0");
+    const yy = String((submitted.getFullYear() + 543) % 100).padStart(2, "0");
+    parts.push(`${dd}${mm}${yy}`);
+  }
+
+  const suffix = String(id ?? "")
+    .replace(/[^0-9a-z]/gi, "")
+    .slice(0, 4)
+    .toUpperCase();
+
+  if (suffix) {
+    parts.push(suffix);
+  }
+
+  return parts.join("-");
+}
+
 export function normalizeClaimsResponse(
   data
 ) {

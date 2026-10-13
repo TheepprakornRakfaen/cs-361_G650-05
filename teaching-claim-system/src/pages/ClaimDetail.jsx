@@ -220,7 +220,7 @@ export default function ClaimDetail({
             className="text-xl font-extrabold"
             style={{ color: C.ink }}
           >
-            คำขอ #{claim.id}
+            คำขอ #{claim.code || claim.id}
           </h2>
 
           <div className="flex items-center gap-2">

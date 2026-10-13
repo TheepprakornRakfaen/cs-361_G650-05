@@ -54,6 +54,7 @@ import { uploadClaimEvidenceFiles } from "./services/evidence";
 
 import {
   buildClaimApiPayload,
+  buildClaimCode,
   normalizeClaimsResponse,
 } from "./services/claimMapper";
 
@@ -476,9 +477,31 @@ export default function App() {
 
       /*
       * หา term ปัจจุบัน
-      * ถ้า backend ไม่มี flag
-      * ใช้ตัวแรกเป็น fallback
+      * 1) flag จาก backend
+      * 2) term ที่วันนี้อยู่ในช่วง start_date–end_date
+      * 3) term ล่าสุด (id มากสุด)
       */
+      const today =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+      const termByDate =
+        nextTerms.find(
+          (term) =>
+            term.start_date &&
+            term.end_date &&
+            String(term.start_date).slice(0, 10) <= today &&
+            String(term.end_date).slice(0, 10) >= today
+        );
+
+      const latestTerm =
+        [...nextTerms].sort(
+          (a, b) =>
+            Number(b.id) -
+            Number(a.id)
+        )[0];
+
       const defaultTerm =
         nextTerms.find(
           (term) =>
@@ -492,7 +515,8 @@ export default function App() {
             ).toUpperCase() ===
               "OPEN"
         ) ||
-        nextTerms[0];
+        termByDate ||
+        latestTerm;
 
       const termId =
         Number(
@@ -572,6 +596,45 @@ export default function App() {
       ).getTime();
 
     return bTime - aTime;
+  }).map((claim) => {
+    /*
+    * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
+    * ใช้ในตาราง คำขอของฉัน / หน้ารายละเอียด / แจ้งเตือน
+    */
+    const term = terms.find(
+      (item) =>
+        String(item.id) ===
+        String(claim.termId)
+    );
+
+    const termLabel =
+      term
+        ? `${term.semester}/${term.year}`
+        : claim.semester || "";
+
+    const period = periods.find(
+      (item) =>
+        String(item.id) ===
+        String(claim.periodId)
+    );
+
+    return {
+      ...claim,
+
+      termLabel,
+
+      code: buildClaimCode({
+        id: claim.id,
+        courseCode: claim.courseCode,
+        termLabel,
+        periodMonth:
+          claim.period_month ??
+          period?.month,
+        submittedAt:
+          claim.submittedAt ||
+          claim.createdAt,
+      }),
+    };
   });
 
   /*
@@ -1364,6 +1427,24 @@ export default function App() {
         return (
           <MyClaims
             claims={claims}
+            currentTermLabel={(() => {
+              const term = terms.find(
+                (item) =>
+                  String(item.id) ===
+                  String(selectedTermId)
+              );
+
+              return term
+                ? `${term.semester}/${term.year}`
+                : "";
+            })()}
+            termLabels={terms.map(
+              (term) =>
+                `${term.semester}/${term.year}`
+            )}
+            courseCodes={courses
+              .map((course) => course.code)
+              .filter(Boolean)}
             goDetail={goDetail}
             goCreate={goCreate}
             onDelete={handleDeleteClaim}
