@@ -11,6 +11,11 @@ import {
   XCircle,
   Paperclip,
   Pencil,
+  Eye,
+  ExternalLink,
+  X,
+  RefreshCw,
+  Image as ImageIcon,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -44,6 +49,164 @@ const STEPS = [
   },
 ];
 
+/*
+ * GET /api/claims/{id}/evidence อาจส่ง field เป็น snake_case หรือ camelCase
+ * download_url = presigned GET URL ของ S3 (มีอายุ) → หมดอายุให้กด "ลองใหม่" เพื่อขอ URL ใหม่
+ */
+function normalizeEvidence(item) {
+  const fileName =
+    item.file_name ||
+    item.fileName ||
+    String(item.object_key || item.objectKey || "")
+      .split("/")
+      .pop() ||
+    "ไฟล์แนบ";
+
+  const contentType =
+    item.content_type ||
+    item.contentType ||
+    "";
+
+  const lower = fileName.toLowerCase();
+
+  const isImage =
+    contentType.startsWith("image/") ||
+    /\.(png|jpe?g)$/.test(lower);
+
+  const isPdf =
+    contentType === "application/pdf" ||
+    lower.endsWith(".pdf");
+
+  return {
+    id:
+      item.id ||
+      item.evidence_id ||
+      item.evidenceId ||
+      fileName,
+    fileName,
+    fileSize: Number(
+      item.file_size || item.fileSize || 0
+    ),
+    url:
+      item.download_url ||
+      item.downloadUrl ||
+      item.url ||
+      "",
+    isImage,
+    isPdf,
+  };
+}
+
+// "Failed to fetch" = request ไปไม่ถึง/โดน CORS → แปลเป็นข้อความที่ผู้ใช้เข้าใจ
+function evidenceErrorText(error) {
+  const message =
+    error?.data?.message ||
+    error?.message ||
+    "";
+
+  if (
+    message === "Failed to fetch" ||
+    message.includes("NetworkError")
+  ) {
+    return "เชื่อมต่อเซิร์ฟเวอร์หลักฐานไม่ได้";
+  }
+
+  if (error?.status === 404) {
+    return "ไม่พบหลักฐานของคำขอนี้";
+  }
+
+  return message || "ไม่สามารถโหลดหลักฐานได้";
+}
+
+function EvidencePreview({ item, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () =>
+      window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(15, 30, 45, 0.6)" }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={item.fileName}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between gap-3 px-5 py-3 border-b"
+          style={{ borderColor: C.border }}
+        >
+          <p
+            className="text-sm font-semibold truncate"
+            style={{ color: C.ink }}
+          >
+            {item.fileName}
+          </p>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors hover:bg-[#EEF4F8]"
+              style={{ color: C.tealDark }}
+            >
+              <ExternalLink size={14} />
+              เปิดแท็บใหม่
+            </a>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[#EEF4F8]"
+              style={{ color: C.sub }}
+              aria-label="ปิด"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="flex-1 overflow-auto flex items-center justify-center"
+          style={{ background: "#F4F7F9" }}
+        >
+          {item.isImage ? (
+            <img
+              src={item.url}
+              alt={item.fileName}
+              className="max-w-full max-h-[78vh] object-contain"
+            />
+          ) : item.isPdf ? (
+            <iframe
+              src={item.url}
+              title={item.fileName}
+              className="w-full h-[78vh] border-0"
+            />
+          ) : (
+            <p
+              className="text-sm p-10"
+              style={{ color: C.sub }}
+            >
+              ดูตัวอย่างไฟล์นี้ไม่ได้ กด “เปิดแท็บใหม่” เพื่อดาวน์โหลด
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ClaimDetail({
   claim,
   course,
@@ -64,6 +227,13 @@ export default function ClaimDetail({
     evidenceError,
     setEvidenceError,
   ] = useState("");
+
+  const [previewItem, setPreviewItem] =
+    useState(null);
+
+  // เพิ่มค่าเพื่อโหลดหลักฐานใหม่ (ปุ่ม "ลองใหม่" / URL หมดอายุ)
+  const [evidenceReload, setEvidenceReload] =
+    useState(0);
 
   useEffect(() => {
     let active = true;
@@ -104,7 +274,7 @@ export default function ClaimDetail({
           Array.isArray(
             data?.evidence
           )
-            ? data.evidence
+            ? data.evidence.map(normalizeEvidence)
             : [];
 
         setEvidenceItems(
@@ -133,9 +303,7 @@ export default function ClaimDetail({
           setEvidenceItems([]);
 
           setEvidenceError(
-            error?.data?.message ||
-            error?.message ||
-            "ไม่สามารถโหลดหลักฐานได้"
+            evidenceErrorText(error)
           );
         }
       } finally {
@@ -153,6 +321,7 @@ export default function ClaimDetail({
   }, [
     claim?.id,
     claim?.claimId,
+    evidenceReload,
   ]);
   
   if (!claim) {
@@ -479,60 +648,102 @@ export default function ClaimDetail({
               กำลังโหลดหลักฐาน...
             </p>
           ) : evidenceError ? (
-            <p
-              className="text-sm"
-              style={{
-                color: C.rose,
-              }}
-            >
-              {evidenceError}
-            </p>
-          ) : evidenceItems.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {evidenceItems.map(
-                (item) => (
-                  <a
-                    key={item.id}
-                    href={
-                      item.download_url
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm hover:opacity-70"
-                    style={{
-                      color:
-                        C.tealDark,
-                    }}
-                  >
-                    <Paperclip
-                      size={15}
-                    />
+            <div className="flex items-center gap-3 flex-wrap">
+              <p
+                className="text-sm"
+                style={{
+                  color: C.rose,
+                }}
+              >
+                {evidenceError}
+              </p>
 
-                    <span className="underline underline-offset-2">
-                      {item.file_name}
+              <button
+                type="button"
+                onClick={() =>
+                  setEvidenceReload((n) => n + 1)
+                }
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
+                style={{
+                  borderColor: C.border,
+                  color: C.tealDark,
+                }}
+              >
+                <RefreshCw size={13} />
+                ลองใหม่
+              </button>
+            </div>
+          ) : evidenceItems.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {evidenceItems.map((item) => {
+                const FileIcon = item.isImage
+                  ? ImageIcon
+                  : item.isPdf
+                    ? FileText
+                    : Paperclip;
+
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    disabled={!item.url}
+                    onClick={() =>
+                      setPreviewItem(item)
+                    }
+                    className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      borderColor: C.border,
+                    }}
+                    title={
+                      item.url
+                        ? "กดเพื่อดูไฟล์"
+                        : "ไม่มีลิงก์ดาวน์โหลด"
+                    }
+                  >
+                    <span
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                      style={{
+                        background: C.tealSoft,
+                        color: C.tealDark,
+                      }}
+                    >
+                      <FileIcon size={18} />
                     </span>
 
-                    {item.file_size && (
+                    <span className="min-w-0 flex-1">
                       <span
-                        className="text-xs no-underline"
-                        style={{
-                          color:
-                            C.sub,
-                        }}
+                        className="block text-sm font-semibold truncate"
+                        style={{ color: C.ink }}
                       >
-                        {(
-                          Number(
-                            item.file_size
-                          ) /
-                          1024 /
-                          1024
-                        ).toFixed(2)}
-                        {" MB"}
+                        {item.fileName}
                       </span>
-                    )}
-                  </a>
-                )
-              )}
+
+                      <span
+                        className="block text-xs"
+                        style={{ color: C.sub }}
+                      >
+                        {item.isPdf
+                          ? "PDF"
+                          : item.isImage
+                            ? "รูปภาพ"
+                            : "ไฟล์"}
+                        {item.fileSize > 0 &&
+                          ` · ${(
+                            item.fileSize /
+                            1024 /
+                            1024
+                          ).toFixed(2)} MB`}
+                      </span>
+                    </span>
+
+                    <Eye
+                      size={16}
+                      className="shrink-0"
+                      style={{ color: C.tealDark }}
+                    />
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <p
@@ -546,6 +757,13 @@ export default function ClaimDetail({
           )}
         </div>
       </SectionCard>
+
+      {previewItem && (
+        <EvidencePreview
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
+        />
+      )}
     </div>
   );
 }
