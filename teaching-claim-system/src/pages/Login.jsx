@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { C } from "../theme";
 import { loginWithCognito, confirmNewPassword} from "../services/auth";
+import ForgotPasswordForm from "../components/ForgotPasswordForm";
 // import { syncCurrentUser } from "../services/api";
 
 const FEATURES = [
@@ -25,6 +26,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [error, setError] = useState("");
 
   const [loading, setLoading] =
@@ -286,6 +288,12 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
               </div>
             )}
 
+            {forgotOpen ? (
+              <ForgotPasswordForm
+                onBack={() => setForgotOpen(false)}
+              />
+            ) : (
+            <>
             <form onSubmit={handleSubmit}>
               {/* ระหว่างกำลังเข้าสู่ระบบ ล็อกทุกช่อง/ปุ่มในฟอร์ม กันแก้ค่าหรือกดซ้ำ */}
               <fieldset
@@ -416,6 +424,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
               <div className="flex justify-end -mt-1">
                 <button
                   type="button"
+                  onClick={() => setForgotOpen(true)}
                   className="text-xs font-semibold"
                   style={{ color: C.tealDark }}
                 >
@@ -454,6 +463,8 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
             <p className="text-xs text-center mt-8" style={{ color: C.sub }}>
               พบปัญหาการเข้าสู่ระบบ ติดต่อเจ้าหน้าที่ดูแลระบบ
             </p>
+            </>
+            )}
           </div>
         </div>
       </div>

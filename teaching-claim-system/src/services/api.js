@@ -6,6 +6,9 @@ const API_URL =
     ""
   );
 
+export const AUTH_EXPIRED_EVENT =
+  "teaching-claim:auth-expired";
+
 async function parseResponse(
   response
 ) {
@@ -70,7 +73,9 @@ async function apiRequest(
   }
 
   // log JSON ที่ส่งไป /api/claims ทุกครั้ง เพื่อตรวจ contract กับ Lambda
+  // log เฉพาะตอนพัฒนา — response มีข้อมูลส่วนบุคคล/การเงิน ห้ามค้างใน console ของ production
   const isClaimsRequest =
+    import.meta.env.DEV &&
     path.startsWith("/api/claims");
 
   const method =
@@ -112,11 +117,25 @@ async function apiRequest(
     );
   }
 
+  /*
+   * 401 = token หมดอายุ/ไม่ถูกต้อง → แจ้ง App ให้พาไปหน้า Login
+   * (403 = ล็อกอินอยู่แต่ไม่มีสิทธิ์ → ให้หน้านั้นแสดงข้อความเอง ไม่ต้องออกจากระบบ)
+   */
+  if (response.status === 401) {
+    window.dispatchEvent(
+      new CustomEvent(
+        AUTH_EXPIRED_EVENT
+      )
+    );
+  }
+
   if (!response.ok) {
     const error =
       new Error(
         data?.message ||
-        `API error ${response.status}`
+        (response.status === 403
+          ? "คุณไม่มีสิทธิ์ดำเนินการนี้"
+          : `API error ${response.status}`)
       );
 
     error.status =
@@ -152,9 +171,22 @@ export function syncCurrentUser() {
  * =====================
  */
 
-export function getClaims() {
+/*
+ * scope "mine"   = คำขอของตัวเอง (ค่าเริ่มต้น)
+ * scope "review" = คิวของเจ้าหน้าที่/ผู้อนุมัติ/ผู้ดูแล — backend ต้องตรวจสิทธิ์เอง
+ */
+export function getClaims(
+  scope
+) {
+  const query =
+    scope
+      ? `?scope=${encodeURIComponent(
+          scope
+        )}`
+      : "";
+
   return apiRequest(
-    "/api/claims",
+    `/api/claims${query}`,
     {
       method: "GET",
     }
@@ -290,6 +322,115 @@ export function getCourses(
 
   return apiRequest(
     `/api/courses${query}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+/*
+ * =====================
+ * [V3] Workflow & Audit
+ *
+ * ⚠️ path / body ด้านล่างเป็นข้อตกลงที่ frontend สมมติไว้
+ * ให้ตรวจกับงาน #4 (Workflow API) และ #6 (Audit API) แล้วแก้ที่นี่ที่เดียว
+ * =====================
+ */
+
+/*
+ * action: REVIEW_PASS | APPROVE | REJECT | RETURN
+ * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
+ */
+export function submitClaimAction(
+  claimId,
+  action,
+  comment
+) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/actions`,
+    {
+      method: "POST",
+
+      body: {
+        action,
+
+        comment:
+          comment?.trim() || null,
+      },
+    }
+  );
+}
+
+/*
+ * ผู้ยื่นแก้ไขคำขอที่ถูกส่งกลับ แล้วยื่นใหม่
+ * ใช้คำขอเดิม (ไม่สร้างใหม่) เพื่อให้ประวัติต่อเนื่อง
+ */
+export function resubmitClaim(
+  claimId,
+  payload
+) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/resubmit`,
+    {
+      method: "PUT",
+      body: payload,
+    }
+  );
+}
+
+/*
+ * Audit Log รวมทุกคำขอ (เฉพาะผู้มีสิทธิ์ audit.view_all)
+ * filters: { actor, action, from, to, cursor, limit }
+ * คืน { logs: [{ id, claim_id, claim_code, action, actor_name, actor_role,
+ *               from_status, to_status, comment, created_at }], next_cursor }
+ */
+export function getAuditLogs(
+  filters = {}
+) {
+  const params =
+    new URLSearchParams();
+
+  Object.entries(filters).forEach(
+    ([key, value]) => {
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+      ) {
+        params.set(key, value);
+      }
+    }
+  );
+
+  const query =
+    params.toString();
+
+  return apiRequest(
+    `/api/audit-logs${
+      query ? `?${query}` : ""
+    }`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+/*
+ * ประวัติการดำเนินการของคำขอ (เรียงใหม่สุดก่อน หรือเก่าสุดก่อนก็ได้ UI จัดเรียงเอง)
+ * คืน { history: [{ id, action, actor_name, actor_role, from_status,
+ *                   to_status, comment, created_at }] }
+ */
+export function getClaimHistory(
+  claimId
+) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(
+      claimId
+    )}/history`,
     {
       method: "GET",
     }

@@ -68,7 +68,7 @@ function claimNotification(claim) {
         ...base,
         id: `claim-${claim.id}-Approved`,
         kind: "approved",
-        title: `คำขอ ${shortClaimId(claim.id)} ได้รับการอนุมัติแล้ว`,
+        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ได้รับการอนุมัติแล้ว`,
         description: `${course ? course.trim() + " · " : ""}ยอดเบิก ${baht(claim.amount)} บาท`,
       };
     case "Rejected":
@@ -76,8 +76,24 @@ function claimNotification(claim) {
         ...base,
         id: `claim-${claim.id}-Rejected`,
         kind: "rejected",
-        title: `คำขอ ${shortClaimId(claim.id)} ไม่ได้รับการอนุมัติ`,
-        description: `${course ? course.trim() + " · " : ""}กรุณาตรวจสอบรายละเอียดและแก้ไขตามที่เจ้าหน้าที่แจ้ง`,
+        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ไม่ได้รับการอนุมัติ`,
+        description: `${course ? course.trim() + " · " : ""}ดูเหตุผลที่ไม่อนุมัติในรายละเอียดคำขอ`,
+      };
+    case "Reviewed":
+      return {
+        ...base,
+        id: `claim-${claim.id}-Reviewed`,
+        kind: "submitted",
+        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ตรวจสอบแล้ว`,
+        description: `${course ? course.trim() + " · " : ""}รอผู้อนุมัติพิจารณา`,
+      };
+    case "Returned":
+      return {
+        ...base,
+        id: `claim-${claim.id}-Returned`,
+        kind: "returned",
+        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ถูกส่งกลับให้แก้ไข`,
+        description: `${course ? course.trim() + " · " : ""}เปิดดูสิ่งที่ต้องแก้ไข แล้วยื่นใหม่`,
       };
     case "Submitted":
       return {
@@ -86,7 +102,7 @@ function claimNotification(claim) {
         date: claim.submittedAt || when,
         id: `claim-${claim.id}-Submitted`,
         kind: "submitted",
-        title: `ส่งคำขอ ${shortClaimId(claim.id)} เรียบร้อยแล้ว`,
+        title: `ส่งคำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} เรียบร้อยแล้ว`,
         description: `${course ? course.trim() + " · " : ""}อยู่ระหว่างการตรวจสอบ`,
       };
     default:

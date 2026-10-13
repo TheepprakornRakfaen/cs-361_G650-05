@@ -1,0 +1,259 @@
+import React, { useEffect, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  ClipboardCheck,
+  Loader2,
+  X,
+  Info,
+} from "lucide-react";
+import { C } from "../theme";
+
+const TONE = {
+  teal: { bg: C.teal, icon: ClipboardCheck },
+  green: { bg: "#1E8E4F", icon: CheckCircle2 },
+  red: { bg: "#C23B3B", icon: XCircle },
+  amber: { bg: "#D9772B", icon: RotateCcw },
+};
+
+function ConfirmDialog({ action, busy, error, onCancel, onConfirm }) {
+  const [comment, setComment] = useState("");
+  const [touched, setTouched] = useState(false);
+  const textareaRef = useRef(null);
+
+  const tone = TONE[action.tone] || TONE.teal;
+  const missing = action.requireComment && comment.trim().length === 0;
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onCancel]);
+
+  const submit = () => {
+    setTouched(true);
+    if (missing || busy) return;
+    onConfirm(comment.trim());
+  };
+
+  const Icon = tone.icon;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(15, 30, 45, 0.6)" }}
+      onClick={() => !busy && onCancel()}
+      role="dialog"
+      aria-modal="true"
+      aria-label={action.confirmTitle}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: tone.bg }}
+          >
+            <Icon size={19} color="#fff" />
+          </span>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-extrabold" style={{ color: C.ink }}>
+              {action.confirmTitle}
+            </h3>
+
+            <p className="text-sm mt-1 leading-6" style={{ color: C.sub }}>
+              {action.confirmText}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#EEF4F8] disabled:opacity-40"
+            style={{ color: C.sub }}
+            aria-label="ปิด"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <label
+          htmlFor="review-comment"
+          className="block text-sm font-semibold mt-5 mb-1.5"
+          style={{ color: C.ink }}
+        >
+          {action.commentLabel}
+          {action.requireComment && (
+            <span style={{ color: C.rose }}> *</span>
+          )}
+        </label>
+
+        <textarea
+          id="review-comment"
+          ref={textareaRef}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          onBlur={() => setTouched(true)}
+          rows={4}
+          maxLength={1000}
+          disabled={busy}
+          aria-invalid={touched && missing}
+          className="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none resize-none"
+          style={{
+            borderColor: touched && missing ? C.rose : C.border,
+            color: C.ink,
+          }}
+        />
+
+        <div className="flex justify-between mt-1 min-h-[1.25rem]">
+          <p className="text-xs" style={{ color: C.rose }}>
+            {touched && missing ? "กรุณาระบุเหตุผล" : ""}
+          </p>
+
+          <p className="text-xs" style={{ color: C.sub }}>
+            {comment.length}/1000
+          </p>
+        </div>
+
+        {error && (
+          <p
+            className="text-sm mt-2 px-3 py-2 rounded-xl"
+            style={{ background: C.roseSoft, color: "#C23B3B" }}
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-4 py-2 rounded-full text-sm font-semibold border transition-opacity hover:opacity-80 disabled:opacity-40"
+            style={{ borderColor: C.border, color: C.ink }}
+          >
+            ยกเลิก
+          </button>
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: tone.bg }}
+          >
+            {busy && <Loader2 size={15} className="animate-spin" />}
+            {action.confirmButton}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * [V3] ปุ่มดำเนินการของเจ้าหน้าที่ / ผู้อนุมัติ
+ *  - actions มาจาก getAllowedActions → ไม่มีสิทธิ์ = ไม่ render อะไรเลย
+ *  - ทุกการกดต้องยืนยันผ่านกล่องโต้ตอบ (กันกดพลาด) และบังคับเหตุผลเมื่อส่งกลับ/ไม่อนุมัติ
+ *  - ส่งซ้ำไม่ได้ระหว่างรอ (busy)
+ */
+export default function ReviewActionPanel({
+  actions = [],
+  blockedReason = "",
+  onAction,
+}) {
+  const [active, setActive] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  if (actions.length === 0 && !blockedReason) return null;
+
+  const close = () => {
+    setActive(null);
+    setError("");
+  };
+
+  const confirm = async (comment) => {
+    setBusy(true);
+    setError("");
+
+    try {
+      await onAction(active.key, comment);
+      setActive(null);
+    } catch (err) {
+      setError(
+        err?.data?.message ||
+          err?.message ||
+          "ไม่สามารถดำเนินการได้ กรุณาลองใหม่"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-5 md:p-6 mb-8 border"
+      style={{ borderColor: C.border, background: "#FAFCFD" }}
+    >
+      <p className="text-sm font-semibold mb-3" style={{ color: C.ink }}>
+        การพิจารณาคำขอ
+      </p>
+
+      {blockedReason ? (
+        <p className="flex items-center gap-2 text-sm" style={{ color: C.sub }}>
+          <Info size={15} />
+          {blockedReason}
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {actions.map((action) => {
+            const tone = TONE[action.tone] || TONE.teal;
+            const Icon = tone.icon;
+            const outlined = action.key === "RETURN";
+
+            return (
+              <button
+                key={action.key}
+                type="button"
+                onClick={() => setActive(action)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-90"
+                style={
+                  outlined
+                    ? { border: `1.5px solid ${tone.bg}`, color: tone.bg }
+                    : { background: tone.bg, color: "#fff" }
+                }
+              >
+                <Icon size={16} />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {active && (
+        <ConfirmDialog
+          action={active}
+          busy={busy}
+          error={error}
+          onCancel={close}
+          onConfirm={confirm}
+        />
+      )}
+    </div>
+  );
+}

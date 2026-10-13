@@ -2,6 +2,10 @@ import {
   getIdToken,
 } from "./auth";
 
+import {
+  registerClaimEvidence,
+} from "./api";
+
 const API_URL =
   import.meta.env.VITE_API_URL?.replace(
     /\/$/,
@@ -269,4 +273,54 @@ export async function uploadClaimEvidenceFiles(claimId, files = []) {
   }
 
   return { uploaded, failed };
+}
+
+/*
+ * อัปโหลดไป S3 + บันทึก metadata ลงฐานข้อมูล "ทีละไฟล์" และไม่หยุดทั้งชุดเมื่อบางไฟล์พลาด
+ *
+ * ต้อง register ทุกไฟล์ที่ขึ้น S3 สำเร็จเสมอ ไม่เช่นนั้นไฟล์จะอยู่ใน bucket
+ * แต่หน้ารายละเอียดคำขอมองไม่เห็น (GET /evidence อ่านจาก metadata ในฐานข้อมูล)
+ *
+ * entries: File หรือรายการที่ล้มเหลวจากรอบก่อน ({ file, uploaded })
+ *   - ถ้ารอบก่อนอัปโหลดขึ้น S3 แล้วแต่ register พลาด → รอบนี้ register ซ้ำอย่างเดียว ไม่อัปโหลดซ้ำ
+ *
+ * คืน { registered: [evidence], failed: [{ file, fileName, message, stage, uploaded }] }
+ * failed เก็บ File ไว้ เพื่อให้ผู้ใช้กด "ลองอีกครั้ง" ได้โดยไม่ต้องเลือกไฟล์ใหม่
+ */
+export async function uploadAndRegisterEvidence(claimId, entries = []) {
+  const registered = [];
+  const failed = [];
+
+  for (const entry of entries) {
+    const file = entry instanceof File ? entry : entry?.file;
+    let uploaded = entry instanceof File ? null : entry?.uploaded || null;
+    let stage = "upload";
+
+    try {
+      if (!uploaded) {
+        uploaded = await uploadClaimEvidence(claimId, file);
+      }
+
+      stage = "register";
+
+      await registerClaimEvidence(claimId, uploaded);
+
+      registered.push(uploaded);
+    } catch (error) {
+      failed.push({
+        file,
+        fileName: file?.name || uploaded?.fileName || "",
+        stage,
+        uploaded: stage === "register" ? uploaded : null,
+        message:
+          error?.data?.message ||
+          error?.message ||
+          (stage === "register"
+            ? "บันทึกข้อมูลไฟล์ไม่สำเร็จ"
+            : "อัปโหลดไม่สำเร็จ"),
+      });
+    }
+  }
+
+  return { registered, failed };
 }

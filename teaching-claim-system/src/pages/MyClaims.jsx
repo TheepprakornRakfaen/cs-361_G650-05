@@ -15,6 +15,8 @@ import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
+import { STATUS_STYLE } from "../theme";
+import { DELETABLE_STATUSES } from "../data/workflow";
 
 export default function MyClaims({
   claims = [],
@@ -23,36 +25,128 @@ export default function MyClaims({
   onDelete,
   // สถานะที่ให้กรองไว้ตั้งแต่เปิดหน้า เช่น "Draft" เมื่อกดมาจากการ์ดแบบร่างในโปรไฟล์
   initialStatus = "All",
+  // ภาคปัจจุบัน เช่น "1/2569" ใช้เป็นค่าเริ่มต้นของตัวกรองภาค
+  currentTermLabel = "",
+  // ภาคทั้งหมดในระบบ (จาก /api/term) และรายวิชาที่สอนในภาคปัจจุบัน (จาก /api/courses)
+  termLabels = [],
+  courseCodes = [],
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] =
     useState(initialStatus);
 
+  // null = ผู้ใช้ยังไม่ได้เลือก → ใช้ภาคปัจจุบัน (ภาคโหลดจาก API ทีหลัง)
+  const [termChoice, setTermChoice] =
+    useState(null);
+  const [courseFilter, setCourseFilter] =
+    useState("All");
+
+  // ถ้าคำขอไม่มีข้อมูลภาคเลย อย่าตั้งค่าเริ่มต้นเป็นภาคปัจจุบัน ไม่งั้นตารางจะว่าง
+  const hasTermData = claims.some(
+    (claim) => claim.termLabel
+  );
+
+  const termFilter =
+    termChoice ??
+    (hasTermData && currentTermLabel
+      ? currentTermLabel
+      : "All");
+
+  // "1/2569" → เรียงปีใหม่ก่อน แล้วภาคมากก่อน
+  const termSortKey = (label) => {
+    const [semester, year] =
+      String(label).split("/");
+    return Number(year || 0) * 10 + Number(semester || 0);
+  };
+
+  const termOptions = useMemo(() => {
+    const labels = new Set([
+      ...termLabels,
+      ...claims
+        .map((claim) => claim.termLabel)
+        .filter(Boolean),
+    ]);
+
+    if (currentTermLabel) {
+      labels.add(currentTermLabel);
+    }
+
+    return [...labels].sort(
+      (a, b) =>
+        termSortKey(b) - termSortKey(a)
+    );
+  }, [claims, currentTermLabel, termLabels]);
+
+  // คำขอในภาค + รายวิชาที่เลือก (ใช้ทั้งการ์ดนับและตาราง)
+  const scoped = useMemo(
+    () =>
+      claims.filter(
+        (claim) =>
+          (termFilter === "All" ||
+            claim.termLabel === termFilter) &&
+          (courseFilter === "All" ||
+            claim.courseCode === courseFilter)
+      ),
+    [claims, termFilter, courseFilter]
+  );
+
+  // รายวิชาที่มีคำขอในภาคที่เลือก + วิชาที่สอนในภาคปัจจุบัน
+  const courseOptions = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...(termFilter === "All" ||
+          termFilter === currentTermLabel
+            ? courseCodes
+            : []),
+          ...claims
+            .filter(
+              (claim) =>
+                termFilter === "All" ||
+                claim.termLabel === termFilter
+            )
+            .map((claim) => claim.courseCode)
+            .filter(
+              (code) => code && code !== "-"
+            ),
+        ]),
+      ].sort(),
+    [claims, termFilter, currentTermLabel, courseCodes]
+  );
+
   const counts = useMemo(() => {
     const result = {
       Draft: 0,
       Submitted: 0,
+      Reviewed: 0,
+      Returned: 0,
       Approved: 0,
       Rejected: 0,
     };
 
-    claims.forEach((claim) => {
+    scoped.forEach((claim) => {
       if (result[claim.status] !== undefined) {
         result[claim.status] += 1;
       }
     });
 
     return result;
-  }, [claims]);
+  }, [scoped]);
 
   const filtered = useMemo(() => {
     const keyword =
       query.trim().toLowerCase();
 
-    return claims.filter((claim) => {
+    return scoped.filter((claim) => {
       const matchesQuery =
         keyword === "" ||
         String(claim.id)
+          .toLowerCase()
+          .includes(keyword) ||
+        String(claim.code || "")
+          .toLowerCase()
+          .includes(keyword) ||
+        String(claim.termLabel || "")
           .toLowerCase()
           .includes(keyword) ||
         String(claim.courseCode || "")
@@ -69,37 +163,26 @@ export default function MyClaims({
       );
     });
   }, [
-    claims,
+    scoped,
     query,
     statusFilter,
   ]);
 
-  const statusCards = [
-    [
-      "Draft",
-      "แบบร่าง",
-      "#EDF0F2",
-      "#5B6672",
-    ],
-    [
-      "Submitted",
-      "ยื่นแล้ว / รอตรวจสอบ",
-      "#FEF6D8",
-      "#9A7B06",
-    ],
-    [
-      "Approved",
-      "อนุมัติแล้ว",
-      "#DFF5E6",
-      "#1E8E4F",
-    ],
-    [
-      "Rejected",
-      "ไม่อนุมัติ",
-      "#FBE2E2",
-      "#C23B3B",
-    ],
+  const STATUS_KEYS = [
+    "Draft",
+    "Submitted",
+    "Reviewed",
+    "Returned",
+    "Approved",
+    "Rejected",
   ];
+
+  const statusCards = STATUS_KEYS.map((key) => [
+    key,
+    STATUS_STYLE[key].label,
+    STATUS_STYLE[key].bg,
+    STATUS_STYLE[key].fg,
+  ]);
 
   return (
     <div>
@@ -148,6 +231,52 @@ export default function MyClaims({
         </div>
 
         <Select
+          value={termFilter}
+          onChange={(e) => {
+            setTermChoice(e.target.value);
+            // รายวิชาเดิมอาจไม่มีในภาคใหม่
+            setCourseFilter("All");
+          }}
+          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          style={{
+            borderColor: C.border,
+            color: C.ink,
+          }}
+        >
+          <option value="All">
+            ทุกภาค
+          </option>
+
+          {termOptions.map((label) => (
+            <option key={label} value={label}>
+              ภาค {label}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          value={courseFilter}
+          onChange={(e) =>
+            setCourseFilter(e.target.value)
+          }
+          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          style={{
+            borderColor: C.border,
+            color: C.ink,
+          }}
+        >
+          <option value="All">
+            ทุกรายวิชา
+          </option>
+
+          {courseOptions.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </Select>
+
+        <Select
           value={statusFilter}
           onChange={(e) =>
             setStatusFilter(e.target.value)
@@ -162,26 +291,16 @@ export default function MyClaims({
             ทุกสถานะ
           </option>
 
-          <option value="Draft">
-            แบบร่าง
-          </option>
-
-          <option value="Submitted">
-            ยื่นแล้ว / รอตรวจสอบ
-          </option>
-
-          <option value="Approved">
-            อนุมัติแล้ว
-          </option>
-
-          <option value="Rejected">
-            ไม่อนุมัติ
-          </option>
+          {STATUS_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {STATUS_STYLE[key].label}
+            </option>
+          ))}
         </Select>
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button
@@ -233,6 +352,7 @@ export default function MyClaims({
                 {[
                   "รหัสคำขอ",
                   "รายวิชา",
+                  "ภาค",
                   "เดือน",
                   "จำนวนเงิน",
                   "สถานะ",
@@ -266,7 +386,7 @@ export default function MyClaims({
                       color: C.ink,
                     }}
                   >
-                    #{claim.id}
+                    #{claim.code || claim.id}
                   </td>
 
                   <td
@@ -276,6 +396,15 @@ export default function MyClaims({
                     }}
                   >
                     {claim.courseCode || "-"}
+                  </td>
+
+                  <td
+                    className="px-6 py-4 whitespace-nowrap"
+                    style={{
+                      color: C.sub,
+                    }}
+                  >
+                    {claim.termLabel || "-"}
                   </td>
 
                   <td
@@ -306,22 +435,24 @@ export default function MyClaims({
                   </td>
 
                   <td className="px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        // ไม่ให้คลิกทะลุไปเปิดหน้ารายละเอียด
-                        e.stopPropagation();
-                        onDelete?.(claim);
-                      }}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-[#FBE2E2]"
-                      style={{
-                        color: "#C23B3B",
-                      }}
-                      title="ลบคำขอ"
-                      aria-label={`ลบคำขอ #${claim.id}`}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {DELETABLE_STATUSES.includes(claim.status) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          // ไม่ให้คลิกทะลุไปเปิดหน้ารายละเอียด
+                          e.stopPropagation();
+                          onDelete?.(claim);
+                        }}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-[#FBE2E2]"
+                        style={{
+                          color: "#C23B3B",
+                        }}
+                        title="ลบแบบร่าง"
+                        aria-label={`ลบแบบร่าง #${claim.code || claim.id}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -329,7 +460,7 @@ export default function MyClaims({
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-6 py-12 text-center"
                   >
                     <p

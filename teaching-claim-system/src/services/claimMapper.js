@@ -1,5 +1,6 @@
 import { HOURLY_RATE } from "../data/rates";
 import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
+import { normalizeStatus } from "../data/workflow";
 
 function sessionToHour(
   session
@@ -101,17 +102,11 @@ export function buildClaimApiPayload(form) {
 export function normalizeClaim(
   raw
 ) {
-  const numericStatus =
-    Number(raw.status);
-
+  // รองรับทั้งเลข (0,1,2,…) และข้อความ ("APPROVED") — ดู data/workflow.js
   const status =
-    numericStatus === 0
-      ? "Draft"
-      : numericStatus === 1
-        ? "Submitted"
-        : numericStatus === 2
-          ? "Cancelled"
-          : "Draft";
+    normalizeStatus(
+      raw.status
+    );
 
   /*
    * date จาก GET เป็น array [{ id, claim_id, date, hour }] (ตาราง claim_date)
@@ -194,14 +189,73 @@ export function normalizeClaim(
 
     hours,
 
-    // backend ไม่ได้ส่งเงินมา → คำนวณเองจาก hour × HOURLY_RATE
+    /*
+     * ข้อมูลการเงิน
+     *  - backend ซ่อนมาให้ (financial_restricted = true) → null แล้ว UI แสดงเป็น "ไม่มีสิทธิ์"
+     *  - backend ส่ง amount/rate มา → ใช้ตามนั้น
+     *  - ไม่ส่งมา → คำนวณเองจาก hour × HOURLY_RATE (พฤติกรรมเดิม)
+     */
+    financialRestricted:
+      raw.financial_restricted === true,
+
     rate:
-      HOURLY_RATE,
+      raw.financial_restricted === true
+        ? null
+        : raw.rate != null
+          ? Number(raw.rate)
+          : HOURLY_RATE,
 
     amount:
-      roundMoney(
-        hours * HOURLY_RATE
-      ),
+      raw.financial_restricted === true
+        ? null
+        : raw.amount != null
+          ? Number(raw.amount)
+          : roundMoney(
+              hours * HOURLY_RATE
+            ),
+
+    // [V3] ผู้ยื่นคำขอ — ใช้แสดงในคิวตรวจสอบ และกันการตรวจ/อนุมัติคำขอตัวเอง
+    ownerSub:
+      raw.owner_sub ||
+      raw.cognito_sub ||
+      raw.user_sub ||
+      "",
+
+    claimantName:
+      raw.claimant_name ||
+      raw.owner_name ||
+      raw.user_name ||
+      "",
+
+    claimantEmail:
+      raw.claimant_email ||
+      raw.owner_email ||
+      raw.user_email ||
+      "",
+
+    claimantRole:
+      raw.claimant_role ||
+      raw.owner_role ||
+      "",
+
+    // [V3] server บอกว่าผู้ใช้คนนี้ทำอะไรกับคำขอนี้ได้บ้าง (ถ้าไม่ส่งมา UI คำนวณเอง)
+    allowedActions:
+      Array.isArray(raw.allowed_actions)
+        ? raw.allowed_actions
+        : null,
+
+    // [V3] เหตุผลล่าสุดจากผู้ตรวจ/ผู้อนุมัติ (ส่งกลับ / ไม่อนุมัติ)
+    decisionComment:
+      raw.decision_comment ||
+      raw.last_comment ||
+      "",
+
+    decisionBy:
+      raw.decision_by ||
+      "",
+
+    updatedAt:
+      raw.updated_at,
 
     notes:
       raw.note || "",
@@ -217,6 +271,68 @@ export function normalizeClaim(
         ? `เดือน ${raw.period_month}`
         : "",
   };
+}
+
+/*
+ * รหัสคำขอสำหรับแสดงผล/ค้นหา (id จริงยังเป็น UUID เหมือนเดิม)
+ * รูปแบบ: <รหัสวิชา>-<ภาค/ปี 2 หลัก>-R<เดือนของรอบ>-<วันยื่น DDMMYY พ.ศ.>-<4 ตัวแรกของ id>
+ * เช่น CS223-1/69-R10-131069-6822
+ * ต่อท้าย 4 ตัวจาก id กันรหัสซ้ำเมื่อยื่นวิชาเดียวกันรอบเดียวกันในวันเดียวกัน
+ */
+export function buildClaimCode({
+  id,
+  courseCode,
+  termLabel,
+  periodMonth,
+  submittedAt,
+}) {
+  const parts = [];
+
+  if (courseCode && courseCode !== "-") {
+    parts.push(courseCode);
+  }
+
+  // "1/2569" → "1/69"
+  if (termLabel) {
+    parts.push(
+      String(termLabel).replace(
+        /\/\d{2}(\d{2})$/,
+        "/$1"
+      )
+    );
+  }
+
+  if (periodMonth) {
+    parts.push(
+      `R${String(periodMonth).padStart(2, "0")}`
+    );
+  }
+
+  const submitted =
+    submittedAt
+      ? new Date(submittedAt)
+      : null;
+
+  if (
+    submitted &&
+    !Number.isNaN(submitted.getTime())
+  ) {
+    const dd = String(submitted.getDate()).padStart(2, "0");
+    const mm = String(submitted.getMonth() + 1).padStart(2, "0");
+    const yy = String((submitted.getFullYear() + 543) % 100).padStart(2, "0");
+    parts.push(`${dd}${mm}${yy}`);
+  }
+
+  const suffix = String(id ?? "")
+    .replace(/[^0-9a-z]/gi, "")
+    .slice(0, 4)
+    .toUpperCase();
+
+  if (suffix) {
+    parts.push(suffix);
+  }
+
+  return parts.join("-");
 }
 
 export function normalizeClaimsResponse(

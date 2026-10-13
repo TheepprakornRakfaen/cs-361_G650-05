@@ -92,7 +92,7 @@ export default function Dashboard({
           {[
             ["ทั้งหมด", claims.length],
             ["แบบร่าง", counts.Draft],
-            ["รอตรวจสอบ", counts.Submitted],
+            ["รอตรวจสอบ / อนุมัติ", (counts.Submitted || 0) + (counts.Reviewed || 0)],
             ["อนุมัติแล้ว", counts.Approved],
           ].map(([label, val]) => (
             <div

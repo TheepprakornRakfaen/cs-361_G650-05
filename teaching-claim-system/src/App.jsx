@@ -19,6 +19,19 @@ import Profile from "./pages/Profile";
 import { applyProfileEdits } from "./data/profile";
 import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
+import ReviewQueue from "./pages/ReviewQueue";
+import AuditLog from "./pages/AuditLog";
+import NotFound from "./pages/NotFound";
+import AccessDenied from "./components/AccessDenied";
+
+import {
+  canAccessQueue,
+  canAccessView,
+  getLandingView,
+  isClaimant,
+} from "./data/roles";
+
+import { STATUS, normalizeStatus } from "./data/workflow";
 
 import {
   loadState,
@@ -47,13 +60,16 @@ import {
   getClaims,
   createClaim,
   deleteClaim,
-  registerClaimEvidence,
+  submitClaimAction,
+  resubmitClaim,
+  AUTH_EXPIRED_EVENT,
 } from "./services/api";
 
-import { uploadClaimEvidenceFiles } from "./services/evidence";
+import { uploadAndRegisterEvidence } from "./services/evidence";
 
 import {
   buildClaimApiPayload,
+  buildClaimCode,
   normalizeClaimsResponse,
 } from "./services/claimMapper";
 
@@ -69,6 +85,8 @@ const SUBTITLE_MAP = {
   profile: "ข้อมูลส่วนตัว",
   contact: "ติดต่อเรา",
   notifications: "การแจ้งเตือน",
+  review: "ตรวจสอบ / อนุมัติ",
+  auditlog: "ประวัติการดำเนินการ",
 };
 
 /*
@@ -84,6 +102,8 @@ const PROTECTED_VIEWS = new Set([
   "detail",
   "profile",
   "notifications",
+  "review",
+  "auditlog",
 ]);
 
 export default function App() {
@@ -379,6 +399,58 @@ export default function App() {
       }
     };
   /*
+   * [V3] คิวตรวจสอบ/อนุมัติ — backend เป็นผู้กำหนดว่าเห็นคำขอของใครได้บ้าง
+   * แยก state จาก "คำขอของฉัน" เพื่อไม่ให้คำขอของผู้อื่นไปโผล่ในหน้าของตัวเอง
+   */
+  const [reviewClaims, setReviewClaims] = useState([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+
+  // หน้ารายละเอียดเปิดมาจากที่ไหน (ใช้กำหนดปุ่มย้อนกลับ/เมนูที่ไฮไลต์)
+  const [detailFrom, setDetailFrom] = useState("myclaims");
+
+  // ข้อความบนหน้า Login เมื่อถูกเด้งออก (เช่น เซสชันหมดอายุ)
+  const [loginNotice, setLoginNotice] = useState("");
+
+  const loadReviewClaims =
+    async () => {
+      setReviewLoading(true);
+      setReviewError("");
+
+      try {
+        const data =
+          await getClaims("review");
+
+        const next =
+          normalizeClaimsResponse(
+            data
+          );
+
+        setReviewClaims(next);
+
+        return next;
+      } catch (error) {
+        console.error(
+          "Load review queue error:",
+          error
+        );
+
+        setReviewClaims([]);
+
+        setReviewError(
+          error?.status === 403
+            ? "คุณไม่มีสิทธิ์ดูคิวตรวจสอบ"
+            : error?.message ||
+              "ไม่สามารถโหลดคิวตรวจสอบได้"
+        );
+
+        return [];
+      } finally {
+        setReviewLoading(false);
+      }
+    };
+
+  /*
    * ผู้ใช้ที่เข้าสู่ระบบอยู่ (null = ยังไม่เข้าสู่ระบบ)
    * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
    */
@@ -387,6 +459,31 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   const isLoggedIn = Boolean(currentUser);
+
+  /*
+   * [V3] token หมดอายุ / ถูกเพิกถอน (API ตอบ 401)
+   * → ออกจากระบบ ล้างข้อมูลในหน้าจอ แล้วพาไปหน้า Login พร้อมแจ้งเหตุผล
+   */
+  useEffect(() => {
+    const onExpired = async () => {
+      try {
+        await logoutFromCognito();
+      } catch {
+        /* session หมดอยู่แล้ว */
+      }
+
+      setCurrentUser(null);
+      setLoginNotice(
+        "เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบอีกครั้ง"
+      );
+      setView("login");
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+
+    return () =>
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
 
   /*
    * ตรวจ Cognito session
@@ -423,6 +520,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) {
       setApiClaims([]);
+      setPendingEvidence({});
+      setReviewClaims([]);
       setTerms([]);
       setPeriods([]);
       setApiCourses([]);
@@ -462,9 +561,17 @@ export default function App() {
         await Promise.all([
           loadTerms(),
 
-          loadClaims().catch(
-            () => []
-          ),
+          isClaimant(currentUser)
+            ? loadClaims().catch(
+                () => []
+              )
+            : Promise.resolve([]),
+
+          canAccessQueue(currentUser)
+            ? loadReviewClaims().catch(
+                () => []
+              )
+            : Promise.resolve([]),
         ]);
 
       if (
@@ -476,9 +583,31 @@ export default function App() {
 
       /*
       * หา term ปัจจุบัน
-      * ถ้า backend ไม่มี flag
-      * ใช้ตัวแรกเป็น fallback
+      * 1) flag จาก backend
+      * 2) term ที่วันนี้อยู่ในช่วง start_date–end_date
+      * 3) term ล่าสุด (id มากสุด)
       */
+      const today =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+      const termByDate =
+        nextTerms.find(
+          (term) =>
+            term.start_date &&
+            term.end_date &&
+            String(term.start_date).slice(0, 10) <= today &&
+            String(term.end_date).slice(0, 10) >= today
+        );
+
+      const latestTerm =
+        [...nextTerms].sort(
+          (a, b) =>
+            Number(b.id) -
+            Number(a.id)
+        )[0];
+
       const defaultTerm =
         nextTerms.find(
           (term) =>
@@ -492,7 +621,8 @@ export default function App() {
             ).toUpperCase() ===
               "OPEN"
         ) ||
-        nextTerms[0];
+        termByDate ||
+        latestTerm;
 
       const termId =
         Number(
@@ -541,6 +671,51 @@ export default function App() {
       : [];
 
   /*
+   * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
+   * ใช้ทั้งคำขอของฉัน และคิวตรวจสอบ
+   */
+  const decorateClaim = (claim) => {
+    /*
+    * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
+    * ใช้ในตาราง คำขอของฉัน / หน้ารายละเอียด / แจ้งเตือน
+    */
+    const term = terms.find(
+      (item) =>
+        String(item.id) ===
+        String(claim.termId)
+    );
+
+    const termLabel =
+      term
+        ? `${term.semester}/${term.year}`
+        : claim.semester || "";
+
+    const period = periods.find(
+      (item) =>
+        String(item.id) ===
+        String(claim.periodId)
+    );
+
+    return {
+      ...claim,
+
+      termLabel,
+
+      code: buildClaimCode({
+        id: claim.id,
+        courseCode: claim.courseCode,
+        termLabel,
+        periodMonth:
+          claim.period_month ??
+          period?.month,
+        submittedAt:
+          claim.submittedAt ||
+          claim.createdAt,
+      }),
+    };
+  };
+
+  /*
   * API Claims + local Draft
   *
   * local Draft เป็น temporary
@@ -572,7 +747,7 @@ export default function App() {
       ).getTime();
 
     return bTime - aTime;
-  });
+  }).map(decorateClaim);
 
   /*
   * Courses จาก Teaching Assignment API
@@ -902,11 +1077,92 @@ export default function App() {
   };
 
   /*
+   * ออกจากระบบทุกอุปกรณ์ (เพิกถอน token ทั้งหมด)
+   */
+  const handleLogoutAll = async () => {
+    try {
+      await logoutFromCognito({ global: true });
+    } catch (error) {
+      console.error("Global logout error:", error);
+      alert("ออกจากระบบทุกอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
+      return;
+    }
+
+    setCurrentUser(null);
+    setView("home");
+  };
+
+  /*
    * เปิดรายละเอียดคำขอ
    */
-  const goDetail = (id) => {
+  const goDetail = (id, from = "myclaims") => {
     setSelectedClaimId(id);
+    setDetailFrom(from);
     setView("detail");
+  };
+
+  const goReviewDetail = (id) => goDetail(id, "review");
+
+  /*
+   * [V3] ตรวจสอบผ่าน / อนุมัติ / ไม่อนุมัติ / ส่งกลับแก้ไข
+   * โยน error ต่อให้กล่องยืนยันแสดง (เช่น 403, 409 สถานะเปลี่ยนไปแล้ว)
+   * หลังสำเร็จโหลดข้อมูลใหม่จาก backend เสมอ ไม่เดาสถานะเอง
+   */
+  /*
+   * ไฟล์แนบที่ยังค้าง (อัปโหลด/บันทึกไม่สำเร็จ) แยกตาม claimId
+   * เก็บ File ไว้ในหน่วยความจำ เพื่อกด "ลองอีกครั้ง" ได้โดยไม่ต้องเลือกไฟล์ใหม่
+   * (รีเฟรชหน้าแล้วหาย — ผู้ใช้ยังกด "แนบไฟล์เพิ่ม" เลือกไฟล์ใหม่ได้)
+   */
+  const [pendingEvidence, setPendingEvidence] = useState({});
+
+  // entries = File[] (แนบเพิ่ม) หรือรายการค้าง (ลองใหม่) → คืนผลให้ ClaimDetail รีโหลดรายการ
+  const handleAttachEvidence = async (claimId, entries) => {
+    const result = await uploadAndRegisterEvidence(claimId, entries);
+
+    setPendingEvidence((current) => {
+      const next = { ...current };
+      const retriedNames = new Set(
+        entries.map((entry) => (entry instanceof File ? entry.name : entry?.fileName))
+      );
+
+      // ตัดรายการที่ลองรอบนี้ออก แล้วใส่เฉพาะที่ยังพลาดกลับเข้าไป
+      const remaining = (current[claimId] || []).filter(
+        (item) => !retriedNames.has(item.fileName)
+      );
+      const merged = [...remaining, ...result.failed];
+
+      if (merged.length > 0) {
+        next[claimId] = merged;
+      } else {
+        delete next[claimId];
+      }
+
+      return next;
+    });
+
+    return result;
+  };
+
+  const handleClaimAction = async (claimId, action, comment) => {
+    try {
+      await submitClaimAction(claimId, action, comment);
+    } catch (error) {
+      if (error?.status === 409) {
+        // มีคนดำเนินการไปก่อน → ดึงสถานะล่าสุดมาแสดง
+        await loadReviewClaims();
+
+        throw new Error(
+          "สถานะของคำขอเปลี่ยนไปแล้ว ระบบอัปเดตข้อมูลล่าสุดให้แล้ว กรุณาตรวจสอบอีกครั้ง"
+        );
+      }
+
+      throw error;
+    }
+
+    await Promise.all([
+      loadReviewClaims(),
+      isClaimant(currentUser) ? loadClaims() : Promise.resolve(),
+    ]);
   };
 
   /*
@@ -935,10 +1191,36 @@ export default function App() {
       * STEP 2
       * Create Claim
       */
+      const returnedClaim =
+        editingClaimId
+          ? apiClaims.find(
+              (item) =>
+                String(item.id) ===
+                String(editingClaimId) &&
+                item.status ===
+                  STATUS.RETURNED
+            )
+          : null;
+
+      /*
+       * [V3] คำขอที่ถูกส่งกลับ → ยื่นใหม่บนคำขอเดิม (ไม่สร้างใหม่)
+       * เพื่อให้ประวัติการตรวจสอบต่อเนื่องในคำขอเดียว
+       */
       const claimResponse =
-        await createClaim(
-          payload
-        );
+        returnedClaim
+          ? await resubmitClaim(
+              returnedClaim.id,
+              payload
+            ).then(
+              (response) =>
+                response || {
+                  claimId:
+                    returnedClaim.id,
+                }
+            )
+          : await createClaim(
+              payload
+            );
 
       console.log(
         "POST /api/claims response:",
@@ -967,67 +1249,44 @@ export default function App() {
 
       /*
       * STEP 4
-      * Upload Evidence
+      * Upload + register Evidence
+      *
+      * คำขอถูกสร้างแล้วในขั้นนี้ จึง "ห้ามโยน error" ถ้าไฟล์บางไฟล์พลาด
+      * ไม่งั้นผู้ใช้จะค้างที่ฟอร์ม กดยื่นซ้ำแล้วได้คำขอซ้ำ และไฟล์ที่ขึ้น S3 แล้ว
+      * จะไม่ถูกบันทึก metadata (หน้ารายละเอียดมองไม่เห็น)
+      * → บันทึกทุกไฟล์ที่สำเร็จ แล้วเก็บไฟล์ที่พลาดไว้ให้กดลองใหม่ในหน้ารายละเอียด
       */
-      let uploadResult = { uploaded: [], failed: [] };
+      const uploadResult =
+        evidenceFiles.length > 0
+          ? await uploadAndRegisterEvidence(
+              claimId,
+              evidenceFiles
+            )
+          : { registered: [], failed: [] };
 
       if (evidenceFiles.length > 0) {
-        /*
-        * STEP 4.1
-        * Upload ทุกไฟล์ไป S3
-        */
-        uploadResult =
-          await uploadClaimEvidenceFiles(
-            claimId,
-            evidenceFiles
-          );
-
         console.log(
-          "Evidence upload result:",
-          uploadResult
+          "Evidence result:",
+          {
+            registered:
+              uploadResult.registered.length,
+            failed:
+              uploadResult.failed.length,
+          }
         );
-
-        /*
-        * ถ้ามีไฟล์ใด upload ไม่สำเร็จ
-        * ไม่ register metadata ต่อ
-        */
-        if (
-          uploadResult.failed.length > 0
-        ) {
-          const failedMessage =
-            uploadResult.failed
-              .map(
-                (item) =>
-                  `${item.fileName}: ${item.message}`
-              )
-              .join("\n");
-
-          throw new Error(
-            `อัปโหลดหลักฐานไม่สำเร็จ\n${failedMessage}`
-          );
-        }
-
-        /*
-        * STEP 4.2
-        * หลัง S3 upload สำเร็จ
-        * บันทึก metadata ลง PostgreSQL
-        */
-        for (
-          const evidence of
-          uploadResult.uploaded
-        ) {
-          const registered =
-            await registerClaimEvidence(
-              claimId,
-              evidence
-            );
-
-          console.log(
-            "Evidence registered:",
-            registered
-          );
-        }
       }
+
+      setPendingEvidence((current) => {
+        const next = { ...current };
+
+        if (uploadResult.failed.length > 0) {
+          next[claimId] = uploadResult.failed;
+        } else {
+          delete next[claimId];
+        }
+
+        return next;
+      });
 
       /*
       * STEP 5
@@ -1043,18 +1302,21 @@ export default function App() {
         claimId,
 
         evidence:
-          uploadResult.uploaded.length > 0
-            ? uploadResult.uploaded
+          uploadResult.registered.length > 0
+            ? uploadResult.registered
                 .map((item) => item.fileName)
                 .join(", ")
             : form.fileName || "",
 
         evidenceFiles:
-          uploadResult.uploaded,
+          uploadResult.registered,
 
         status:
-          claimResponse?.status ||
-          "Submitted",
+          (claimResponse?.status != null &&
+            normalizeStatus(claimResponse.status) !==
+              STATUS.UNKNOWN &&
+            normalizeStatus(claimResponse.status)) ||
+          STATUS.SUBMITTED,
 
         createdAt:
           claimResponse?.created_at ||
@@ -1164,14 +1426,11 @@ export default function App() {
         "detail"
       );
 
-      // คำขอถูกสร้างแล้ว แต่บางไฟล์อัปโหลดไม่สำเร็จ → แจ้งให้ชัดเจน
+      // บางไฟล์ไม่สำเร็จ → หน้ารายละเอียดแสดงแถบแจ้งพร้อมปุ่ม "ลองอีกครั้ง"
       if (uploadResult.failed.length > 0) {
         alert(
-          "ยื่นคำขอแล้ว แต่อัปโหลดไฟล์ไม่สำเร็จ " +
-            `${uploadResult.failed.length} ไฟล์:\n` +
-            uploadResult.failed
-              .map((item) => `- ${item.fileName}: ${item.message}`)
-              .join("\n")
+          `ยื่นคำขอเรียบร้อยแล้ว แต่แนบไฟล์ไม่สำเร็จ ${uploadResult.failed.length} ไฟล์\n` +
+            "กดปุ่ม “ลองอีกครั้ง” ในหน้ารายละเอียดคำขอได้เลย"
         );
       }
     } catch (error) {
@@ -1194,6 +1453,12 @@ export default function App() {
    * - คำขอจาก backend → DELETE /api/claims (body: claim_id, cognito_sub)
    */
   const handleDeleteClaim = async (claim) => {
+    // ลบได้เฉพาะแบบร่าง (คำขอที่ยื่นแล้วต้องเก็บไว้เพื่อตรวจสอบย้อนหลัง)
+    if (claim.status !== STATUS.DRAFT) {
+      alert("ลบได้เฉพาะแบบร่างเท่านั้น");
+      return;
+    }
+
     if (
       !window.confirm(
         `ต้องการลบคำขอ #${claim.id} ใช่หรือไม่?`
@@ -1329,12 +1594,25 @@ export default function App() {
    */
   const selectedClaim =
     claims.find((claim) => String(claim.id) === String(selectedClaimId)) ||
+    reviewClaims
+      .map(decorateClaim)
+      .find((claim) => String(claim.id) === String(selectedClaimId)) ||
     null;
 
   /*
    * เปลี่ยนหน้า
    */
   const renderPage = () => {
+    // [V3] ล็อกอินแล้วแต่บทบาทไม่มีสิทธิ์เข้าหน้านี้ → แจ้งชัดเจน ไม่ปล่อยให้เห็นหน้าว่าง/error
+    if (isLoggedIn && !canAccessView(currentUser, view)) {
+      return (
+        <AccessDenied
+          onBack={() => setView(getLandingView(currentUser))}
+          backLabel="กลับหน้าหลัก"
+        />
+      );
+    }
+
     switch (view) {
       case "home":
         return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
@@ -1364,12 +1642,45 @@ export default function App() {
         return (
           <MyClaims
             claims={claims}
+            currentTermLabel={(() => {
+              const term = terms.find(
+                (item) =>
+                  String(item.id) ===
+                  String(selectedTermId)
+              );
+
+              return term
+                ? `${term.semester}/${term.year}`
+                : "";
+            })()}
+            termLabels={terms.map(
+              (term) =>
+                `${term.semester}/${term.year}`
+            )}
+            courseCodes={courses
+              .map((course) => course.code)
+              .filter(Boolean)}
             goDetail={goDetail}
             goCreate={goCreate}
             onDelete={handleDeleteClaim}
             initialStatus={myClaimsFilter}
           />
         );
+
+      case "review":
+        return (
+          <ReviewQueue
+            user={currentUser}
+            claims={reviewClaims.map(decorateClaim)}
+            loading={reviewLoading}
+            error={reviewError}
+            onReload={loadReviewClaims}
+            goDetail={goReviewDetail}
+          />
+        );
+
+      case "auditlog":
+        return <AuditLog />;
 
       case "create":
       case "rounds":
@@ -1433,8 +1744,21 @@ export default function App() {
                   selectedClaim?.courseCode
               )
             }
-            goBack={() => setView("myclaims")}
+            user={currentUser}
+            goBack={() =>
+              setView(detailFrom === "review" ? "review" : "myclaims")
+            }
+            backLabel={
+              detailFrom === "review"
+                ? "กลับไปคิวตรวจสอบ"
+                : "กลับไปคำขอของฉัน"
+            }
             onEdit={goEditClaim}
+            onAction={handleClaimAction}
+            pendingEvidence={
+              pendingEvidence[selectedClaim?.id] || []
+            }
+            onAttachEvidence={handleAttachEvidence}
           />
         );
 
@@ -1447,6 +1771,7 @@ export default function App() {
             onLogin={() => setView("login")}
             onOpenClaims={openMyClaims}
             onUserUpdate={setCurrentUser}
+            onLogoutAll={handleLogoutAll}
           />
         );
 
@@ -1467,7 +1792,7 @@ export default function App() {
         );
 
       default:
-        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
+        return <NotFound onBack={() => setView("home")} />;
     }
   };
 
@@ -1498,14 +1823,32 @@ export default function App() {
   if (view === "login" || needsLogin) {
     return (
       <Login
-        notice={needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : ""}
+        notice={
+          loginNotice ||
+          (needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : "")
+        }
         onBack={() => {
           setAfterLoginView(null);
+          setLoginNotice("");
           setView("home");
         }}
         onLoginSuccess={(user) => {
-          setCurrentUser(applyProfileEdits(user));
-          setView(needsLogin ? view : afterLoginView || "home");
+          const nextUser = applyProfileEdits(user);
+          const wanted = needsLogin ? view : afterLoginView;
+
+          setCurrentUser(nextUser);
+          setLoginNotice("");
+
+          /*
+           * พาไปหน้าที่ตั้งใจจะเข้า ถ้าบทบาทเข้าได้
+           * ไม่งั้นไปหน้าหลักของบทบาท (เช่น เจ้าหน้าที่ → คิวตรวจสอบ)
+           */
+          setView(
+            wanted && canAccessView(nextUser, wanted)
+              ? wanted
+              : getLandingView(nextUser)
+          );
+
           setAfterLoginView(null);
         }}
       />
@@ -1553,6 +1896,8 @@ export default function App() {
           mobileOpen={mobileOpen}
           onCloseMobile={() => setMobileOpen(false)}
           isLoggedIn={isLoggedIn}
+          user={currentUser}
+          detailFrom={detailFrom}
           onLogout={handleLogout}
           onLogin={() => setView("login")}
         />

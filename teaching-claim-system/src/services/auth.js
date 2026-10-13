@@ -2,30 +2,18 @@ import {
   signIn,
   confirmSignIn,
   signOut,
+  updatePassword,
+  resetPassword,
+  confirmResetPassword,
   getCurrentUser,
   fetchUserAttributes,
   fetchAuthSession,
 } from "aws-amplify/auth";
 
-/*
- * แปลง Cognito Group
- * ให้เป็น role ที่ UI เดิมใช้
- */
-function getRole(groups = []) {
-  if (groups.includes("TEACHER")) {
-    return "อาจารย์ผู้สอน";
-  }
-
-  if (groups.includes("TA")) {
-    return "ผู้ช่วยสอน (TA)";
-  }
-
-  if (groups.includes("STAFF")) {
-    return "เจ้าหน้าที่";
-  }
-
-  return "ผู้ใช้งานระบบ";
-}
+import {
+  resolveRoles,
+  getRoleLabel,
+} from "../data/roles";
 
 /*
  * อ่าน user จริงจาก Cognito session
@@ -45,6 +33,9 @@ export async function getAuthenticatedUser() {
 
   const groups =
     payload["cognito:groups"] || [];
+
+  const { roles, primary } =
+    resolveRoles(groups);
 
   const email =
     attributes.email ||
@@ -88,7 +79,16 @@ export async function getAuthenticatedUser() {
 
     firstName,
 
-    role: getRole(groups),
+    /*
+     * role     = ข้อความภาษาไทยที่แสดงบน UI (ของเดิม)
+     * roleKey  = บทบาทหลัก (TEACHER/TA/REVIEWER/APPROVER/ADMIN)
+     * roles    = ทุกบทบาทที่ผู้ใช้มี ใช้ตรวจสิทธิ์ใน data/roles.js
+     */
+    role: getRoleLabel(primary),
+
+    roleKey: primary,
+
+    roles,
 
     groups,
   };
@@ -192,9 +192,68 @@ export async function confirmNewPassword(
 
 /*
  * Logout จริงจาก Cognito
+ * global = true → เพิกถอน refresh token ทุกอุปกรณ์ (ออกจากระบบทุกที่)
  */
-export async function logoutFromCognito() {
-  await signOut();
+export async function logoutFromCognito(
+  { global = false } = {}
+) {
+  await signOut({ global });
+}
+
+/*
+ * เปลี่ยนรหัสผ่านขณะล็อกอินอยู่
+ */
+export async function changePassword(
+  oldPassword,
+  newPassword
+) {
+  await updatePassword({
+    oldPassword,
+    newPassword,
+  });
+}
+
+/*
+ * ลืมรหัสผ่าน: ขั้น 1 ขอรหัสยืนยันทางอีเมล / ขั้น 2 ตั้งรหัสผ่านใหม่
+ */
+export async function requestPasswordReset(email) {
+  await resetPassword({
+    username: email.trim(),
+  });
+}
+
+export async function confirmPasswordReset(
+  email,
+  code,
+  newPassword
+) {
+  await confirmResetPassword({
+    username: email.trim(),
+    confirmationCode: code.trim(),
+    newPassword,
+  });
+}
+
+/*
+ * แปลง error ของ Cognito เป็นข้อความที่ผู้ใช้เข้าใจ
+ * (ไม่เปิดเผยว่ามีบัญชีนี้ในระบบหรือไม่ ตอนขอรีเซ็ตรหัสผ่าน)
+ */
+export function passwordErrorMessage(error) {
+  switch (error?.name) {
+    case "NotAuthorizedException":
+      return "รหัสผ่านปัจจุบันไม่ถูกต้อง";
+    case "InvalidPasswordException":
+      return "รหัสผ่านใหม่ไม่ตรงตามเงื่อนไขความปลอดภัย (ควรยาวอย่างน้อย 8 ตัว มีตัวพิมพ์ใหญ่ พิมพ์เล็ก ตัวเลข และสัญลักษณ์)";
+    case "CodeMismatchException":
+      return "รหัสยืนยันไม่ถูกต้อง";
+    case "ExpiredCodeException":
+      return "รหัสยืนยันหมดอายุ กรุณาขอรหัสใหม่";
+    case "LimitExceededException":
+    case "TooManyRequestsException":
+      return "ทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่";
+    default:
+      return "ดำเนินการไม่สำเร็จ กรุณาลองใหม่";
+  }
 }
 
 /*

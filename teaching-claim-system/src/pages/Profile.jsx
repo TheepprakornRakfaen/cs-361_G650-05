@@ -20,6 +20,7 @@ import {
 
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
+import AccountSecurity from "../components/AccountSecurity";
 import Select from "../components/Select";
 import { getInitial } from "../data/users";
 import { FACULTIES, getDepartments } from "../data/faculties";
@@ -89,6 +90,7 @@ export default function Profile({
   onLogin,
   onOpenClaims,
   onUserUpdate,
+  onLogoutAll,
 }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState("");
@@ -919,6 +921,9 @@ export default function Profile({
               </div>
             )}
           </SectionCard>
+
+          {/* [V3] ความปลอดภัยของบัญชี */}
+          <AccountSecurity onLogoutAll={onLogoutAll} />
         </div>
       </div>
     </div>

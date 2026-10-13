@@ -8,6 +8,7 @@ import {
   Megaphone,
   CheckCheck,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -17,6 +18,7 @@ import { timeAgo } from "../data/notifications";
 const KIND_STYLE = {
   approved: { icon: CheckCircle2, bg: "#DFF5E6", fg: "#1E8E4F" },
   rejected: { icon: XCircle, bg: "#FBE2E2", fg: "#C23B3B" },
+  returned: { icon: RotateCcw, bg: "#FDEBDD", fg: "#B4531A" },
   submitted: { icon: Clock, bg: "#FEF6D8", fg: "#9A7B06" },
   news: { icon: Megaphone, bg: C.tealSoft, fg: C.tealDark },
 };
