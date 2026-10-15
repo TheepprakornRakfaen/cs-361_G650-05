@@ -155,12 +155,16 @@ export default function App() {
 
   const [editingClaimId, setEditingClaimId] = useState(null);
 
+
   // =========================
   // Semester & Submission Period
   // =========================
   const [terms, setTerms] = useState([]);
   const [selectedTermId, setSelectedTermId] = useState(null);
   const [periods, setPeriods] = useState([]);
+  const [allPeriods, setAllPeriods] = useState([]);
+  const [allPeriodsLoading, setAllPeriodsLoading] = useState(false);
+  const [allPeriodsError, setAllPeriodsError] = useState("");
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
   const [apiCourses, setApiCourses] = useState([]);
 
@@ -269,6 +273,80 @@ export default function App() {
         setPeriodLoading(false);
       }
     };
+
+  // โหลดรอบการยื่นของทุกภาคการศึกษาพร้อมกัน
+  const loadAllPeriods = async (termList = terms) => {
+    if (!Array.isArray(termList) || termList.length === 0) {
+      setAllPeriods([]);
+      return;
+    }
+
+    setAllPeriodsLoading(true);
+    setAllPeriodsError("");
+
+    /*
+     * ใช้ allSettled: ภาคไหนโหลดไม่สำเร็จ (เช่น backend ตอบ 500) ไม่ทำให้ภาคอื่นหายไปด้วย
+     */
+    const results = await Promise.allSettled(
+      termList.map(async (term) => {
+        const data = await getPeriods(term.id);
+
+        const list = Array.isArray(data?.periods)
+          ? data.periods
+          : Array.isArray(data)
+            ? data
+            : [];
+
+        // กันกรณี API ไม่ส่ง term_id กลับมา
+        return list.map((period) => ({
+          ...period,
+          term_id: period.term_id ?? term.id,
+        }));
+      })
+    );
+
+    const loaded = results
+      .filter((r) => r.status === "fulfilled")
+      .flatMap((r) => r.value);
+
+    const failedTerms = termList.filter(
+      (_, index) => results[index].status === "rejected"
+    );
+
+    failedTerms.forEach((term, i) =>
+      console.error(
+        `Load periods failed for term ${term.semester}/${term.year}:`,
+        results.filter((r) => r.status === "rejected")[i]?.reason
+      )
+    );
+
+    setAllPeriods(loaded);
+
+    if (failedTerms.length > 0) {
+      const names = failedTerms
+        .map((term) => `${term.semester}/${term.year}`)
+        .join(", ");
+
+      setAllPeriodsError(
+        loaded.length > 0
+          ? `โหลดรอบของบางภาคการศึกษาไม่สำเร็จ (${names}) — แสดงเฉพาะภาคที่โหลดได้`
+          : `ไม่สามารถโหลดรอบการยื่นได้ (${names})`
+      );
+    }
+
+    setAllPeriodsLoading(false);
+  };
+
+  // เข้าหน้ารอบการยื่นเมื่อไหร่ โหลดรอบของทุกภาคใหม่ให้ข้อมูลสด
+  useEffect(() => {
+    if (
+      (view === "create" || view === "rounds") &&
+      terms.length > 0
+    ) {
+      loadAllPeriods(terms);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, terms]);
 
   const loadCourses =
     async (termId) => {
@@ -851,12 +929,18 @@ export default function App() {
     });
   };
 
-  const rounds = periods.map(
-  (period) => {
+  const mapPeriodToRound = (period) => {
     const formatDate = (
       value
     ) => {
       if (!value) {
+        return "";
+      }
+
+      const date = new Date(value);
+
+      // วันที่เพี้ยนจาก API ต้องไม่ทำให้หน้าพัง
+      if (Number.isNaN(date.getTime())) {
         return "";
       }
 
@@ -867,9 +951,7 @@ export default function App() {
           month: "long",
           year: "numeric",
         }
-      ).format(
-        new Date(value)
-      );
+      ).format(date);
     };
 
     /*
@@ -922,12 +1004,27 @@ export default function App() {
       statusEnabled &&
       withinPeriod;
 
+    const term = terms.find(
+      (item) =>
+        String(item.id) === String(period.term_id)
+    );
+
     return {
       id:
         period.id,
 
       termId:
         period.term_id,
+
+      // ปีการศึกษา / ภาคการศึกษา ใช้ค้นหาและจัดกลุ่มในหน้ารอบการยื่น
+      year:
+        term?.year != null ? String(term.year) : "",
+
+      semester:
+        term?.semester != null ? String(term.semester) : "",
+
+      termLabel:
+        term ? `${term.semester}/${term.year}` : "",
 
       month:
         period.month,
@@ -961,8 +1058,13 @@ export default function App() {
           ? "Open"
           : "Closed",
     };
-  }
-);
+  };
+
+
+  const rounds = periods.map(mapPeriodToRound);
+
+  // รอบการยื่นของทุกภาคการศึกษา (ไว้ให้หน้ารอบการยื่นค้นหาข้ามปีได้)
+  const allRounds = allPeriods.map(mapPeriodToRound);
 
   /*
    * เปิด/ปิด Sidebar
@@ -1033,24 +1135,21 @@ export default function App() {
   /*
    * สร้างคำขอจากรอบ
    */
-  const goCreateForRound =
-    (round) => {
-      setPresetRound(
-        round
-      );
+  const goCreateForRound = async (round) => {
+    setPresetRound(round);
+    setEditingClaimId(null);
+    setView("claim-create");
 
-      setSelectedPeriodId(
-        Number(
-          round?.id
-        ) || null
-      );
+    // รอบอาจอยู่คนละภาคกับที่เลือกอยู่ → สลับภาค (โหลดวิชา/รอบของภาคนั้น) ก่อนเลือกรอบ
+    if (
+      round?.termId &&
+      String(round.termId) !== String(selectedTermId)
+    ) {
+      await handleTermChange(round.termId);
+    }
 
-      setEditingClaimId(null);
-
-      setView(
-        "claim-create"
-      );
-    };
+    setSelectedPeriodId(Number(round?.id) || null);
+  };
 
   /*
    * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
@@ -1686,7 +1785,11 @@ export default function App() {
       case "rounds":
         return (
           <CreateClaimList
-            rounds={rounds}
+            rounds={allRounds}
+            terms={terms}
+            loading={allPeriodsLoading || termLoading}
+            error={allPeriodsError || termError}
+            onReload={() => loadAllPeriods(terms)}
             courses={courses}
             goCreateForRound={goCreateForRound}
           />

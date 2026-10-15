@@ -10,8 +10,7 @@ import { PERMISSION as P, can } from "./roles";
 
 export const STATUS = {
   DRAFT: "Draft",
-  SUBMITTED: "Submitted", // ยื่นแล้ว รอเจ้าหน้าที่ตรวจสอบ
-  REVIEWED: "Reviewed", // ตรวจสอบผ่านแล้ว รอผู้อนุมัติ
+  SUBMITTED: "Submitted", // ยื่นแล้ว รอตรวจสอบ (ตรวจสอบเสร็จแล้วอนุมัติ → Approved ทันที ไม่มีขั้น "รออนุมัติ" แยก)
   RETURNED: "Returned", // ส่งกลับให้ผู้ยื่นแก้ไข
   APPROVED: "Approved",
   REJECTED: "Rejected", // ไม่อนุมัติ (สิ้นสุด)
@@ -30,13 +29,19 @@ const NUMERIC_STATUS = {
   2: STATUS.CANCELLED,
 };
 
+/*
+ * ไม่มีสถานะ "ตรวจสอบแล้ว / รออนุมัติ" แยกอีกต่อไป — การตรวจสอบกับการอนุมัติเป็นการกระทำเดียว
+ * ถ้า backend ยังส่งค่าเก่า (REVIEWED / VERIFIED ฯลฯ) มา ให้ถือเป็น "รอตรวจสอบ"
+ * เพื่อให้คำขอเก่าไม่ตกหล่นและยังอนุมัติได้
+ */
 const STRING_STATUS = {
   PENDING: STATUS.SUBMITTED,
   UNDER_REVIEW: STATUS.SUBMITTED,
   IN_REVIEW: STATUS.SUBMITTED,
-  VERIFIED: STATUS.REVIEWED,
-  REVIEW_PASSED: STATUS.REVIEWED,
-  PENDING_APPROVAL: STATUS.REVIEWED,
+  REVIEWED: STATUS.SUBMITTED,
+  VERIFIED: STATUS.SUBMITTED,
+  REVIEW_PASSED: STATUS.SUBMITTED,
+  PENDING_APPROVAL: STATUS.SUBMITTED,
   REVISION_REQUESTED: STATUS.RETURNED,
   NEEDS_REVISION: STATUS.RETURNED,
   CANCELED: STATUS.CANCELLED,
@@ -63,7 +68,6 @@ export function normalizeStatus(raw) {
 // คิวของผู้ตรวจสอบ/อนุมัติ — แบบร่างของผู้อื่นไม่เกี่ยวข้อง
 export const QUEUE_STATUSES = [
   STATUS.SUBMITTED,
-  STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
   STATUS.REJECTED,
@@ -100,12 +104,6 @@ export function getWorkflowSteps(status) {
         step("review", "รอตรวจสอบ", "current"),
         step("approve", "อนุมัติ", "pending"),
       ];
-    case STATUS.REVIEWED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบแล้ว", "done"),
-        step("approve", "รออนุมัติ", "current"),
-      ];
     case STATUS.APPROVED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
@@ -138,23 +136,15 @@ export function getWorkflowSteps(status) {
  * key ตรงกับค่า action ที่ส่งไป POST /api/claims/{id}/actions
  * ========================= */
 const ACTION = {
-  REVIEW_PASS: {
-    key: "REVIEW_PASS",
-    label: "ตรวจสอบผ่าน ส่งต่อผู้อนุมัติ",
-    tone: "teal",
-    requireComment: false,
-    confirmTitle: "ยืนยันผลการตรวจสอบ",
-    confirmText: "คำขอจะถูกส่งต่อให้ผู้อนุมัติพิจารณา",
-    commentLabel: "หมายเหตุถึงผู้อนุมัติ (ไม่บังคับ)",
-    confirmButton: "ยืนยันส่งต่อ",
-  },
+  // ตรวจสอบเสร็จแล้วอนุมัติในขั้นตอนเดียว → คำขอไปอยู่ในกลุ่ม "อนุมัติแล้ว" ทันที
   APPROVE: {
     key: "APPROVE",
-    label: "อนุมัติ",
+    label: "ตรวจสอบแล้ว · อนุมัติ",
     tone: "green",
     requireComment: false,
-    confirmTitle: "ยืนยันการอนุมัติ",
-    confirmText: "เมื่ออนุมัติแล้วจะแก้ไขสถานะไม่ได้",
+    confirmTitle: "ยืนยันการตรวจสอบและอนุมัติ",
+    confirmText:
+      "เมื่อยืนยัน คำขอจะถูกอนุมัติทันที และแก้ไขสถานะไม่ได้อีก",
     commentLabel: "หมายเหตุ (ไม่บังคับ)",
     confirmButton: "ยืนยันอนุมัติ",
   },
@@ -182,22 +172,17 @@ const ACTION = {
 };
 
 /*
- *   Submitted → ผู้ตรวจสอบ (claim.review):  ส่งต่อ / ส่งกลับ / ไม่อนุมัติ
- *   Reviewed  → ผู้อนุมัติ (claim.approve): อนุมัติ / ส่งกลับ / ไม่อนุมัติ
- * ห้ามจัดการคำขอของตัวเอง (ผู้ยื่นกับผู้ตรวจสอบต้องเป็นคนละคน)
+ * คำขอที่ "รอตรวจสอบ" (Submitted) ผู้มีสิทธิ์ตรวจสอบ/อนุมัติทำได้ 3 อย่าง:
+ *   ตรวจสอบแล้วอนุมัติ / ส่งกลับแก้ไข / ไม่อนุมัติ
+ * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
 export function getAllowedActions(claim, user) {
   const none = { actions: [], blockedReason: "" };
 
-  if (!claim) return none;
+  if (!claim || claim.status !== STATUS.SUBMITTED) return none;
 
-  const canReview = can(user, P.CLAIM_REVIEW);
-  const canApprove = can(user, P.CLAIM_APPROVE);
-  const inReviewStage = claim.status === STATUS.SUBMITTED;
-  const inApprovalStage = claim.status === STATUS.REVIEWED;
-
-  if (!(inReviewStage || inApprovalStage) || !(canReview || canApprove)) {
+  if (!(can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE))) {
     return none;
   }
 
@@ -209,24 +194,10 @@ export function getAllowedActions(claim, user) {
     };
   }
 
-  if (inReviewStage) {
-    return canReview
-      ? {
-          actions: [ACTION.REVIEW_PASS, ACTION.RETURN, ACTION.REJECT],
-          blockedReason: "",
-        }
-      : { actions: [], blockedReason: "คำขอนี้รอเจ้าหน้าที่ผู้ตรวจสอบดำเนินการ" };
-  }
-
-  return canApprove
-    ? {
-        actions: [ACTION.APPROVE, ACTION.RETURN, ACTION.REJECT],
-        blockedReason: "",
-      }
-    : {
-        actions: [],
-        blockedReason: "คำขอนี้ผ่านการตรวจสอบแล้ว รอผู้อนุมัติดำเนินการ",
-      };
+  return {
+    actions: [ACTION.APPROVE, ACTION.RETURN, ACTION.REJECT],
+    blockedReason: "",
+  };
 }
 
 /* =========================

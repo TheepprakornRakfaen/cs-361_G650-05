@@ -87,8 +87,17 @@ export const ROLE_PERMISSIONS = {
     P.AUDIT_VIEW,
     P.AUDIT_VIEW_ALL,
   ],
-  // ผู้ดูแลระบบ: ดูภาพรวมและประวัติได้ แต่ไม่เห็นยอดเงิน/เอกสาร และไม่อนุมัติแทนใคร
-  [ROLE.ADMIN]: [P.CLAIM_VIEW_ALL, P.AUDIT_VIEW, P.AUDIT_VIEW_ALL],
+  // ผู้ดูแลระบบ: ดูหลักฐาน ตรวจสอบ/อนุมัติ/ส่งกลับ/ไม่อนุมัติ ได้เต็มรูปแบบ (ยกเว้นคำขอของตัวเอง)
+  [ROLE.ADMIN]: [
+    P.CLAIM_VIEW_ALL,
+    P.CLAIM_REVIEW,
+    P.CLAIM_APPROVE,
+    P.FINANCE_VIEW,
+    P.EVIDENCE_VIEW,
+    P.PII_VIEW,
+    P.AUDIT_VIEW,
+    P.AUDIT_VIEW_ALL,
+  ],
 };
 
 /*

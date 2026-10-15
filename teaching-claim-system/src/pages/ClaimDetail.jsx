@@ -20,6 +20,7 @@ import {
   History,
   AlertTriangle,
   User as UserIcon,
+  CheckCircle2,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -259,6 +260,14 @@ export default function ClaimDetail({
 
   const [previewItem, setPreviewItem] =
     useState(null);
+
+  // ไฟล์ที่ผู้ตรวจสอบเปิดดูแล้ว — ใช้เตือนก่อนอนุมัติ และติ๊กถูกที่ไฟล์
+  const [viewedIds, setViewedIds] = useState(() => new Set());
+
+  const openPreview = (item) => {
+    setViewedIds((prev) => new Set(prev).add(item.id));
+    setPreviewItem(item);
+  };
 
   // เพิ่มค่าเพื่อโหลดหลักฐานใหม่ (ปุ่ม "ลองใหม่" / URL หมดอายุ)
   const [evidenceReload, setEvidenceReload] =
@@ -642,6 +651,14 @@ export default function ClaimDetail({
           onAction={(action, comment) =>
             onAction?.(claim.id, action, comment)
           }
+          evidence={{
+            canView: canViewEvidence,
+            loading: evidenceLoading,
+            total: evidenceItems.length,
+            viewed: evidenceItems.filter((item) =>
+              viewedIds.has(item.id)
+            ).length,
+          }}
         />
 
         {/* [V3] ข้อมูลผู้ยื่น — แสดงเมื่อเปิดดูคำขอของผู้อื่น */}
@@ -781,13 +798,14 @@ export default function ClaimDetail({
         )}
 
         {/* Evidence */}
-        <div>
+        <div id="evidence-section">
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
             <p
               className="text-sm font-semibold"
               style={{ color: C.ink }}
             >
-              หลักฐานเพิ่มเติม
+              หลักฐานที่แนบ
+              {evidenceItems.length > 0 && ` (${evidenceItems.length} ไฟล์)`}
             </p>
 
             {canAttach && (
@@ -928,9 +946,7 @@ export default function ClaimDetail({
                     type="button"
                     key={item.id}
                     disabled={!item.url}
-                    onClick={() =>
-                      setPreviewItem(item)
-                    }
+                    onClick={() => openPreview(item)}
                     className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       borderColor: C.border,
@@ -976,6 +992,16 @@ export default function ClaimDetail({
                           ).toFixed(2)} MB`}
                       </span>
                     </span>
+
+                    {viewedIds.has(item.id) && (
+                      <span
+                        className="flex items-center gap-1 text-xs font-semibold shrink-0"
+                        style={{ color: "#1E8E4F" }}
+                      >
+                        <CheckCircle2 size={14} />
+                        เปิดดูแล้ว
+                      </span>
+                    )}
 
                     <Eye
                       size={16}

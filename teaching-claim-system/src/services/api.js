@@ -338,7 +338,8 @@ export function getCourses(
  */
 
 /*
- * action: REVIEW_PASS | APPROVE | REJECT | RETURN
+ * action: APPROVE (ตรวจสอบแล้วอนุมัติในขั้นเดียว จาก Submitted → Approved) | REJECT | RETURN
+ * ⚠️ backend ต้องรับ APPROVE จากสถานะ Submitted ได้โดยตรง
  * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
  */
 export function submitClaimAction(

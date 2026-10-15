@@ -17,7 +17,7 @@ const TONE = {
   amber: { bg: "#D9772B", icon: RotateCcw },
 };
 
-function ConfirmDialog({ action, busy, error, onCancel, onConfirm }) {
+function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
   const [comment, setComment] = useState("");
   const [touched, setTouched] = useState(false);
   const textareaRef = useRef(null);
@@ -127,6 +127,16 @@ function ConfirmDialog({ action, busy, error, onCancel, onConfirm }) {
           </p>
         </div>
 
+        {warning && (
+          <p
+            className="flex items-start gap-2 text-sm mt-2 px-3 py-2 rounded-xl"
+            style={{ background: "#FDEBDD", color: "#B4531A" }}
+          >
+            <Info size={15} className="mt-0.5 shrink-0" />
+            {warning}
+          </p>
+        )}
+
         {error && (
           <p
             className="text-sm mt-2 px-3 py-2 rounded-xl"
@@ -174,6 +184,8 @@ export default function ReviewActionPanel({
   actions = [],
   blockedReason = "",
   onAction,
+  // { canView, loading, total, viewed } — สรุปหลักฐานแนบ แสดงให้ผู้ตรวจสอบเห็นก่อนตัดสินใจ
+  evidence = null,
 }) {
   const [active, setActive] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -204,6 +216,16 @@ export default function ReviewActionPanel({
     }
   };
 
+  // เตือน (ไม่บังคับ) ตอนกดอนุมัติ ถ้ายังไม่ได้เปิดดูหลักฐานครบ
+  const approveWarning =
+    active?.key === "APPROVE" && evidence?.canView && !evidence.loading
+      ? evidence.total === 0
+        ? "คำขอนี้ไม่มีไฟล์แนบหลักฐาน"
+        : evidence.viewed < evidence.total
+          ? `ยังไม่ได้เปิดดูหลักฐาน ${evidence.total - evidence.viewed} จาก ${evidence.total} ไฟล์`
+          : ""
+      : "";
+
   return (
     <div
       className="rounded-2xl p-5 md:p-6 mb-8 border"
@@ -212,6 +234,33 @@ export default function ReviewActionPanel({
       <p className="text-sm font-semibold mb-3" style={{ color: C.ink }}>
         การพิจารณาคำขอ
       </p>
+
+      {evidence?.canView && actions.length > 0 && (
+        <div
+          className="flex items-center justify-between gap-3 flex-wrap rounded-xl px-4 py-3 mb-4 text-sm"
+          style={{ background: C.tealSoft, color: C.tealDark }}
+        >
+          <span>
+            {evidence.loading
+              ? "กำลังโหลดหลักฐานแนบ..."
+              : evidence.total === 0
+                ? "ไม่มีไฟล์แนบ"
+                : `หลักฐานแนบ ${evidence.total} ไฟล์ · เปิดดูแล้ว ${evidence.viewed}`}
+          </span>
+
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("evidence-section")
+                ?.scrollIntoView({ behavior: "smooth", block: "center" })
+            }
+            className="font-semibold underline underline-offset-2"
+          >
+            ไปที่หลักฐานแนบ
+          </button>
+        </div>
+      )}
 
       {blockedReason ? (
         <p className="flex items-center gap-2 text-sm" style={{ color: C.sub }}>
@@ -250,6 +299,7 @@ export default function ReviewActionPanel({
           action={active}
           busy={busy}
           error={error}
+          warning={approveWarning}
           onCancel={close}
           onConfirm={confirm}
         />

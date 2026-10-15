@@ -21,7 +21,6 @@ import {
 
 const SUMMARY = [
   STATUS.SUBMITTED,
-  STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
   STATUS.REJECTED,
@@ -41,8 +40,7 @@ function formatDate(value) {
 
 /*
  * [V3] คิวตรวจสอบ / อนุมัติ
- *  - เจ้าหน้าที่ตรวจสอบ: เปิดมาที่ "รอตรวจสอบ"
- *  - ผู้อนุมัติ: เปิดมาที่ "รออนุมัติ"
+ *  - เจ้าหน้าที่/ผู้อนุมัติ/ผู้ดูแล: เปิดมาที่ "รอตรวจสอบ" แล้วตรวจสอบ+อนุมัติในขั้นตอนเดียว
  *  - ผู้ดูแลระบบ: เห็นทั้งหมด (อ่านอย่างเดียว)
  * รายการที่เห็นถูกจำกัดโดย backend ตาม role อยู่แล้ว หน้านี้เป็นเพียงตัวกรองเพื่อการแสดงผล
  */
@@ -54,9 +52,9 @@ export default function ReviewQueue({
   onReload,
   goDetail,
 }) {
-  const defaultStatus = can(user, P.CLAIM_APPROVE)
-    ? STATUS.REVIEWED
-    : can(user, P.CLAIM_REVIEW)
+  // ผู้มีสิทธิ์ตรวจสอบ/อนุมัติ เปิดมาที่ "รอตรวจสอบ" เลย
+  const defaultStatus =
+    can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE)
       ? STATUS.SUBMITTED
       : "All";
 
@@ -131,7 +129,7 @@ export default function ReviewQueue({
       />
 
       {/* สรุปตามสถานะ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {SUMMARY.map((key) => {
           const style = STATUS_STYLE[key];
           const active = statusFilter === key;
