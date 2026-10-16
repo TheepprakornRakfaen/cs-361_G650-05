@@ -1066,6 +1066,19 @@ export default function App() {
   // รอบการยื่นของทุกภาคการศึกษา (ไว้ให้หน้ารอบการยื่นค้นหาข้ามปีได้)
   const allRounds = allPeriods.map(mapPeriodToRound);
 
+  // ภาคที่เลือกอยู่ เช่น "1/2569"
+  const currentTermLabel = (() => {
+    const term = terms.find(
+      (item) =>
+        String(item.id) ===
+        String(selectedTermId)
+    );
+
+    return term
+      ? `${term.semester}/${term.year}`
+      : "";
+  })();
+
   /*
    * เปิด/ปิด Sidebar
    */
@@ -1721,9 +1734,12 @@ export default function App() {
           <Dashboard
             user={currentUser}
             claims={claims}
+            rounds={rounds}
+            termLabel={currentTermLabel}
             goCreate={goCreate}
+            goCreateForRound={goCreateForRound}
             goDetail={goDetail}
-            goMyClaims={() => setView("myclaims")}
+            goMyClaims={openMyClaims}
           />
         );
 
@@ -1741,17 +1757,7 @@ export default function App() {
         return (
           <MyClaims
             claims={claims}
-            currentTermLabel={(() => {
-              const term = terms.find(
-                (item) =>
-                  String(item.id) ===
-                  String(selectedTermId)
-              );
-
-              return term
-                ? `${term.semester}/${term.year}`
-                : "";
-            })()}
+            currentTermLabel={currentTermLabel}
             termLabels={terms.map(
               (term) =>
                 `${term.semester}/${term.year}`
