@@ -67,11 +67,16 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_email: person.email,
     claimant_role: person.role,
     decision_comment: status === "RETURNED" ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่" : null,
-    created_at: iso(-12 + i * 0.5),
-    submitted_at: status === "DRAFT" ? null : iso(-11 + i * 0.5),
-    updated_at: iso(-11 + i * 0.5),
+    // ยื่นห่างกันวันละรายการ (ย้อนหลัง ~3 สัปดาห์) → มีทั้งที่ยังทันและเกินกำหนด 10 วันทำการ
+    created_at: iso(-22 + i),
+    submitted_at: status === "DRAFT" ? null : iso(-21 + i),
+    updated_at: iso(-21 + i),
   };
 });
+
+// เวลาที่เจ้าหน้าที่ดำเนินการ = หลังวันยื่น n วัน
+const afterSubmit = (claim, days) =>
+  new Date(new Date(claim.submitted_at).getTime() + days * DAY).toISOString();
 
 let logs = claims
   .filter((c) => c.status !== "DRAFT")
@@ -80,10 +85,10 @@ let logs = claims
       { action: "SUBMIT", from_status: "Draft", to_status: "Submitted", actor_name: c.claimant_name, actor_role: c.claimant_role, created_at: c.submitted_at },
     ];
     if (c.status === "APPROVED") {
-      entries.push({ action: "APPROVE", from_status: "Submitted", to_status: "Approved", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", created_at: iso(-3 + i * 0.1) });
+      entries.push({ action: "APPROVE", from_status: "Submitted", to_status: "Approved", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", created_at: afterSubmit(c, 2) });
     }
     if (c.status === "RETURNED") {
-      entries.push({ action: "RETURN", from_status: "Submitted", to_status: "Returned", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", comment: c.decision_comment, created_at: iso(-2 + i * 0.1) });
+      entries.push({ action: "RETURN", from_status: "Submitted", to_status: "Returned", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", comment: c.decision_comment, created_at: afterSubmit(c, 3) });
     }
     return entries.map((e, j) => ({ id: `log-${i}-${j}`, claim_id: c.id, claim_code: c.course_code, comment: null, ...e }));
   });
@@ -164,8 +169,33 @@ export async function devMockRequest(path, options = {}) {
       return { courses: !termId || termId === "3" ? clone(COURSES) : [] };
     }
 
-    case "audit-logs":
-      return { logs: clone(logs), next_cursor: null };
+    case "audit-logs": {
+      // กรองแบบเดียวกับที่ backend ควรทำ: actor / action / from / to
+      const actor = (url.searchParams.get("actor") || "").toLowerCase();
+      const action = url.searchParams.get("action") || "";
+      const from = url.searchParams.get("from") || "";
+      const to = url.searchParams.get("to") || "";
+
+      const filtered = logs.filter((l) => {
+        const ownerEmail = claims.find((c) => c.id === l.claim_id)?.claimant_email || "";
+        const at = String(l.created_at);
+
+        return (
+          (!actor ||
+            String(l.actor_name).toLowerCase().includes(actor) ||
+            (l.actor_name === claims.find((c) => c.id === l.claim_id)?.claimant_name &&
+              ownerEmail.toLowerCase().includes(actor))) &&
+          (!action || l.action === action) &&
+          (!from || at.slice(0, 10) >= from) &&
+          (!to || new Date(at) <= new Date(to))
+        );
+      });
+
+      // ใหม่สุดก่อน
+      filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      return { logs: clone(filtered), next_cursor: null };
+    }
 
     case "claims": {
       if (!id) {

@@ -57,7 +57,12 @@ const inputClass =
  * [V3] Audit Log รวมทุกคำขอ — ค้นย้อนหลังได้ว่า "ใคร ทำอะไร กับคำขอไหน เมื่อไร"
  * ข้อมูลทั้งหมดมาจาก backend (อ่านอย่างเดียว) หน้านี้ไม่มีทางแก้หรือลบ log
  */
-export default function AuditLog() {
+export default function AuditLog({
+  // คำขอในคิว — ใช้แปลง claim_id เป็นรหัสคำขอเต็ม และเปิดหน้ารายละเอียด
+  claims = [],
+  goDetail,
+}) {
+  const claimById = new Map(claims.map((c) => [String(c.id), c]));
   const [draft, setDraft] = useState(EMPTY_FILTERS);
   const [applied, setApplied] = useState(EMPTY_FILTERS);
 
@@ -133,7 +138,7 @@ export default function AuditLog() {
         r.actorName,
         ROLE_META[r.actorRole]?.label || r.actorRole,
         getAuditMeta(r.action).label,
-        r.claimCode || r.claimId,
+        claimById.get(String(r.claimId))?.code || r.claimCode || r.claimId,
         STATUS_STYLE[r.toStatus]?.label || r.toStatus,
         r.comment,
       ])
@@ -162,10 +167,14 @@ export default function AuditLog() {
               type="button"
               onClick={() => load(applied)}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-opacity hover:opacity-80 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border bg-white transition-opacity hover:opacity-80 disabled:opacity-50"
               style={{ borderColor: C.border, color: C.tealDark }}
             >
-              <RefreshCw size={15} />
+              {loading ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <RefreshCw size={15} />
+              )}
               รีเฟรช
             </button>
 
@@ -186,68 +195,74 @@ export default function AuditLog() {
         }
       />
 
+      {/* Toolbar — แถวเดียวรูปแบบเดียวกับหน้าอื่น (ช่องค้นหา + dropdown + ช่วงวันที่) */}
       <form
         onSubmit={apply}
-        className="flex flex-col lg:flex-row lg:items-end gap-3 mb-6"
+        className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 mb-6"
       >
-        <label className="flex flex-col gap-1 text-xs font-semibold flex-1 min-w-[12rem]" style={{ color: C.sub }}>
-          ผู้ดำเนินการ
-          <span
-            className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5"
-            style={{ borderColor: C.border }}
-          >
-            <Search size={15} />
-            <input
-              type="text"
-              value={draft.actor}
-              onChange={(e) => setDraft({ ...draft, actor: e.target.value })}
-              placeholder="ชื่อหรืออีเมล"
-              className="outline-none text-sm w-full bg-transparent font-normal"
-              style={{ color: C.ink }}
-            />
-          </span>
-        </label>
+        <div
+          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 min-w-[14rem] max-w-md"
+          style={{ borderColor: C.border }}
+        >
+          <Search size={16} style={{ color: C.sub }} />
+          <input
+            type="text"
+            value={draft.actor}
+            onChange={(e) => setDraft({ ...draft, actor: e.target.value })}
+            placeholder="ค้นหาผู้ดำเนินการ (ชื่อหรืออีเมล)"
+            className="outline-none text-sm w-full bg-transparent"
+            style={{ color: C.ink }}
+            aria-label="ผู้ดำเนินการ"
+          />
+        </div>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold" style={{ color: C.sub }}>
-          การดำเนินการ
-          <Select
-            value={draft.action}
-            onChange={(e) => setDraft({ ...draft, action: e.target.value })}
-            className={`${inputClass} min-w-[11rem] font-normal`}
-            style={{ borderColor: C.border, color: C.ink }}
-          >
-            <option value="">ทั้งหมด</option>
-            {Object.entries(AUDIT_ACTION_META).map(([key, meta]) => (
+        <Select
+          value={draft.action}
+          onChange={(e) => setDraft({ ...draft, action: e.target.value })}
+          className={`${inputClass} pl-4 pr-3.5 font-medium min-w-[11rem]`}
+          style={{ borderColor: C.border, color: C.ink }}
+          aria-label="การดำเนินการ"
+        >
+          <option value="">ทุกการดำเนินการ</option>
+          {Object.entries(AUDIT_ACTION_META)
+            // ไม่มีการ "ไม่อนุมัติ" ในขั้นตอนจริง
+            .filter(([key]) => key !== "REJECT")
+            .map(([key, meta]) => (
               <option key={key} value={key}>
                 {meta.label}
               </option>
             ))}
-          </Select>
-        </label>
+        </Select>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold" style={{ color: C.sub }}>
-          ตั้งแต่วันที่
+        <div
+          className="flex items-center gap-2 bg-white rounded-full border px-4 py-1.5"
+          style={{ borderColor: C.border }}
+        >
+          <span className="text-xs font-semibold" style={{ color: C.sub }}>
+            วันที่
+          </span>
           <input
             type="date"
             value={draft.from}
             max={draft.to || undefined}
             onChange={(e) => setDraft({ ...draft, from: e.target.value })}
-            className={`${inputClass} font-normal`}
-            style={{ borderColor: C.border, color: C.ink }}
+            className="text-sm bg-transparent outline-none py-1"
+            style={{ color: C.ink }}
+            aria-label="ตั้งแต่วันที่"
           />
-        </label>
-
-        <label className="flex flex-col gap-1 text-xs font-semibold" style={{ color: C.sub }}>
-          ถึงวันที่
+          <span className="text-xs" style={{ color: C.sub }}>
+            ถึง
+          </span>
           <input
             type="date"
             value={draft.to}
             min={draft.from || undefined}
             onChange={(e) => setDraft({ ...draft, to: e.target.value })}
-            className={`${inputClass} font-normal`}
-            style={{ borderColor: C.border, color: C.ink }}
+            className="text-sm bg-transparent outline-none py-1"
+            style={{ color: C.ink }}
+            aria-label="ถึงวันที่"
           />
-        </label>
+        </div>
 
         <div className="flex gap-2">
           <button
@@ -259,14 +274,17 @@ export default function AuditLog() {
             ค้นหา
           </button>
 
-          <button
-            type="button"
-            onClick={reset}
-            className="px-4 py-2.5 rounded-full text-sm font-semibold border transition-opacity hover:opacity-80"
-            style={{ borderColor: C.border, color: C.ink }}
-          >
-            ล้าง
-          </button>
+          {(applied.actor || applied.action || applied.from || applied.to ||
+            draft.actor || draft.action || draft.from || draft.to) && (
+            <button
+              type="button"
+              onClick={reset}
+              className="text-sm font-semibold px-2"
+              style={{ color: C.tealDark }}
+            >
+              ล้างตัวกรอง
+            </button>
+          )}
         </div>
       </form>
 
@@ -327,8 +345,30 @@ export default function AuditLog() {
                       {meta.label}
                     </td>
 
-                    <td className="px-5 py-3.5 whitespace-nowrap" style={{ color: C.ink }}>
-                      {row.claimCode ? `#${row.claimCode}` : String(row.claimId).slice(0, 8).toUpperCase() || "-"}
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      {(() => {
+                        const claim = claimById.get(String(row.claimId));
+                        const label =
+                          claim?.code ||
+                          row.claimCode ||
+                          String(row.claimId).slice(0, 8).toUpperCase();
+
+                        if (!label) return "-";
+
+                        // คำขอที่อยู่ในคิว → กดเปิดรายละเอียดได้
+                        return claim && goDetail ? (
+                          <button
+                            type="button"
+                            onClick={() => goDetail(claim.id)}
+                            className="font-semibold underline-offset-2 hover:underline"
+                            style={{ color: C.tealDark }}
+                          >
+                            #{label}
+                          </button>
+                        ) : (
+                          <span style={{ color: C.ink }}>#{label}</span>
+                        );
+                      })()}
                     </td>
 
                     <td className="px-5 py-3.5 whitespace-nowrap">
