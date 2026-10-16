@@ -1,4 +1,6 @@
 import { getIdToken } from "./auth";
+import { getDevUser } from "./devAuth";
+import { devMockRequest } from "./devMockApi";
 
 const API_URL =
   import.meta.env.VITE_API_URL?.replace(
@@ -30,6 +32,11 @@ async function apiRequest(
   path,
   options = {}
 ) {
+  // โหมดทดลองตอน dev → ใช้ข้อมูลจำลอง ไม่เรียก backend จริง (ดู devAuth.js)
+  if (getDevUser()) {
+    return devMockRequest(path, options);
+  }
+
   if (!API_URL) {
     throw new Error(
       "VITE_API_URL is not configured"

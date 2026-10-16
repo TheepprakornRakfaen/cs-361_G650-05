@@ -15,10 +15,22 @@ import {
   getRoleLabel,
 } from "../data/roles";
 
+import {
+  getDevUser,
+  endDevSession,
+} from "./devAuth";
+
 /*
  * อ่าน user จริงจาก Cognito session
+ * (โหมดทดลองตอน dev: คืนผู้ใช้จำลองที่เลือกไว้แทน — ดู devAuth.js)
  */
 export async function getAuthenticatedUser() {
+  const devUser = getDevUser();
+
+  if (devUser) {
+    return devUser;
+  }
+
   const cognitoUser =
     await getCurrentUser();
 
@@ -197,6 +209,11 @@ export async function confirmNewPassword(
 export async function logoutFromCognito(
   { global = false } = {}
 ) {
+  if (getDevUser()) {
+    endDevSession();
+    return;
+  }
+
   await signOut({ global });
 }
 
@@ -260,6 +277,10 @@ export function passwordErrorMessage(error) {
  * ใช้ต่อกับ API Gateway ในขั้นถัดไป
  */
 export async function getIdToken() {
+  if (getDevUser()) {
+    return "dev-mock-token";
+  }
+
   const session =
     await fetchAuthSession();
 

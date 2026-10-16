@@ -10,9 +10,15 @@ import {
   Wallet,
   FileCheck2,
   Loader2,
+  FlaskConical,
 } from "lucide-react";
 import { C } from "../theme";
 import { loginWithCognito, confirmNewPassword} from "../services/auth";
+import {
+  DEV_AUTH_BYPASS,
+  DEV_ROLE_OPTIONS,
+  startDevSession,
+} from "../services/devAuth";
 import ForgotPasswordForm from "../components/ForgotPasswordForm";
 // import { syncCurrentUser } from "../services/api";
 
@@ -463,6 +469,39 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
             <p className="text-xs text-center mt-8" style={{ color: C.sub }}>
               พบปัญหาการเข้าสู่ระบบ ติดต่อเจ้าหน้าที่ดูแลระบบ
             </p>
+
+            {/* โหมดทดลอง — แสดงเฉพาะตอน npm run dev (ไม่มีใน build จริง) */}
+            {DEV_AUTH_BYPASS && (
+              <div
+                className="mt-6 rounded-xl border border-dashed p-4"
+                style={{ borderColor: "#F0B37E", background: "#FFF8F1" }}
+              >
+                <p
+                  className="flex items-center gap-1.5 text-xs font-bold"
+                  style={{ color: "#B4531A" }}
+                >
+                  <FlaskConical size={14} />
+                  โหมดทดลอง (เฉพาะตอนพัฒนา)
+                </p>
+                <p className="text-[11px] mt-1 mb-3" style={{ color: C.sub }}>
+                  เข้าระบบโดยไม่ต้องล็อกอิน ใช้ข้อมูลจำลอง ไม่แตะ backend จริง
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {DEV_ROLE_OPTIONS.map(({ role, label }) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => onLoginSuccess?.(startDevSession(role))}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border transition-colors hover:bg-[#FDEBDD]"
+                      style={{ borderColor: "#F0B37E", color: "#B4531A" }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             </>
             )}
           </div>
