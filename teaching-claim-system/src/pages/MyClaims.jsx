@@ -122,7 +122,6 @@ export default function MyClaims({
       Submitted: 0,
       Returned: 0,
       Approved: 0,
-      Rejected: 0,
     };
 
     scoped.forEach((claim) => {
@@ -196,7 +195,7 @@ export default function MyClaims({
     "Submitted",
     "Returned",
     "Approved",
-    "Rejected",
+    // ไม่มี "ไม่อนุมัติ" — ตามขั้นตอนจริงมีแค่ส่งกลับแก้ไข
   ];
 
   const statusCards = STATUS_KEYS.map((key) => [
@@ -322,7 +321,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button

@@ -270,8 +270,8 @@ export default function Profile({
     const result = {
       Draft: 0,
       Submitted: 0,
+      Returned: 0,
       Approved: 0,
-      Rejected: 0,
     };
 
     claims.forEach((claim) => {
@@ -734,7 +734,10 @@ export default function Profile({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {Object.entries(STATUS_STYLE).map(
+              {/* เฉพาะสถานะที่ใช้จริง — ไม่มี "ไม่อนุมัติ" (มีแค่ส่งกลับแก้ไข) */}
+              {["Draft", "Submitted", "Returned", "Approved"]
+                .map((key) => [key, STATUS_STYLE[key]])
+                .map(
                 ([key, style]) => {
                   const clickable =
                     CLICKABLE_STATUSES.includes(key) &&

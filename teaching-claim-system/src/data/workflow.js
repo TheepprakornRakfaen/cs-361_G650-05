@@ -13,7 +13,9 @@ export const STATUS = {
   SUBMITTED: "Submitted", // ยื่นแล้ว รอตรวจสอบ (ตรวจสอบเสร็จแล้วอนุมัติ → Approved ทันที ไม่มีขั้น "รออนุมัติ" แยก)
   RETURNED: "Returned", // ส่งกลับให้ผู้ยื่นแก้ไข
   APPROVED: "Approved",
-  REJECTED: "Rejected", // ไม่อนุมัติ (สิ้นสุด)
+  // ไม่อนุมัติ — ตามขั้นตอนจริงไม่มีการปฏิเสธ มีแค่ "ส่งกลับแก้ไข"
+  // เก็บไว้เพื่อแสดงคำขอเก่าที่อาจมีสถานะนี้อยู่แล้วเท่านั้น ห้ามมีปุ่ม/ตัวกรองให้เลือก
+  REJECTED: "Rejected",
   CANCELLED: "Cancelled",
   UNKNOWN: "Unknown",
 };
@@ -70,7 +72,7 @@ export const QUEUE_STATUSES = [
   STATUS.SUBMITTED,
   STATUS.RETURNED,
   STATUS.APPROVED,
-  STATUS.REJECTED,
+  STATUS.REJECTED, // คำขอเก่าเท่านั้น (ยังให้เห็นใน "ทั้งหมด") — ไม่มีการ์ด/ตัวกรองแยก
 ];
 
 // ผู้ยื่นแก้ไขและยื่นใหม่ได้
@@ -158,22 +160,12 @@ const ACTION = {
     commentLabel: "สิ่งที่ต้องแก้ไข",
     confirmButton: "ยืนยันส่งกลับ",
   },
-  REJECT: {
-    key: "REJECT",
-    label: "ไม่อนุมัติ",
-    tone: "red",
-    requireComment: true,
-    confirmTitle: "ยืนยันการไม่อนุมัติ",
-    confirmText:
-      "คำขอจะสิ้นสุดและผู้ยื่นแก้ไขไม่ได้ หากต้องการให้แก้ไข ให้เลือก “ส่งกลับแก้ไข” แทน",
-    commentLabel: "เหตุผลที่ไม่อนุมัติ",
-    confirmButton: "ยืนยันไม่อนุมัติ",
-  },
 };
 
 /*
- * คำขอที่ "รอตรวจสอบ" (Submitted) ผู้มีสิทธิ์ตรวจสอบ/อนุมัติทำได้ 3 อย่าง:
- *   ตรวจสอบแล้วอนุมัติ / ส่งกลับแก้ไข / ไม่อนุมัติ
+ * คำขอที่ "รอตรวจสอบ" (Submitted) ผู้มีสิทธิ์ตรวจสอบ/อนุมัติทำได้ 2 อย่าง:
+ *   ตรวจสอบแล้วอนุมัติ / ส่งกลับแก้ไข
+ * ไม่มี "ไม่อนุมัติ" — เจ้าหน้าที่ยืนยันว่าไม่มีการปฏิเสธ มีแค่ส่งกลับให้แก้ (เซ็นขาด/เกิน/เซ็นวันหยุด ฯลฯ)
  * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
@@ -195,7 +187,7 @@ export function getAllowedActions(claim, user) {
   }
 
   return {
-    actions: [ACTION.APPROVE, ACTION.RETURN, ACTION.REJECT],
+    actions: [ACTION.APPROVE, ACTION.RETURN],
     blockedReason: "",
   };
 }

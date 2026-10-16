@@ -23,7 +23,6 @@ const SUMMARY = [
   STATUS.SUBMITTED,
   STATUS.RETURNED,
   STATUS.APPROVED,
-  STATUS.REJECTED,
 ];
 
 function formatDate(value) {
