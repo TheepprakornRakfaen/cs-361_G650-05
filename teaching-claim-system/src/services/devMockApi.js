@@ -10,38 +10,129 @@ const iso = (offsetDays) => new Date(now + offsetDays * DAY).toISOString();
 const dateOnly = (offsetDays) => iso(offsetDays).slice(0, 10);
 
 const TERMS = [
-  { id: 1, year: 2568, semester: 2, start_date: "2026-01-12", end_date: "2026-05-15" },
-  { id: 2, year: 2568, semester: 3, start_date: "2026-06-01", end_date: "2026-07-31" },
-  { id: 3, year: 2569, semester: 1, start_date: "2026-08-10", end_date: "2026-12-11" },
+  {
+    id: 1,
+    year: 2568,
+    semester: 2,
+    start_date: "2026-01-12",
+    end_date: "2026-05-15",
+  },
+  {
+    id: 2,
+    year: 2568,
+    semester: 3,
+    start_date: "2026-06-01",
+    end_date: "2026-07-31",
+  },
+  {
+    id: 3,
+    year: 2569,
+    semester: 1,
+    start_date: "2026-08-10",
+    end_date: "2026-12-11",
+  },
 ];
 
 const PERIODS = [
-  { id: 1, term_id: 3, month: 9, status: 0, open_at: iso(-40), close_at: iso(-30) },
-  { id: 2, term_id: 3, month: 10, status: 1, open_at: iso(-5), close_at: iso(5) },
-  { id: 3, term_id: 3, month: 11, status: 0, open_at: iso(15), close_at: iso(25) },
+  {
+    id: 1,
+    term_id: 3,
+    month: 9,
+    status: 0,
+    open_at: iso(-40),
+    close_at: iso(-30),
+  },
+  {
+    id: 2,
+    term_id: 3,
+    month: 10,
+    status: 1,
+    open_at: iso(-5),
+    close_at: iso(5),
+  },
+  {
+    id: 3,
+    term_id: 3,
+    month: 11,
+    status: 0,
+    open_at: iso(15),
+    close_at: iso(25),
+  },
 ];
 
 const COURSES = [
-  { section_id: 1, course_code: "CS341", course_name_th: "วิศวกรรมซอฟต์แวร์", section_no: "650001", role: "INSTRUCTOR", hour: 12, max_hour: 45 },
-  { section_id: 3, course_code: "CS361", course_name_th: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์", section_no: "650001", role: "INSTRUCTOR", hour: 15, max_hour: 45 },
-  { section_id: 4, course_code: "CS213", course_name_th: "โครงสร้างข้อมูล", section_no: "650001", role: "INSTRUCTOR", hour: 6, max_hour: 45 },
+  {
+    section_id: 1,
+    course_code: "CS341",
+    course_name_th: "วิศวกรรมซอฟต์แวร์",
+    section_no: "650001",
+    role: "INSTRUCTOR",
+    hour: 12,
+    max_hour: 45,
+  },
+  {
+    section_id: 3,
+    course_code: "CS361",
+    course_name_th: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์",
+    section_no: "650001",
+    role: "INSTRUCTOR",
+    hour: 15,
+    max_hour: 45,
+  },
+  {
+    section_id: 4,
+    course_code: "CS213",
+    course_name_th: "โครงสร้างข้อมูล",
+    section_no: "650001",
+    role: "INSTRUCTOR",
+    hour: 6,
+    max_hour: 45,
+  },
 ];
 
 const PEOPLE = [
-  { sub: "dev-teacher", name: "อ.ทดลอง ระบบ", email: "teacher@dev.local", role: "TEACHER" },
-  { sub: "t-02", name: "อ.สมหญิง ตั้งใจสอน", email: "somying@dev.local", role: "TEACHER" },
-  { sub: "t-03", name: "อ.วิชัย รักเรียน", email: "wichai@dev.local", role: "TEACHER" },
-  { sub: "ta-01", name: "นายภูมิ ช่วยสอน", email: "phum@dev.local", role: "TA" },
+  {
+    sub: "dev-teacher",
+    name: "อ.ทดลอง ระบบ",
+    email: "teacher@dev.local",
+    role: "TEACHER",
+  },
+  {
+    sub: "t-02",
+    name: "อ.สมหญิง ตั้งใจสอน",
+    email: "somying@dev.local",
+    role: "TEACHER",
+  },
+  {
+    sub: "t-03",
+    name: "อ.วิชัย รักเรียน",
+    email: "wichai@dev.local",
+    role: "TEACHER",
+  },
+  {
+    sub: "ta-01",
+    name: "นายภูมิ ช่วยสอน",
+    email: "phum@dev.local",
+    role: "TA",
+  },
 ];
 
-const STATUSES = ["SUBMITTED", "SUBMITTED", "SUBMITTED", "RETURNED", "APPROVED", "APPROVED", "DRAFT"];
+const STATUSES = [
+  "SUBMITTED",
+  "SUBMITTED",
+  "SUBMITTED",
+  "RETURNED",
+  "APPROVED",
+  "APPROVED",
+  "DRAFT",
+];
 
 // UUID v4 แบบสุ่ม (รหัสคำขอใช้ 4 ตัวแรก จึงต้องไม่ซ้ำกัน)
 const uuid = () =>
   crypto.randomUUID
     ? crypto.randomUUID()
     : "xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx".replace(/x/g, () =>
-        Math.floor(Math.random() * 16).toString(16)
+        Math.floor(Math.random() * 16).toString(16),
       );
 
 let claims = Array.from({ length: 18 }, (_, i) => {
@@ -66,7 +157,8 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_name: person.name,
     claimant_email: person.email,
     claimant_role: person.role,
-    decision_comment: status === "RETURNED" ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่" : null,
+    decision_comment:
+      status === "RETURNED" ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่" : null,
     // ยื่นห่างกันวันละรายการ (ย้อนหลัง ~3 สัปดาห์) → มีทั้งที่ยังทันและเกินกำหนด 10 วันทำการ
     created_at: iso(-22 + i),
     submitted_at: status === "DRAFT" ? null : iso(-21 + i),
@@ -82,19 +174,57 @@ let logs = claims
   .filter((c) => c.status !== "DRAFT")
   .flatMap((c, i) => {
     const entries = [
-      { action: "SUBMIT", from_status: "Draft", to_status: "Submitted", actor_name: c.claimant_name, actor_role: c.claimant_role, created_at: c.submitted_at },
+      {
+        action: "SUBMIT",
+        from_status: "Draft",
+        to_status: "Submitted",
+        actor_name: c.claimant_name,
+        actor_role: c.claimant_role,
+        created_at: c.submitted_at,
+      },
     ];
     if (c.status === "APPROVED") {
-      entries.push({ action: "APPROVE", from_status: "Submitted", to_status: "Approved", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", created_at: afterSubmit(c, 2) });
+      entries.push({
+        action: "APPROVE",
+        from_status: "Submitted",
+        to_status: "Approved",
+        actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)",
+        actor_role: "REVIEWER",
+        created_at: afterSubmit(c, 2),
+      });
     }
     if (c.status === "RETURNED") {
-      entries.push({ action: "RETURN", from_status: "Submitted", to_status: "Returned", actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", actor_role: "REVIEWER", comment: c.decision_comment, created_at: afterSubmit(c, 3) });
+      entries.push({
+        action: "RETURN",
+        from_status: "Submitted",
+        to_status: "Returned",
+        actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)",
+        actor_role: "REVIEWER",
+        comment: c.decision_comment,
+        created_at: afterSubmit(c, 3),
+      });
     }
-    return entries.map((e, j) => ({ id: `log-${i}-${j}`, claim_id: c.id, claim_code: c.course_code, comment: null, ...e }));
+    return entries.map((e, j) => ({
+      id: `log-${i}-${j}`,
+      claim_id: c.id,
+      claim_code: c.course_code,
+      comment: null,
+      ...e,
+    }));
   });
 
-const ACTION_TO_STATUS = { APPROVE: "APPROVED", RETURN: "RETURNED", REJECT: "REJECTED" };
-const STATUS_LABEL = { SUBMITTED: "Submitted", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected", DRAFT: "Draft" };
+const ACTION_TO_STATUS = {
+  APPROVE: "APPROVED",
+  RETURN: "RETURNED",
+  REJECT: "REJECTED",
+};
+const STATUS_LABEL = {
+  SUBMITTED: "Submitted",
+  APPROVED: "Approved",
+  RETURNED: "Returned",
+  REJECTED: "Rejected",
+  DRAFT: "Draft",
+};
 
 function addLog(claim, action, from, to, comment) {
   const user = getDevUser();
@@ -128,7 +258,7 @@ const SAMPLE_EVIDENCE_URL = `data:image/svg+xml;charset=utf-8,${encodeURICompone
     <line x1="340" y1="290" x2="480" y2="290" stroke="#64748B"/>
     <text x="190" y="315" font-size="14" text-anchor="middle" fill="#64748B" font-family="sans-serif">ผู้สอน</text>
     <text x="410" y="315" font-size="14" text-anchor="middle" fill="#64748B" font-family="sans-serif">หัวหน้าภาค</text>
-  </svg>`
+  </svg>`,
 )}`;
 
 function error(status, message) {
@@ -142,7 +272,10 @@ export async function devMockRequest(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const url = new URL(path, "http://dev.local");
   const parts = url.pathname.split("/").filter(Boolean); // ["api", "claims", id, "actions"]
-  const body = typeof options.body === "string" ? JSON.parse(options.body || "{}") : options.body || {};
+  const body =
+    typeof options.body === "string"
+      ? JSON.parse(options.body || "{}")
+      : options.body || {};
   const user = getDevUser();
 
   // หน่วงนิดหน่อยให้เห็นสถานะกำลังโหลดเหมือนของจริง
@@ -161,7 +294,11 @@ export async function devMockRequest(path, options = {}) {
 
     case "period": {
       const termId = url.searchParams.get("term_id");
-      return { periods: clone(PERIODS.filter((p) => !termId || String(p.term_id) === termId)) };
+      return {
+        periods: clone(
+          PERIODS.filter((p) => !termId || String(p.term_id) === termId),
+        ),
+      };
     }
 
     case "courses": {
@@ -177,13 +314,15 @@ export async function devMockRequest(path, options = {}) {
       const to = url.searchParams.get("to") || "";
 
       const filtered = logs.filter((l) => {
-        const ownerEmail = claims.find((c) => c.id === l.claim_id)?.claimant_email || "";
+        const ownerEmail =
+          claims.find((c) => c.id === l.claim_id)?.claimant_email || "";
         const at = String(l.created_at);
 
         return (
           (!actor ||
             String(l.actor_name).toLowerCase().includes(actor) ||
-            (l.actor_name === claims.find((c) => c.id === l.claim_id)?.claimant_name &&
+            (l.actor_name ===
+              claims.find((c) => c.id === l.claim_id)?.claimant_name &&
               ownerEmail.toLowerCase().includes(actor))) &&
           (!action || l.action === action) &&
           (!from || at.slice(0, 10) >= from) &&
@@ -218,7 +357,9 @@ export async function devMockRequest(path, options = {}) {
             claimant_name: user?.name,
             claimant_email: user?.email,
             claimant_role: user?.roleKey,
-            course_code: COURSES.find((c) => c.section_id === Number(body.section_id))?.course_code || "",
+            course_code:
+              COURSES.find((c) => c.section_id === Number(body.section_id))
+                ?.course_code || "",
             created_at: new Date().toISOString(),
             submitted_at: new Date().toISOString(),
           };
@@ -238,7 +379,8 @@ export async function devMockRequest(path, options = {}) {
       if (sub === "actions" && method === "POST") {
         const next = ACTION_TO_STATUS[body.action];
         if (!next) throw error(400, "action ไม่ถูกต้อง");
-        if (claim.status !== "SUBMITTED") throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
+        if (claim.status !== "SUBMITTED")
+          throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
 
         addLog(claim, body.action, claim.status, next, body.comment);
         claim.status = next;
@@ -248,9 +390,35 @@ export async function devMockRequest(path, options = {}) {
         return { claim: clone(claim) };
       }
 
-      if (sub === "resubmit") {
-        addLog(claim, "RESUBMIT", claim.status, "SUBMITTED");
-        Object.assign(claim, body, { status: "SUBMITTED", updated_at: new Date().toISOString() });
+      // แก้ไขข้อมูลคำร้องที่ถูกส่งกลับ โดยยังคงสถานะ RETURNED
+      if (!sub && method === "PATCH") {
+        if (claim.status !== "RETURNED") {
+          throw error(409, "แก้ไขได้เฉพาะคำร้องที่ถูกส่งกลับ");
+        }
+
+        Object.assign(claim, body, {
+          id: claim.id,
+          status: "RETURNED",
+          updated_at: new Date().toISOString(),
+        });
+
+        return { claim: clone(claim) };
+      }
+
+      // ยื่นคำร้องเดิมอีกครั้งหลังแก้ไข
+      if (sub === "submit" && method === "POST") {
+        if (claim.status !== "RETURNED") {
+          throw error(409, "ยื่นซ้ำได้เฉพาะคำร้องที่ถูกส่งกลับ");
+        }
+
+        addLog(claim, "RESUBMIT", "RETURNED", "SUBMITTED");
+
+        Object.assign(claim, {
+          status: "SUBMITTED",
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
         return { claim: clone(claim) };
       }
 
@@ -275,7 +443,11 @@ export async function devMockRequest(path, options = {}) {
                     download_url: SAMPLE_EVIDENCE_URL,
                   },
                 ];
-          return { evidence, count: evidence.length, hasEvidence: evidence.length > 0 };
+          return {
+            evidence,
+            count: evidence.length,
+            hasEvidence: evidence.length > 0,
+          };
         }
         return { ok: true };
       }

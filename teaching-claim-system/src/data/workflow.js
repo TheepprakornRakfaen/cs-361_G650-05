@@ -21,14 +21,20 @@ export const STATUS = {
 };
 
 /*
- * รหัสตัวเลขที่ backend ใช้อยู่: 0 แบบร่าง, 1 ยื่นแล้ว, 2 ยกเลิก
- * TODO(V3): เติมรหัสของ Reviewed / Approved / Rejected / Returned ให้ตรงกับ schema (#2)
- * รหัสที่ไม่รู้จักจะเป็น Unknown (แสดง "ไม่ทราบสถานะ") ไม่ถูกมองเป็นแบบร่างแบบเงียบ ๆ
+ * รหัสตัวเลขที่ backend ใช้:
+ * 0 = Draft, 1 = Submitted, 2 = Cancelled
+ * 3 = Returned, 4 = Approved
+ *
+ * ไม่มีสถานะ Reviewed หรือ Pending Approval แยก
+ * และไม่มี Reject Action ใน Workflow ใหม่
+ * รหัสที่ไม่รู้จักจะเป็น Unknown
  */
 const NUMERIC_STATUS = {
   0: STATUS.DRAFT,
   1: STATUS.SUBMITTED,
   2: STATUS.CANCELLED,
+  3: STATUS.RETURNED,
+  4: STATUS.APPROVED,
 };
 
 /*
@@ -58,7 +64,10 @@ export function normalizeStatus(raw) {
     return NUMERIC_STATUS[Number(raw)] || STATUS.UNKNOWN;
   }
 
-  const key = String(raw).trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const key = String(raw)
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
 
   return (
     Object.values(STATUS).find((value) => value.toUpperCase() === key) ||
@@ -86,9 +95,7 @@ export const ATTACHABLE_STATUSES = [STATUS.SUBMITTED, STATUS.RETURNED];
 
 export function isOwnClaim(claim, user) {
   return Boolean(
-    claim?.ownerSub &&
-      user?.cognitoSub &&
-      claim.ownerSub === user.cognitoSub
+    claim?.ownerSub && user?.cognitoSub && claim.ownerSub === user.cognitoSub,
   );
 }
 
@@ -145,8 +152,7 @@ const ACTION = {
     tone: "green",
     requireComment: false,
     confirmTitle: "ยืนยันการตรวจสอบและอนุมัติ",
-    confirmText:
-      "เมื่อยืนยัน คำขอจะถูกอนุมัติทันที และแก้ไขสถานะไม่ได้อีก",
+    confirmText: "เมื่อยืนยัน คำขอจะถูกอนุมัติทันที และแก้ไขสถานะไม่ได้อีก",
     commentLabel: "หมายเหตุ (ไม่บังคับ)",
     confirmButton: "ยืนยันอนุมัติ",
   },
@@ -169,12 +175,18 @@ const ACTION = {
  * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
+
 export function getAllowedActions(claim, user) {
   const none = { actions: [], blockedReason: "" };
 
-  if (!claim || claim.status !== STATUS.SUBMITTED) return none;
+  if (!claim || claim.status !== STATUS.SUBMITTED) {
+    return none;
+  }
 
-  if (!(can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE))) {
+  const canReview = can(user, P.CLAIM_REVIEW);
+  const canApprove = can(user, P.CLAIM_APPROVE);
+
+  if (!canReview && !canApprove) {
     return none;
   }
 
@@ -186,8 +198,20 @@ export function getAllowedActions(claim, user) {
     };
   }
 
+  const actions = [];
+
+  // Reviewer ส่งกลับแก้ไขได้
+  if (canReview) {
+    actions.push(ACTION.RETURN);
+  }
+
+  // Approver อนุมัติได้
+  if (canApprove) {
+    actions.push(ACTION.APPROVE);
+  }
+
   return {
-    actions: [ACTION.APPROVE, ACTION.RETURN],
+    actions,
     blockedReason: "",
   };
 }

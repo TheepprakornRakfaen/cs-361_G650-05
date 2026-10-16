@@ -2,20 +2,12 @@ import { getIdToken } from "./auth";
 import { getDevUser } from "./devAuth";
 import { devMockRequest } from "./devMockApi";
 
-const API_URL =
-  import.meta.env.VITE_API_URL?.replace(
-    /\/$/,
-    ""
-  );
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
 
-export const AUTH_EXPIRED_EVENT =
-  "teaching-claim:auth-expired";
+export const AUTH_EXPIRED_EVENT = "teaching-claim:auth-expired";
 
-async function parseResponse(
-  response
-) {
-  const text =
-    await response.text();
+async function parseResponse(response) {
+  const text = await response.text();
 
   if (!text) {
     return null;
@@ -28,34 +20,22 @@ async function parseResponse(
   }
 }
 
-async function apiRequest(
-  path,
-  options = {}
-) {
+async function apiRequest(path, options = {}) {
   // โหมดทดลองตอน dev → ใช้ข้อมูลจำลอง ไม่เรียก backend จริง (ดู devAuth.js)
   if (getDevUser()) {
     return devMockRequest(path, options);
   }
 
   if (!API_URL) {
-    throw new Error(
-      "VITE_API_URL is not configured"
-    );
+    throw new Error("VITE_API_URL is not configured");
   }
 
-  const {
-    headers = {},
-    body,
-    ...fetchOptions
-  } = options;
+  const { headers = {}, body, ...fetchOptions } = options;
 
-  const token =
-    await getIdToken();
+  const token = await getIdToken();
 
   if (!token) {
-    throw new Error(
-      "NO_AUTH_TOKEN"
-    );
+    throw new Error("NO_AUTH_TOKEN");
   }
 
   const finalHeaders = {
@@ -71,57 +51,36 @@ async function apiRequest(
     typeof body !== "string" &&
     !(body instanceof FormData)
   ) {
-    finalHeaders[
-      "Content-Type"
-    ] = "application/json";
+    finalHeaders["Content-Type"] = "application/json";
 
-    requestBody =
-      JSON.stringify(body);
+    requestBody = JSON.stringify(body);
   }
 
   // log JSON ที่ส่งไป /api/claims ทุกครั้ง เพื่อตรวจ contract กับ Lambda
   // log เฉพาะตอนพัฒนา — response มีข้อมูลส่วนบุคคล/การเงิน ห้ามค้างใน console ของ production
-  const isClaimsRequest =
-    import.meta.env.DEV &&
-    path.startsWith("/api/claims");
+  const isClaimsRequest = import.meta.env.DEV && path.startsWith("/api/claims");
 
-  const method =
-    fetchOptions.method || "GET";
+  const method = fetchOptions.method || "GET";
 
   if (isClaimsRequest) {
-    console.log(
-      `[API] ${method} ${path} body:`,
-      requestBody ?? "(no body)"
-    );
+    console.log(`[API] ${method} ${path} body:`, requestBody ?? "(no body)");
   }
 
-  const response =
-    await fetch(
-      `${API_URL}${path}`,
-      {
-        ...fetchOptions,
-        headers:
-          finalHeaders,
+  const response = await fetch(`${API_URL}${path}`, {
+    ...fetchOptions,
+    headers: finalHeaders,
 
-        ...(body !== undefined
-          ? {
-              body:
-                requestBody,
-            }
-          : {}),
-      }
-    );
+    ...(body !== undefined
+      ? {
+          body: requestBody,
+        }
+      : {}),
+  });
 
-  const data =
-    await parseResponse(
-      response
-    );
+  const data = await parseResponse(response);
 
   if (isClaimsRequest) {
-    console.log(
-      `[API] ${method} ${path} → ${response.status}`,
-      data
-    );
+    console.log(`[API] ${method} ${path} → ${response.status}`, data);
   }
 
   /*
@@ -129,27 +88,20 @@ async function apiRequest(
    * (403 = ล็อกอินอยู่แต่ไม่มีสิทธิ์ → ให้หน้านั้นแสดงข้อความเอง ไม่ต้องออกจากระบบ)
    */
   if (response.status === 401) {
-    window.dispatchEvent(
-      new CustomEvent(
-        AUTH_EXPIRED_EVENT
-      )
-    );
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
   }
 
   if (!response.ok) {
-    const error =
-      new Error(
-        data?.message ||
+    const error = new Error(
+      data?.message ||
         (response.status === 403
           ? "คุณไม่มีสิทธิ์ดำเนินการนี้"
-          : `API error ${response.status}`)
-      );
+          : `API error ${response.status}`),
+    );
 
-    error.status =
-      response.status;
+    error.status = response.status;
 
-    error.data =
-      data;
+    error.data = data;
 
     throw error;
   }
@@ -164,12 +116,9 @@ async function apiRequest(
  */
 
 export function syncCurrentUser() {
-  return apiRequest(
-    "/api/auth/me",
-    {
-      method: "POST",
-    }
-  );
+  return apiRequest("/api/auth/me", {
+    method: "POST",
+  });
 }
 
 /*
@@ -182,90 +131,52 @@ export function syncCurrentUser() {
  * scope "mine"   = คำขอของตัวเอง (ค่าเริ่มต้น)
  * scope "review" = คิวของเจ้าหน้าที่/ผู้อนุมัติ/ผู้ดูแล — backend ต้องตรวจสิทธิ์เอง
  */
-export function getClaims(
-  scope
-) {
-  const query =
-    scope
-      ? `?scope=${encodeURIComponent(
-          scope
-        )}`
-      : "";
+export function getClaims(scope) {
+  const query = scope ? `?scope=${encodeURIComponent(scope)}` : "";
 
-  return apiRequest(
-    `/api/claims${query}`,
-    {
-      method: "GET",
-    }
-  );
+  return apiRequest(`/api/claims${query}`, {
+    method: "GET",
+  });
 }
 
-export function createClaim(
-  payload
-) {
-  return apiRequest(
-    "/api/claims",
-    {
-      method: "POST",
-      body: payload,
-    }
-  );
+export function createClaim(payload) {
+  return apiRequest("/api/claims", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export function deleteClaim(claimId) {
-  return apiRequest(
-    "/api/claims",
-    {
-      method: "DELETE",
-      body: {
-        id: claimId,
-      },
-    }
-  );
+  return apiRequest("/api/claims", {
+    method: "DELETE",
+    body: {
+      id: claimId,
+    },
+  });
 }
 
-export function registerClaimEvidence(
-  claimId,
-  evidence
-) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(
-      claimId
-    )}/evidence`,
-    {
-      method: "POST",
+export function registerClaimEvidence(claimId, evidence) {
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/evidence`, {
+    method: "POST",
 
-      body: {
-        evidence_id:
-          evidence.evidenceId,
+    body: {
+      evidence_id: evidence.evidenceId,
 
-        object_key:
-          evidence.objectKey,
+      object_key: evidence.objectKey,
 
-        file_name:
-          evidence.fileName,
+      file_name: evidence.fileName,
 
-        content_type:
-          evidence.contentType,
+      content_type: evidence.contentType,
 
-        file_size:
-          evidence.fileSize,
-      },
-    }
-  );
+      file_size: evidence.fileSize,
+    },
+  });
 }
 
-export function getClaimEvidence(
-  claimId
-) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(
-      claimId
-    )}/evidence`,
-    {
-      method: "GET",
-    }
-  );
+export function getClaimEvidence(claimId) {
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/evidence`, {
+    method: "GET",
+  });
 }
 
 /*
@@ -275,12 +186,9 @@ export function getClaimEvidence(
  */
 
 export function getTerms() {
-  return apiRequest(
-    "/api/term",
-    {
-      method: "GET",
-    }
-  );
+  return apiRequest("/api/term", {
+    method: "GET",
+  });
 }
 
 /*
@@ -289,24 +197,15 @@ export function getTerms() {
  * =====================
  */
 
-export function getPeriods(
-  termId
-) {
+export function getPeriods(termId) {
   const query =
-    termId !== undefined &&
-    termId !== null &&
-    termId !== ""
-      ? `?term_id=${encodeURIComponent(
-          termId
-        )}`
+    termId !== undefined && termId !== null && termId !== ""
+      ? `?term_id=${encodeURIComponent(termId)}`
       : "";
 
-  return apiRequest(
-    `/api/period${query}`,
-    {
-      method: "GET",
-    }
-  );
+  return apiRequest(`/api/period${query}`, {
+    method: "GET",
+  });
 }
 
 /*
@@ -315,24 +214,15 @@ export function getPeriods(
  * =====================
  */
 
-export function getCourses(
-  termId
-) {
+export function getCourses(termId) {
   const query =
-    termId !== undefined &&
-    termId !== null &&
-    termId !== ""
-      ? `?term_id=${encodeURIComponent(
-          termId
-        )}`
+    termId !== undefined && termId !== null && termId !== ""
+      ? `?term_id=${encodeURIComponent(termId)}`
       : "";
 
-  return apiRequest(
-    `/api/courses${query}`,
-    {
-      method: "GET",
-    }
-  );
+  return apiRequest(`/api/courses${query}`, {
+    method: "GET",
+  });
 }
 
 /*
@@ -349,45 +239,34 @@ export function getCourses(
  * ⚠️ backend ต้องรับ APPROVE จากสถานะ Submitted ได้โดยตรง
  * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
  */
-export function submitClaimAction(
-  claimId,
-  action,
-  comment
-) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(
-      claimId
-    )}/actions`,
-    {
-      method: "POST",
+export function submitClaimAction(claimId, action, comment) {
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/actions`, {
+    method: "POST",
 
-      body: {
-        action,
+    body: {
+      action,
 
-        comment:
-          comment?.trim() || null,
-      },
-    }
-  );
+      comment: comment?.trim() || null,
+    },
+  });
 }
 
 /*
  * ผู้ยื่นแก้ไขคำขอที่ถูกส่งกลับ แล้วยื่นใหม่
- * ใช้คำขอเดิม (ไม่สร้างใหม่) เพื่อให้ประวัติต่อเนื่อง
+ * 1. PATCH เพื่อบันทึกข้อมูลที่แก้ไข
+ * 2. POST /submit เพื่อยื่นคำร้องเดิมอีกครั้ง
  */
-export function resubmitClaim(
-  claimId,
-  payload
-) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(
-      claimId
-    )}/resubmit`,
-    {
-      method: "PUT",
-      body: payload,
-    }
-  );
+export async function resubmitClaim(claimId, payload) {
+  const claimPath = `/api/claims/${encodeURIComponent(claimId)}`;
+
+  await apiRequest(claimPath, {
+    method: "PATCH",
+    body: payload,
+  });
+
+  return apiRequest(`${claimPath}/submit`, {
+    method: "POST",
+  });
 }
 
 /*
@@ -396,35 +275,20 @@ export function resubmitClaim(
  * คืน { logs: [{ id, claim_id, claim_code, action, actor_name, actor_role,
  *               from_status, to_status, comment, created_at }], next_cursor }
  */
-export function getAuditLogs(
-  filters = {}
-) {
-  const params =
-    new URLSearchParams();
+export function getAuditLogs(filters = {}) {
+  const params = new URLSearchParams();
 
-  Object.entries(filters).forEach(
-    ([key, value]) => {
-      if (
-        value !== undefined &&
-        value !== null &&
-        value !== ""
-      ) {
-        params.set(key, value);
-      }
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, value);
     }
-  );
+  });
 
-  const query =
-    params.toString();
+  const query = params.toString();
 
-  return apiRequest(
-    `/api/audit-logs${
-      query ? `?${query}` : ""
-    }`,
-    {
-      method: "GET",
-    }
-  );
+  return apiRequest(`/api/audit-logs${query ? `?${query}` : ""}`, {
+    method: "GET",
+  });
 }
 
 /*
@@ -432,15 +296,8 @@ export function getAuditLogs(
  * คืน { history: [{ id, action, actor_name, actor_role, from_status,
  *                   to_status, comment, created_at }] }
  */
-export function getClaimHistory(
-  claimId
-) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(
-      claimId
-    )}/history`,
-    {
-      method: "GET",
-    }
-  );
+export function getClaimHistory(claimId) {
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/history`, {
+    method: "GET",
+  });
 }
