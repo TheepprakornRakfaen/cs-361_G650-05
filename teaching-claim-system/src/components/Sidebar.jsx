@@ -11,6 +11,7 @@ import {
   GraduationCap,
   ClipboardCheck,
   History,
+  Gauge,
   X,
 } from "lucide-react";
 import { C } from "../theme";
@@ -24,8 +25,9 @@ export const NAV_ITEMS = [
   { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList, requiresLogin: true },
   { id: "create", label: "สร้างคำขอ", icon: FilePlus2, requiresLogin: true },
   // [V3] เห็นเฉพาะผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ (ดู VIEW_PERMISSION ใน data/roles.js)
-  { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true },
-  { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true },
+  { id: "admin", label: "ภาพรวมระบบ", icon: Gauge, requiresLogin: true, staffOnly: true },
+  { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true, staffOnly: true },
+  { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true, staffOnly: true },
 ];
 
 export default function Sidebar({
@@ -139,7 +141,7 @@ export default function Sidebar({
             {NAV_ITEMS.filter(
               (item) =>
                 // ยังไม่ล็อกอินเห็นเมนูทั่วไป (มีแม่กุญแจ) แต่ไม่เห็นเมนูเฉพาะบทบาท
-                item.id !== "review" && item.id !== "auditlog"
+                !item.staffOnly
                   ? !isLoggedIn || canAccessView(user, item.id)
                   : isLoggedIn && canAccessView(user, item.id)
             ).map((item) => {

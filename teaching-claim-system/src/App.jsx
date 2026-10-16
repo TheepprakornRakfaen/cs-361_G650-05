@@ -20,6 +20,7 @@ import { applyProfileEdits } from "./data/profile";
 import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
 import ReviewQueue from "./pages/ReviewQueue";
+import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
@@ -85,6 +86,7 @@ const SUBTITLE_MAP = {
   profile: "ข้อมูลส่วนตัว",
   contact: "ติดต่อเรา",
   notifications: "การแจ้งเตือน",
+  admin: "ภาพรวมระบบ",
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
 };
@@ -102,6 +104,7 @@ const PROTECTED_VIEWS = new Set([
   "detail",
   "profile",
   "notifications",
+  "admin",
   "review",
   "auditlog",
 ]);
@@ -115,6 +118,14 @@ export default function App() {
    */
   const [myClaimsFilter, setMyClaimsFilter] = useState("All");
 
+  // ตัวกรองสถานะตอนเปิดคิวตรวจสอบจากหน้าภาพรวมระบบ (null = ค่าเริ่มต้นของหน้า)
+  const [reviewFilter, setReviewFilter] = useState(null);
+
+  const openReview = (status = null) => {
+    setReviewFilter(status);
+    setView("review");
+  };
+
   const openMyClaims = (status = "All") => {
     setMyClaimsFilter(status);
     setView("myclaims");
@@ -124,6 +135,11 @@ export default function App() {
   useEffect(() => {
     if (view !== "myclaims") {
       setMyClaimsFilter("All");
+    }
+
+    // ออกจากคิวแล้วกลับเข้าทางเมนู → ใช้ตัวกรองเริ่มต้น (ยกเว้นไปดูรายละเอียดแล้วกดย้อนกลับ)
+    if (view !== "review" && view !== "detail") {
+      setReviewFilter(null);
     }
   }, [view]);
 
@@ -1772,9 +1788,24 @@ export default function App() {
           />
         );
 
+      case "admin":
+        return (
+          <AdminOverview
+            user={currentUser}
+            claims={reviewClaims.map(decorateClaim)}
+            termLabel={currentTermLabel}
+            loading={reviewLoading}
+            goReview={openReview}
+            goDetail={goReviewDetail}
+            goAuditLog={() => setView("auditlog")}
+          />
+        );
+
       case "review":
         return (
           <ReviewQueue
+            key={reviewFilter || "default"}
+            initialStatus={reviewFilter}
             user={currentUser}
             claims={reviewClaims.map(decorateClaim)}
             loading={reviewLoading}
@@ -1785,7 +1816,12 @@ export default function App() {
         );
 
       case "auditlog":
-        return <AuditLog />;
+        return (
+          <AuditLog
+            claims={reviewClaims.map(decorateClaim)}
+            goDetail={goReviewDetail}
+          />
+        );
 
       case "create":
       case "rounds":

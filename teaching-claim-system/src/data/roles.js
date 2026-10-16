@@ -153,6 +153,7 @@ export const VIEW_PERMISSION = {
   create: P.CLAIM_CREATE,
   rounds: P.CLAIM_CREATE,
   "claim-create": P.CLAIM_CREATE,
+  admin: P.CLAIM_VIEW_ALL,
   review: P.CLAIM_VIEW_ALL,
   auditlog: P.AUDIT_VIEW_ALL,
 };
@@ -166,7 +167,7 @@ export function canAccessView(user, view) {
 // หน้าแรกหลังล็อกอิน ตามบทบาท
 export function getLandingView(user) {
   if (canAccessQueue(user) && !isClaimant(user)) {
-    return "review";
+    return "admin";
   }
 
   return "home";
