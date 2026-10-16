@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -15,6 +16,7 @@ import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
+import Pagination from "../components/Pagination";
 import { STATUS_STYLE } from "../theme";
 import { DELETABLE_STATUSES } from "../data/workflow";
 
@@ -166,6 +168,28 @@ export default function MyClaims({
     query,
     statusFilter,
   ]);
+
+  // แบ่งหน้าละ 10 รายการ
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+
+  // เปลี่ยนตัวกรอง/คำค้นหา → กลับไปหน้าแรก
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter, termFilter, courseFilter]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filtered.length / PAGE_SIZE)
+  );
+
+  // ลบรายการจนหน้าปัจจุบันว่าง → ถอยไปหน้าสุดท้ายที่มีข้อมูล
+  const currentPage = Math.min(page, pageCount);
+
+  const pageItems = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const STATUS_KEYS = [
     "Draft",
@@ -367,7 +391,7 @@ export default function MyClaims({
             </thead>
 
             <tbody>
-              {filtered.map((claim) => (
+              {pageItems.map((claim) => (
                 <tr
                   key={claim.id}
                   onClick={() =>
@@ -485,6 +509,13 @@ export default function MyClaims({
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={filtered.length}
+          onChange={setPage}
+        />
       </SectionCard>
     </div>
   );
