@@ -244,13 +244,14 @@ export function normalizeClaim(
         ? raw.allowed_actions
         : null,
 
-    // [V3] ผู้ตรวจสอบกด "ตรวจสอบแล้ว ส่งต่อ" (สถานะยังเป็น Submitted)
+    // ผู้ตรวจสอบกด /pass (สถานะ 2) — reviewed_by เป็น UUID จึงใช้แค่ชื่อที่ backend join มา
     reviewedAt: raw.reviewed_at || raw.review_passed_at || null,
-    reviewedBy: raw.reviewed_by_name || raw.reviewed_by || "",
+    reviewedBy: raw.reviewed_by_name || "",
 
     // [V3] เหตุผลล่าสุดจากผู้ตรวจ/ผู้อนุมัติ (ส่งกลับ / ไม่อนุมัติ)
     decisionComment:
       raw.decision_comment ||
+      raw.return_comment ||
       raw.last_comment ||
       "",
 

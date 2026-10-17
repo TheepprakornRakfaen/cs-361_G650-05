@@ -10,50 +10,40 @@ import { PERMISSION as P, can } from "./roles";
 
 export const STATUS = {
   DRAFT: "Draft",
-  SUBMITTED: "Submitted", // ยื่นแล้ว รอตรวจสอบ (ตรวจสอบเสร็จแล้วอนุมัติ → Approved ทันที ไม่มีขั้น "รออนุมัติ" แยก)
-  RETURNED: "Returned", // ส่งกลับให้ผู้ยื่นแก้ไข
+  SUBMITTED: "Submitted", // ยื่นแล้ว รอผู้ตรวจสอบ
+  REVIEWED: "Reviewed", // ผู้ตรวจสอบผ่านแล้ว รอผู้อนุมัติ
   APPROVED: "Approved",
   // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา ผู้ยื่นแก้ไข/ยื่นซ้ำไม่ได้)
   REJECTED: "Rejected",
-  CANCELLED: "Cancelled",
+  RETURNED: "Returned", // ส่งคืนให้ผู้ยื่นแก้ไข
   UNKNOWN: "Unknown",
 };
 
 /*
- * รหัสตัวเลขที่ backend ใช้:
- * 0 = Draft, 1 = Submitted, 2 = Cancelled
- * 3 = Returned, 4 = Approved
- *
- * ไม่มีสถานะ Reviewed หรือ Pending Approval แยก
- * และไม่มี Reject Action ใน Workflow ใหม่
+ * รหัสตัวเลขที่ backend ใช้ (migration 011):
+ * 0 = แบบร่าง, 1 = รอตรวจ, 2 = ตรวจแล้วรออนุมัติ
+ * 3 = อนุมัติ, 4 = ไม่อนุมัติ, 5 = ส่งคืนแก้ไข
  * รหัสที่ไม่รู้จักจะเป็น Unknown
  */
 const NUMERIC_STATUS = {
   0: STATUS.DRAFT,
   1: STATUS.SUBMITTED,
-  2: STATUS.CANCELLED,
-  3: STATUS.RETURNED,
-  4: STATUS.APPROVED,
-  // TODO: สมมติรหัส 5 = Rejected — ต้องยืนยันกับ backend (ถ้าส่งเป็นข้อความ "REJECTED" ใช้ได้เลยไม่ต้องพึ่งรหัสนี้)
-  5: STATUS.REJECTED,
+  2: STATUS.REVIEWED,
+  3: STATUS.APPROVED,
+  4: STATUS.REJECTED,
+  5: STATUS.RETURNED,
 };
 
-/*
- * ไม่มีสถานะ "ตรวจสอบแล้ว / รออนุมัติ" แยกอีกต่อไป — การตรวจสอบกับการอนุมัติเป็นการกระทำเดียว
- * ถ้า backend ยังส่งค่าเก่า (REVIEWED / VERIFIED ฯลฯ) มา ให้ถือเป็น "รอตรวจสอบ"
- * เพื่อให้คำขอเก่าไม่ตกหล่นและยังอนุมัติได้
- */
+// ชื่อสถานะแบบข้อความอื่นๆ ที่ backend อาจส่งมา
 const STRING_STATUS = {
   PENDING: STATUS.SUBMITTED,
   UNDER_REVIEW: STATUS.SUBMITTED,
   IN_REVIEW: STATUS.SUBMITTED,
-  REVIEWED: STATUS.SUBMITTED,
-  VERIFIED: STATUS.SUBMITTED,
-  REVIEW_PASSED: STATUS.SUBMITTED,
-  PENDING_APPROVAL: STATUS.SUBMITTED,
+  VERIFIED: STATUS.REVIEWED,
+  REVIEW_PASSED: STATUS.REVIEWED,
+  PENDING_APPROVAL: STATUS.REVIEWED,
   REVISION_REQUESTED: STATUS.RETURNED,
   NEEDS_REVISION: STATUS.RETURNED,
-  CANCELED: STATUS.CANCELLED,
 };
 
 export function normalizeStatus(raw) {
@@ -80,10 +70,16 @@ export function normalizeStatus(raw) {
 // คิวของผู้ตรวจสอบ/อนุมัติ — แบบร่างของผู้อื่นไม่เกี่ยวข้อง
 export const QUEUE_STATUSES = [
   STATUS.SUBMITTED,
+  STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
   STATUS.REJECTED,
 ];
+
+// อยู่ระหว่างพิจารณา (รอตรวจ / รออนุมัติ) — ใช้นับวันรอ (SLA) และยอดเงินที่รอ
+export const PENDING_STATUSES = [STATUS.SUBMITTED, STATUS.REVIEWED];
+
+export const isPending = (status) => PENDING_STATUSES.includes(status);
 
 // ผู้ยื่นแก้ไขและยื่นใหม่ได้
 export const EDITABLE_STATUSES = [STATUS.DRAFT, STATUS.RETURNED];
@@ -104,26 +100,25 @@ export function isOwnClaim(claim, user) {
  * Stepper: ยื่นคำขอ → ตรวจสอบ → อนุมัติ
  * state: done | current | warning | error | pending
  * ========================= */
-// ผ่านการตรวจสอบแล้ว (ผู้ตรวจสอบกด "ส่งต่อผู้อนุมัติ") — สถานะยังเป็น Submitted ไม่มีสถานะแยก
-export const isReviewed = (claim) =>
-  Boolean(claim?.reviewedAt || claim?.reviewedBy);
+// ผ่านการตรวจสอบแล้ว (ผู้ตรวจสอบกด /pass) → สถานะ 2 รออนุมัติ
+export const isReviewed = (claim) => claim?.status === STATUS.REVIEWED;
 
-export function getWorkflowSteps(status, reviewed = false) {
+export function getWorkflowSteps(status) {
   const step = (key, label, state) => ({ key, label, state });
 
   switch (status) {
     case STATUS.SUBMITTED:
-      return reviewed
-        ? [
-            step("submit", "ยื่นคำขอแล้ว", "done"),
-            step("review", "ตรวจสอบแล้ว", "done"),
-            step("approve", "รออนุมัติ", "current"),
-          ]
-        : [
-            step("submit", "ยื่นคำขอแล้ว", "done"),
-            step("review", "รอตรวจสอบ", "current"),
-            step("approve", "อนุมัติ", "pending"),
-          ];
+      return [
+        step("submit", "ยื่นคำขอแล้ว", "done"),
+        step("review", "รอตรวจสอบ", "current"),
+        step("approve", "อนุมัติ", "pending"),
+      ];
+    case STATUS.REVIEWED:
+      return [
+        step("submit", "ยื่นคำขอแล้ว", "done"),
+        step("review", "ตรวจสอบแล้ว", "done"),
+        step("approve", "รออนุมัติ", "current"),
+      ];
     case STATUS.APPROVED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
@@ -153,10 +148,10 @@ export function getWorkflowSteps(status, reviewed = false) {
 
 /* =========================
  * Actions ของผู้ตรวจสอบ / ผู้อนุมัติ
- * key ตรงกับค่า action ที่ส่งไป POST /api/claims/{id}/actions
+ * key → path ที่ส่งไป POST /api/claims/{id}/{path} (ดู ACTION_PATH ใน services/api.js)
  * ========================= */
 const ACTION = {
-  // ผู้ตรวจสอบ: ตรวจเอกสารครบถ้วนแล้วส่งต่อผู้อนุมัติ (สถานะยังเป็น "รอตรวจสอบ" แต่ขึ้นว่าตรวจสอบแล้ว)
+  // ผู้ตรวจสอบ: ตรวจเอกสารครบถ้วนแล้วส่งต่อผู้อนุมัติ → สถานะ 2
   REVIEW_PASS: {
     key: "REVIEW_PASS",
     label: "ตรวจสอบแล้ว · ส่งต่อผู้อนุมัติ",
@@ -204,9 +199,9 @@ const ACTION = {
 };
 
 /*
- * ลำดับขั้น (ตามเอกสาร): ยื่นคำขอ → ผู้ตรวจสอบ (ส่งต่อ/ส่งกลับ) → ผู้อนุมัติ (อนุมัติ/ไม่อนุมัติ/ส่งกลับ)
- *   ผู้ตรวจสอบ (claim.review)  → ตรวจสอบแล้วส่งต่อ / ส่งกลับแก้ไข
- *   ผู้อนุมัติ  (claim.approve) → ส่งกลับ / ไม่อนุมัติ / อนุมัติ — เฉพาะคำขอที่ผู้ตรวจสอบส่งต่อมาแล้ว
+ * ลำดับขั้น:
+ *   1 รอตรวจ          → ผู้ตรวจสอบ: ส่งต่อ (/pass → 2) หรือ ส่งคืนแก้ไข (/return → 5)
+ *   2 ตรวจแล้วรออนุมัติ → ผู้อนุมัติ: อนุมัติ (→ 3) / ไม่อนุมัติ (→ 4) / ส่งคืนแก้ไข (→ 5)
  * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
@@ -214,7 +209,10 @@ const ACTION = {
 export function getAllowedActions(claim, user) {
   const none = { actions: [], blockedReason: "" };
 
-  if (!claim || claim.status !== STATUS.SUBMITTED) {
+  if (
+    !claim ||
+    (claim.status !== STATUS.SUBMITTED && claim.status !== STATUS.REVIEWED)
+  ) {
     return none;
   }
 
@@ -240,8 +238,15 @@ export function getAllowedActions(claim, user) {
     };
   }
 
-  // ผู้อนุมัติพิจารณาได้หลังผ่านการตรวจสอบแล้วเท่านั้น (ตามลำดับขั้นที่กำหนด)
-  if (canApprove && !isReviewed(claim)) {
+  // ขั้นที่ 1 รอตรวจ: เฉพาะผู้ตรวจสอบ (ไม่มีสิทธิ์อนุมัติ) — /pass, /return
+  if (claim.status === STATUS.SUBMITTED) {
+    if (canReview && !canApprove) {
+      return {
+        actions: [ACTION.REVIEW_PASS, ACTION.RETURN],
+        blockedReason: "",
+      };
+    }
+
     return {
       actions: [],
       blockedReason:
@@ -249,26 +254,17 @@ export function getAllowedActions(claim, user) {
     };
   }
 
-  const actions = [];
-
-  // ผู้ตรวจสอบล้วน (ไม่มีสิทธิ์อนุมัติ): ตรวจแล้วส่งต่อผู้อนุมัติ — ส่งต่อซ้ำไม่ได้
-  if (canReview && !canApprove && !isReviewed(claim)) {
-    actions.push(ACTION.REVIEW_PASS);
-  }
-
-  // ผู้ตรวจสอบ (และผู้อนุมัติ) ส่งกลับแก้ไขได้ — อนุมัติต้องมี claim.approve เท่านั้น
-  if (canReview) {
-    actions.push(ACTION.RETURN);
-  }
-
-  // ผู้อนุมัติ: ไม่อนุมัติ / อนุมัติ
+  // ขั้นที่ 2 ตรวจแล้วรออนุมัติ: เฉพาะผู้อนุมัติ — /return, /reject, /approve
   if (canApprove) {
-    actions.push(ACTION.REJECT, ACTION.APPROVE);
+    return {
+      actions: [ACTION.RETURN, ACTION.REJECT, ACTION.APPROVE],
+      blockedReason: "",
+    };
   }
 
   return {
-    actions,
-    blockedReason: "",
+    actions: [],
+    blockedReason: "คำขอนี้ผ่านการตรวจสอบแล้ว รอผู้อนุมัติพิจารณา",
   };
 }
 

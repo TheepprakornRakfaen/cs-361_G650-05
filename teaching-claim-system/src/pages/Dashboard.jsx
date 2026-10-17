@@ -14,6 +14,7 @@ import {
   CalendarClock,
   Sparkles,
   XCircle,
+  ClipboardCheck,
 } from "lucide-react";
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -25,6 +26,7 @@ import { formatDuration } from "../utils/time";
 const STAT_CARDS = [
   { key: "Draft", icon: PencilLine, hint: "ยังไม่ได้ยื่นคำขอ", bar: "#CBD5E1" },
   { key: "Submitted", icon: Clock3, hint: "อยู่ระหว่างการตรวจสอบโดยเจ้าหน้าที่", bar: "#FCD34D" },
+  { key: "Reviewed", icon: ClipboardCheck, hint: "ตรวจสอบแล้ว รอผู้อนุมัติพิจารณา", bar: "#A5B4FC" },
   { key: "Returned", icon: RotateCcw, hint: "กรุณาแก้ไขและยื่นคำขออีกครั้ง", bar: "#FB923C" },
   { key: "Approved", icon: CheckCircle2, hint: "ดำเนินการเรียบร้อยแล้ว", bar: "#4ADE80" },
   { key: "Rejected", icon: XCircle, hint: "สิ้นสุดการพิจารณา ดูเหตุผลในรายละเอียด", bar: "#F87171" },
@@ -95,11 +97,12 @@ export default function Dashboard({
     .filter((cl) => cl.status === "Approved")
     .reduce((sum, cl) => sum + Number(cl.amount || 0), 0);
 
+  // ยังพิจารณาไม่เสร็จ (รอตรวจ + รออนุมัติ)
   const pendingAmount = claims
-    .filter((cl) => cl.status === "Submitted")
+    .filter((cl) => cl.status === "Submitted" || cl.status === "Reviewed")
     .reduce((sum, cl) => sum + Number(cl.amount || 0), 0);
 
-  // นับเฉพาะ 5 สถานะหลัก ใช้ทำแถบสัดส่วน
+  // นับเฉพาะสถานะหลักใน STAT_CARDS ใช้ทำแถบสัดส่วน
   const trackedTotal = STAT_CARDS.reduce(
     (sum, { key }) => sum + (counts[key] || 0),
     0
@@ -238,7 +241,7 @@ export default function Dashboard({
       </div>
 
       {/* ===== การ์ดสถานะ ===== */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {STAT_CARDS.map(({ key, icon: Icon, hint }) => {
           const style = STATUS_STYLE[key];
           const highlight = key === "Returned" && counts.Returned > 0;

@@ -79,6 +79,14 @@ function claimNotification(claim) {
         title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ไม่ได้รับการอนุมัติ`,
         description: `${course ? course.trim() + " · " : ""}ดูเหตุผลที่ไม่อนุมัติในรายละเอียดคำขอ`,
       };
+    case "Reviewed":
+      return {
+        ...base,
+        id: `claim-${claim.id}-Reviewed`,
+        kind: "submitted",
+        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ผ่านการตรวจสอบแล้ว`,
+        description: `${course ? course.trim() + " · " : ""}รอผู้อนุมัติพิจารณา`,
+      };
     case "Returned":
       return {
         ...base,

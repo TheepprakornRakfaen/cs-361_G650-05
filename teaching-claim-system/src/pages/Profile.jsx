@@ -735,8 +735,8 @@ export default function Profile({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {["Draft", "Submitted", "Returned", "Approved", "Rejected"]
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Rejected"]
                 .map((key) => [key, STATUS_STYLE[key]])
                 .map(
                 ([key, style]) => {

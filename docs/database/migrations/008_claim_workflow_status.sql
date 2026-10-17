@@ -1,8 +1,7 @@
 -- ============================================================
 -- CS361 Migration 008 : Claim Workflow Status
 -- Issue #42 - Secure Approval Workflow
--- 0 = Draft, 1 = Submitted, 2 = Cancelled
--- 3 = Returned, 4 = Approved
+-- 0 = Draft, 1 = submitted, 2 = cancelled, 3 = Returned, 4 = approved
 -- ============================================================
 
 BEGIN;

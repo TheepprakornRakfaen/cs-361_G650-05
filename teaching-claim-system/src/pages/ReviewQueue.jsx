@@ -16,7 +16,7 @@ import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
 import Restricted from "../components/Restricted";
 import Pagination from "../components/Pagination";
-import { STATUS, QUEUE_STATUSES, isReviewed } from "../data/workflow";
+import { STATUS, QUEUE_STATUSES, isPending } from "../data/workflow";
 import {
   PERMISSION as P,
   can,
@@ -32,6 +32,7 @@ import {
 
 const SUMMARY = [
   STATUS.SUBMITTED,
+  STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
   STATUS.REJECTED,
@@ -76,9 +77,10 @@ export default function ReviewQueue({
   // สถานะที่ให้กรองไว้ตอนเปิดหน้า (มาจากการ์ดในหน้าภาพรวมระบบ)
   initialStatus = null,
 }) {
-  // ผู้มีสิทธิ์ตรวจสอบ/อนุมัติ เปิดมาที่ "รอตรวจสอบ" เลย
-  const defaultStatus =
-    can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE)
+  // เปิดมาที่งานของตัวเอง: ผู้อนุมัติ → "ตรวจแล้ว รออนุมัติ", ผู้ตรวจสอบ → "รอตรวจสอบ"
+  const defaultStatus = can(user, P.CLAIM_APPROVE)
+    ? STATUS.REVIEWED
+    : can(user, P.CLAIM_REVIEW)
       ? STATUS.SUBMITTED
       : "All";
 
@@ -138,12 +140,12 @@ export default function ReviewQueue({
     return result;
   }, [scoped]);
 
-  // คำขอรอตรวจสอบที่เกินกำหนด 10 วันทำการ
+  // คำขอที่ยังพิจารณาไม่เสร็จ (รอตรวจ/รออนุมัติ) และเกินกำหนด 10 วันทำการ
   const overdueCount = useMemo(
     () =>
       scoped.filter(
         (c) =>
-          c.status === STATUS.SUBMITTED &&
+          isPending(c.status) &&
           slaLevel(businessDaysSince(c.submittedAt || c.createdAt)) === "overdue"
       ).length,
     [scoped]
@@ -219,7 +221,7 @@ export default function ReviewQueue({
         c.hours,
         ...(canSeeFinance ? [c.amount ?? ""] : []),
         formatDate(c.submittedAt || c.createdAt),
-        c.status === STATUS.SUBMITTED
+        isPending(c.status)
           ? businessDaysSince(c.submittedAt || c.createdAt) ?? ""
           : "",
         STATUS_STYLE[c.status]?.label || c.status,
@@ -440,7 +442,7 @@ export default function ReviewQueue({
               {pageRows.map((claim) => {
                 const submitted = claim.submittedAt || claim.createdAt;
                 const waiting =
-                  claim.status === STATUS.SUBMITTED
+                  isPending(claim.status)
                     ? businessDaysSince(submitted)
                     : null;
                 const sla = SLA_STYLE[slaLevel(waiting)];
@@ -517,19 +519,7 @@ export default function ReviewQueue({
                     </td>
 
                     <td className="px-5 py-4">
-                      <div className="flex flex-col items-start gap-1">
-                        <StatusPill status={claim.status} />
-
-                        {claim.status === STATUS.SUBMITTED &&
-                          isReviewed(claim) && (
-                            <span
-                              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                              style={{ background: "#DFF5E6", color: "#1E8E4F" }}
-                            >
-                              ตรวจสอบแล้ว
-                            </span>
-                          )}
-                      </div>
+                      <StatusPill status={claim.status} />
                     </td>
 
                     <td className="pr-4 py-4">

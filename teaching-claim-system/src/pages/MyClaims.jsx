@@ -193,6 +193,7 @@ export default function MyClaims({
   const STATUS_KEYS = [
     "Draft",
     "Submitted",
+    "Reviewed",
     "Returned",
     "Approved",
     "Rejected",
@@ -321,7 +322,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button

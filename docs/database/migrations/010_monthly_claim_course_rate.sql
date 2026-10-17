@@ -24,11 +24,11 @@ ALTER TABLE course
 
 -- ค่าตัวอย่าง (ปรับให้ตรงกับประกาศจริง)
 UPDATE course SET hourly_rate = CASE code
-  WHEN 'CS213' THEN 600
-  WHEN 'CS223' THEN 600
-  WHEN 'CS251' THEN 600
-  WHEN 'CS341' THEN 900
-  WHEN 'CS361' THEN 1200
+  WHEN 'CS213' THEN 60
+  WHEN 'CS223' THEN 60
+  WHEN 'CS251' THEN 60
+  WHEN 'CS341' THEN 90
+  WHEN 'CS361' THEN 120
   ELSE hourly_rate
 END;
 

@@ -121,7 +121,7 @@ const PEOPLE = [
 const STATUSES = [
   "SUBMITTED",
   "SUBMITTED",
-  "SUBMITTED",
+  "REVIEWED",
   "RETURNED",
   "APPROVED",
   "APPROVED",
@@ -159,10 +159,10 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_name: person.name,
     claimant_email: person.email,
     claimant_role: person.role,
-    // คำขอรอตรวจสอบบางรายการผ่านการตรวจสอบแล้ว (ให้ผู้อนุมัติมีงานให้ทดลอง) ที่เหลือรอผู้ตรวจสอบ
-    reviewed_at: status === "SUBMITTED" && i % 8 !== 0 ? iso(-18 + i) : null,
+    // REVIEWED = ผู้ตรวจสอบส่งต่อแล้ว (ให้ผู้อนุมัติมีงานให้ทดลอง)
+    reviewed_at: status === "REVIEWED" ? iso(-18 + i) : null,
     reviewed_by_name:
-      status === "SUBMITTED" && i % 8 !== 0 ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
+      status === "REVIEWED" ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
     decision_comment:
       status === "RETURNED"
         ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่"
@@ -234,13 +234,16 @@ let logs = claims
     }));
   });
 
-const ACTION_TO_STATUS = {
-  APPROVE: "APPROVED",
-  RETURN: "RETURNED",
-  REJECT: "REJECTED",
+// path → { action ใน audit log, สถานะที่ทำได้, สถานะใหม่, สิทธิ์ที่ต้องมี }
+const ACTION_ROUTES = {
+  pass: { action: "REVIEW_PASS", from: ["SUBMITTED"], to: "REVIEWED", permission: P.CLAIM_REVIEW },
+  approve: { action: "APPROVE", from: ["REVIEWED"], to: "APPROVED", permission: P.CLAIM_APPROVE },
+  reject: { action: "REJECT", from: ["REVIEWED"], to: "REJECTED", permission: P.CLAIM_APPROVE, requireComment: true },
+  return: { action: "RETURN", from: ["SUBMITTED", "REVIEWED"], to: "RETURNED", requireComment: true },
 };
 const STATUS_LABEL = {
   SUBMITTED: "Submitted",
+  REVIEWED: "Reviewed",
   APPROVED: "Approved",
   RETURNED: "Returned",
   REJECTED: "Rejected",
@@ -441,52 +444,50 @@ export async function devMockRequest(path, options = {}) {
 
       const isOwner = requireClaimAccess(user, claim);
 
-      if (sub === "actions" && method === "POST") {
-        // อนุมัติต้องมี claim.approve · ส่งกลับใช้ claim.review หรือ claim.approve
-        if (body.action === "APPROVE" || body.action === "REJECT") {
-          requirePermission(user, P.CLAIM_APPROVE);
-        } else if (body.action === "REVIEW_PASS") {
+      // POST /api/claims/{id}/pass | approve | reject | return
+      const route = ACTION_ROUTES[sub];
+
+      if (route && method === "POST") {
+        if (route.permission) {
+          requirePermission(user, route.permission);
+        } else if (claim.status === "SUBMITTED") {
+          // ส่งคืนตอนรอตรวจ = งานผู้ตรวจสอบ
           requirePermission(user, P.CLAIM_REVIEW);
         } else {
-          requirePermission(user, P.CLAIM_REVIEW, P.CLAIM_APPROVE);
+          // ส่งคืนตอนรออนุมัติ = งานผู้อนุมัติ
+          requirePermission(user, P.CLAIM_APPROVE);
         }
+
+        // /pass และการส่งคืนตอนรอตรวจ ทำได้เฉพาะผู้ตรวจสอบ (ไม่ใช่ผู้อนุมัติ)
+        if (
+          claim.status === "SUBMITTED" &&
+          can(user, P.CLAIM_APPROVE)
+        )
+          throw error(403, "ขั้นรอตรวจเป็นงานของผู้ตรวจสอบ (ข้อมูลจำลอง)");
 
         if (isOwner)
           throw error(403, "ไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้ (ข้อมูลจำลอง)");
 
-        // ตรวจสอบแล้วส่งต่อ: สถานะยังเป็น SUBMITTED แต่บันทึกว่าผ่านการตรวจสอบ
-        if (body.action === "REVIEW_PASS") {
-          if (claim.status !== "SUBMITTED")
-            throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
-          if (claim.reviewed_at)
-            throw error(409, "คำขอนี้ผ่านการตรวจสอบแล้ว");
+        if (!route.from.includes(claim.status))
+          throw error(409, "สถานะของคำขอไม่ตรงกับขั้นตอนนี้ (ข้อมูลจำลอง)");
 
-          addLog(claim, "REVIEW_PASS", "SUBMITTED", "SUBMITTED", body.comment);
-          claim.reviewed_at = new Date().toISOString();
+        if (route.requireComment && !String(body.comment || "").trim())
+          throw error(400, "กรุณาระบุเหตุผล");
+
+        const now = new Date().toISOString();
+
+        addLog(claim, route.action, claim.status, route.to, body.comment);
+        claim.status = route.to;
+        claim.updated_at = now;
+
+        if (sub === "pass") {
+          claim.reviewed_at = now;
           claim.reviewed_by_name = user?.name || "";
-          claim.updated_at = new Date().toISOString();
-          return { claim: clone(claim) };
+        } else {
+          claim.decision_comment = body.comment || null;
+          claim.decision_by = user?.name || "";
         }
 
-        // ผู้อนุมัติพิจารณาได้หลังผ่านการตรวจสอบแล้วเท่านั้น (ตามลำดับขั้น)
-        if (can(user, P.CLAIM_APPROVE) && !claim.reviewed_at)
-          throw error(409, "คำขอนี้ยังไม่ผ่านการตรวจสอบ (ข้อมูลจำลอง)");
-
-        const next = ACTION_TO_STATUS[body.action];
-        if (!next) throw error(400, "action ไม่ถูกต้อง");
-        if (
-          (body.action === "REJECT" || body.action === "RETURN") &&
-          !String(body.comment || "").trim()
-        )
-          throw error(400, "กรุณาระบุเหตุผล");
-        if (claim.status !== "SUBMITTED")
-          throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
-
-        addLog(claim, body.action, claim.status, next, body.comment);
-        claim.status = next;
-        claim.decision_comment = body.comment || null;
-        claim.decision_by = user?.name || "";
-        claim.updated_at = new Date().toISOString();
         return { claim: clone(claim) };
       }
 

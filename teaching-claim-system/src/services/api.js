@@ -235,22 +235,38 @@ export function getCourses(termId) {
  */
 
 /*
- * ลำดับขั้น: ผู้ตรวจสอบ REVIEW_PASS ก่อน แล้วผู้อนุมัติจึง APPROVE/REJECT/RETURN ได้ (backend ต้องบังคับ → 409)
- * action: REVIEW_PASS (ตรวจสอบแล้วส่งต่อ — สถานะยังเป็น Submitted แต่บันทึก reviewed_at/reviewed_by)
- *         | APPROVE | REJECT | RETURN
- * ⚠️ backend ต้องรับ APPROVE จากสถานะ Submitted ได้โดยตรง
- * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
+ * action (key ใน data/workflow.js) → path ของ API
+ *   REVIEW_PASS : 1 → 2  (ผู้ตรวจสอบเท่านั้น)
+ *   APPROVE     : 2 → 3
+ *   REJECT      : 2 → 4
+ *   RETURN      : 1 หรือ 2 → 5
+ * backend ต้องตรวจสิทธิ์และสถานะปัจจุบันเอง (ไม่ตรง → 409)
  */
+const ACTION_PATH = {
+  REVIEW_PASS: "pass",
+  APPROVE: "approve",
+  REJECT: "reject",
+  RETURN: "return",
+};
+
+// comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
 export function submitClaimAction(claimId, action, comment) {
-  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/actions`, {
-    method: "POST",
+  const actionPath = ACTION_PATH[action];
 
-    body: {
-      action,
+  if (!actionPath) {
+    throw new Error(`ไม่รู้จัก action: ${action}`);
+  }
 
-      comment: comment?.trim() || null,
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(claimId)}/${actionPath}`,
+    {
+      method: "POST",
+
+      body: {
+        comment: comment?.trim() || null,
+      },
     },
-  });
+  );
 }
 
 /*

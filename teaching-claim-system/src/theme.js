@@ -18,9 +18,9 @@ export const C = {
 export const STATUS_STYLE = {
   Draft: { bg: "#EDF0F2", fg: "#5B6672", label: "แบบร่าง" },
   Submitted: { bg: "#FEF6D8", fg: "#9A7B06", label: "รอตรวจสอบ" },
-  Returned: { bg: "#FDEBDD", fg: "#B4531A", label: "ส่งกลับแก้ไข" },
+  Reviewed: { bg: "#F1EFFB", fg: "#6E62C9", label: "ตรวจแล้ว รออนุมัติ" },
+  Returned: { bg: "#FDEBDD", fg: "#B4531A", label: "ส่งคืนแก้ไข" },
   Approved: { bg: "#DFF5E6", fg: "#1E8E4F", label: "อนุมัติแล้ว" },
   Rejected: { bg: "#FBE2E2", fg: "#C23B3B", label: "ไม่อนุมัติ" },
-  Cancelled: { bg: "#EDF0F2", fg: "#5B6672", label: "ยกเลิก" },
   Unknown: { bg: "#EDF0F2", fg: "#5B6672", label: "ไม่ทราบสถานะ" },
 };
