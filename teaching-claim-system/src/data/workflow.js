@@ -104,16 +104,26 @@ export function isOwnClaim(claim, user) {
  * Stepper: ยื่นคำขอ → ตรวจสอบ → อนุมัติ
  * state: done | current | warning | error | pending
  * ========================= */
-export function getWorkflowSteps(status) {
+// ผ่านการตรวจสอบแล้ว (ผู้ตรวจสอบกด "ส่งต่อผู้อนุมัติ") — สถานะยังเป็น Submitted ไม่มีสถานะแยก
+export const isReviewed = (claim) =>
+  Boolean(claim?.reviewedAt || claim?.reviewedBy);
+
+export function getWorkflowSteps(status, reviewed = false) {
   const step = (key, label, state) => ({ key, label, state });
 
   switch (status) {
     case STATUS.SUBMITTED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "รอตรวจสอบ", "current"),
-        step("approve", "อนุมัติ", "pending"),
-      ];
+      return reviewed
+        ? [
+            step("submit", "ยื่นคำขอแล้ว", "done"),
+            step("review", "ตรวจสอบแล้ว", "done"),
+            step("approve", "รออนุมัติ", "current"),
+          ]
+        : [
+            step("submit", "ยื่นคำขอแล้ว", "done"),
+            step("review", "รอตรวจสอบ", "current"),
+            step("approve", "อนุมัติ", "pending"),
+          ];
     case STATUS.APPROVED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
@@ -146,13 +156,25 @@ export function getWorkflowSteps(status) {
  * key ตรงกับค่า action ที่ส่งไป POST /api/claims/{id}/actions
  * ========================= */
 const ACTION = {
-  // ตรวจสอบเสร็จแล้วอนุมัติในขั้นตอนเดียว → คำขอไปอยู่ในกลุ่ม "อนุมัติแล้ว" ทันที
+  // ผู้ตรวจสอบ: ตรวจเอกสารครบถ้วนแล้วส่งต่อผู้อนุมัติ (สถานะยังเป็น "รอตรวจสอบ" แต่ขึ้นว่าตรวจสอบแล้ว)
+  REVIEW_PASS: {
+    key: "REVIEW_PASS",
+    label: "ตรวจสอบแล้ว · ส่งต่อผู้อนุมัติ",
+    tone: "teal",
+    requireComment: false,
+    confirmTitle: "ยืนยันการตรวจสอบ",
+    confirmText:
+      "ยืนยันว่าตรวจสอบความครบถ้วน ความถูกต้อง สิทธิ์ และเอกสารประกอบแล้ว คำขอจะถูกส่งต่อให้ผู้อนุมัติพิจารณา",
+    commentLabel: "หมายเหตุถึงผู้อนุมัติ (ไม่บังคับ)",
+    confirmButton: "ยืนยันส่งต่อ",
+  },
+  // อนุมัติ → คำขอไปอยู่ในกลุ่ม "อนุมัติแล้ว" ทันที
   APPROVE: {
     key: "APPROVE",
-    label: "ตรวจสอบแล้ว · อนุมัติ",
+    label: "อนุมัติ",
     tone: "green",
     requireComment: false,
-    confirmTitle: "ยืนยันการตรวจสอบและอนุมัติ",
+    confirmTitle: "ยืนยันการอนุมัติ",
     confirmText: "เมื่อยืนยัน คำขอจะถูกอนุมัติทันที และแก้ไขสถานะไม่ได้อีก",
     commentLabel: "หมายเหตุ (ไม่บังคับ)",
     confirmButton: "ยืนยันอนุมัติ",
@@ -182,11 +204,9 @@ const ACTION = {
 };
 
 /*
- * คำขอที่ "รอตรวจสอบ" (Submitted) ผู้มีสิทธิ์ตรวจสอบ/อนุมัติทำได้ 2 อย่าง:
- *   ตรวจสอบแล้วอนุมัติ / ส่งกลับแก้ไข
- * สิทธิ์แยกตามบทบาท:
- *   ผู้ตรวจสอบ (claim.review)  → ส่งกลับแก้ไข
- *   ผู้อนุมัติ  (claim.approve) → ไม่อนุมัติ / อนุมัติ (ผู้อนุมัติมี claim.review ด้วยจึงส่งกลับได้)
+ * ลำดับขั้น (ตามเอกสาร): ยื่นคำขอ → ผู้ตรวจสอบ (ส่งต่อ/ส่งกลับ) → ผู้อนุมัติ (อนุมัติ/ไม่อนุมัติ/ส่งกลับ)
+ *   ผู้ตรวจสอบ (claim.review)  → ตรวจสอบแล้วส่งต่อ / ส่งกลับแก้ไข
+ *   ผู้อนุมัติ  (claim.approve) → ส่งกลับ / ไม่อนุมัติ / อนุมัติ — เฉพาะคำขอที่ผู้ตรวจสอบส่งต่อมาแล้ว
  * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
@@ -220,7 +240,21 @@ export function getAllowedActions(claim, user) {
     };
   }
 
+  // ผู้อนุมัติพิจารณาได้หลังผ่านการตรวจสอบแล้วเท่านั้น (ตามลำดับขั้นที่กำหนด)
+  if (canApprove && !isReviewed(claim)) {
+    return {
+      actions: [],
+      blockedReason:
+        "คำขอนี้ยังรอเจ้าหน้าที่ตรวจสอบและส่งต่อ ผู้อนุมัติพิจารณาได้หลังผ่านการตรวจสอบแล้ว",
+    };
+  }
+
   const actions = [];
+
+  // ผู้ตรวจสอบล้วน (ไม่มีสิทธิ์อนุมัติ): ตรวจแล้วส่งต่อผู้อนุมัติ — ส่งต่อซ้ำไม่ได้
+  if (canReview && !canApprove && !isReviewed(claim)) {
+    actions.push(ACTION.REVIEW_PASS);
+  }
 
   // ผู้ตรวจสอบ (และผู้อนุมัติ) ส่งกลับแก้ไขได้ — อนุมัติต้องมี claim.approve เท่านั้น
   if (canReview) {

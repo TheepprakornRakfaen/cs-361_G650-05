@@ -159,6 +159,10 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_name: person.name,
     claimant_email: person.email,
     claimant_role: person.role,
+    // คำขอรอตรวจสอบบางรายการผ่านการตรวจสอบแล้ว (ให้ผู้อนุมัติมีงานให้ทดลอง) ที่เหลือรอผู้ตรวจสอบ
+    reviewed_at: status === "SUBMITTED" && i % 8 !== 0 ? iso(-18 + i) : null,
+    reviewed_by_name:
+      status === "SUBMITTED" && i % 8 !== 0 ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
     decision_comment:
       status === "RETURNED"
         ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่"
@@ -441,12 +445,32 @@ export async function devMockRequest(path, options = {}) {
         // อนุมัติต้องมี claim.approve · ส่งกลับใช้ claim.review หรือ claim.approve
         if (body.action === "APPROVE" || body.action === "REJECT") {
           requirePermission(user, P.CLAIM_APPROVE);
+        } else if (body.action === "REVIEW_PASS") {
+          requirePermission(user, P.CLAIM_REVIEW);
         } else {
           requirePermission(user, P.CLAIM_REVIEW, P.CLAIM_APPROVE);
         }
 
         if (isOwner)
           throw error(403, "ไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้ (ข้อมูลจำลอง)");
+
+        // ตรวจสอบแล้วส่งต่อ: สถานะยังเป็น SUBMITTED แต่บันทึกว่าผ่านการตรวจสอบ
+        if (body.action === "REVIEW_PASS") {
+          if (claim.status !== "SUBMITTED")
+            throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
+          if (claim.reviewed_at)
+            throw error(409, "คำขอนี้ผ่านการตรวจสอบแล้ว");
+
+          addLog(claim, "REVIEW_PASS", "SUBMITTED", "SUBMITTED", body.comment);
+          claim.reviewed_at = new Date().toISOString();
+          claim.reviewed_by_name = user?.name || "";
+          claim.updated_at = new Date().toISOString();
+          return { claim: clone(claim) };
+        }
+
+        // ผู้อนุมัติพิจารณาได้หลังผ่านการตรวจสอบแล้วเท่านั้น (ตามลำดับขั้น)
+        if (can(user, P.CLAIM_APPROVE) && !claim.reviewed_at)
+          throw error(409, "คำขอนี้ยังไม่ผ่านการตรวจสอบ (ข้อมูลจำลอง)");
 
         const next = ACTION_TO_STATUS[body.action];
         if (!next) throw error(400, "action ไม่ถูกต้อง");

@@ -244,6 +244,10 @@ export function normalizeClaim(
         ? raw.allowed_actions
         : null,
 
+    // [V3] ผู้ตรวจสอบกด "ตรวจสอบแล้ว ส่งต่อ" (สถานะยังเป็น Submitted)
+    reviewedAt: raw.reviewed_at || raw.review_passed_at || null,
+    reviewedBy: raw.reviewed_by_name || raw.reviewed_by || "",
+
     // [V3] เหตุผลล่าสุดจากผู้ตรวจ/ผู้อนุมัติ (ส่งกลับ / ไม่อนุมัติ)
     decisionComment:
       raw.decision_comment ||

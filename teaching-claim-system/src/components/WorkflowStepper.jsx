@@ -28,8 +28,8 @@ function iconFor(step, index) {
 /*
  * [V3] แถบสถานะ 3 ขั้น: ยื่นคำขอ → ตรวจสอบ → อนุมัติ
  */
-export default function WorkflowStepper({ status }) {
-  const steps = getWorkflowSteps(status);
+export default function WorkflowStepper({ status, reviewed = false }) {
+  const steps = getWorkflowSteps(status, reviewed);
 
   return (
     <ol className="flex items-center" aria-label="ขั้นตอนของคำขอ">

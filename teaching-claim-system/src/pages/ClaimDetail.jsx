@@ -48,6 +48,7 @@ import {
   EDITABLE_STATUSES,
   STATUS,
   getAllowedActions,
+  isReviewed,
   isOwnClaim,
 } from "../data/workflow";
 import {
@@ -603,7 +604,7 @@ export default function ClaimDetail({
             สถานะคำขอ
           </p>
 
-          <WorkflowStepper status={status} />
+          <WorkflowStepper status={status} reviewed={isReviewed(claim)} />
         </div>
 
         {/* [V3] เหตุผลจากผู้ตรวจ/ผู้อนุมัติ */}
@@ -657,6 +658,8 @@ export default function ClaimDetail({
           onAction={(action, comment) =>
             onAction?.(claim.id, action, comment)
           }
+          reviewed={isReviewed(claim)}
+          reviewedBy={claim.reviewedBy}
           evidence={{
             canView: canViewEvidence,
             loading: evidenceLoading,

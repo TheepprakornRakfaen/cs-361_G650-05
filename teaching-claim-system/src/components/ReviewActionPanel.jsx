@@ -186,6 +186,9 @@ export default function ReviewActionPanel({
   onAction,
   // { canView, loading, total, viewed } — สรุปหลักฐานแนบ แสดงให้ผู้ตรวจสอบเห็นก่อนตัดสินใจ
   evidence = null,
+  // ผ่านการตรวจสอบ (ส่งต่อผู้อนุมัติ) แล้วหรือยัง — ใช้เตือนผู้อนุมัติ/แสดงข้อความ
+  reviewed = false,
+  reviewedBy = "",
 }) {
   const [active, setActive] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -217,13 +220,18 @@ export default function ReviewActionPanel({
   };
 
   // เตือน (ไม่บังคับ) ตอนกดอนุมัติ ถ้ายังไม่ได้เปิดดูหลักฐานครบ
-  const approveWarning =
-    active?.key === "APPROVE" && evidence?.canView && !evidence.loading
+  const evidenceWarning =
+    evidence?.canView && !evidence.loading
       ? evidence.total === 0
         ? "คำขอนี้ไม่มีไฟล์แนบหลักฐาน"
         : evidence.viewed < evidence.total
           ? `ยังไม่ได้เปิดดูหลักฐาน ${evidence.total - evidence.viewed} จาก ${evidence.total} ไฟล์`
           : ""
+      : "";
+
+  const approveWarning =
+    active?.key === "APPROVE" || active?.key === "REVIEW_PASS"
+      ? evidenceWarning
       : "";
 
   return (
@@ -262,6 +270,16 @@ export default function ReviewActionPanel({
         </div>
       )}
 
+      {reviewed && actions.length > 0 && (
+        <p
+          className="flex items-center gap-2 text-sm mb-3"
+          style={{ color: "#1E8E4F" }}
+        >
+          <CheckCircle2 size={15} />
+          ตรวจสอบแล้ว{reviewedBy ? `โดย ${reviewedBy}` : ""} · รอผู้อนุมัติพิจารณา
+        </p>
+      )}
+
       {blockedReason ? (
         <p className="flex items-center gap-2 text-sm" style={{ color: C.sub }}>
           <Info size={15} />
@@ -272,7 +290,8 @@ export default function ReviewActionPanel({
           {actions.map((action) => {
             const tone = TONE[action.tone] || TONE.teal;
             const Icon = tone.icon;
-            const outlined = action.key !== "APPROVE";
+            const outlined =
+              action.key === "RETURN" || action.key === "REJECT";
 
             return (
               <button

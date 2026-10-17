@@ -235,7 +235,9 @@ export function getCourses(termId) {
  */
 
 /*
- * action: APPROVE (ตรวจสอบแล้วอนุมัติในขั้นเดียว จาก Submitted → Approved) | REJECT | RETURN
+ * ลำดับขั้น: ผู้ตรวจสอบ REVIEW_PASS ก่อน แล้วผู้อนุมัติจึง APPROVE/REJECT/RETURN ได้ (backend ต้องบังคับ → 409)
+ * action: REVIEW_PASS (ตรวจสอบแล้วส่งต่อ — สถานะยังเป็น Submitted แต่บันทึก reviewed_at/reviewed_by)
+ *         | APPROVE | REJECT | RETURN
  * ⚠️ backend ต้องรับ APPROVE จากสถานะ Submitted ได้โดยตรง
  * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
  */

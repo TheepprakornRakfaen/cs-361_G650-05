@@ -16,7 +16,7 @@ import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
 import Restricted from "../components/Restricted";
 import Pagination from "../components/Pagination";
-import { STATUS, QUEUE_STATUSES } from "../data/workflow";
+import { STATUS, QUEUE_STATUSES, isReviewed } from "../data/workflow";
 import {
   PERMISSION as P,
   can,
@@ -517,7 +517,19 @@ export default function ReviewQueue({
                     </td>
 
                     <td className="px-5 py-4">
-                      <StatusPill status={claim.status} />
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusPill status={claim.status} />
+
+                        {claim.status === STATUS.SUBMITTED &&
+                          isReviewed(claim) && (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                              style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                            >
+                              ตรวจสอบแล้ว
+                            </span>
+                          )}
+                      </div>
                     </td>
 
                     <td className="pr-4 py-4">
