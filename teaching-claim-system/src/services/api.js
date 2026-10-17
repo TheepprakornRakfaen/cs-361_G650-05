@@ -270,21 +270,17 @@ export function submitClaimAction(claimId, action, comment) {
 }
 
 /*
- * ผู้ยื่นแก้ไขคำขอที่ถูกส่งกลับ แล้วยื่นใหม่
- * 1. PATCH เพื่อบันทึกข้อมูลที่แก้ไข
- * 2. POST /submit เพื่อยื่นคำร้องเดิมอีกครั้ง
+ * ผู้ยื่นแก้ไขคำขอที่ถูกส่งคืน (สถานะ 5) แล้วส่งอีกครั้งบนคำขอเดิม
+ * Body เหมือน POST /api/claims (academic_term, period_id, section_id, status, date, note)
  */
-export async function resubmitClaim(claimId, payload) {
-  const claimPath = `/api/claims/${encodeURIComponent(claimId)}`;
-
-  await apiRequest(claimPath, {
-    method: "PATCH",
-    body: payload,
-  });
-
-  return apiRequest(`${claimPath}/submit`, {
-    method: "POST",
-  });
+export function resubmitClaim(claimId, payload) {
+  return apiRequest(
+    `/api/claims/${encodeURIComponent(claimId)}/resend`,
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
 }
 
 /*

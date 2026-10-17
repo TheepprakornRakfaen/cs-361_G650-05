@@ -491,34 +491,18 @@ export async function devMockRequest(path, options = {}) {
         return { claim: clone(claim) };
       }
 
-      // แก้ไขข้อมูลคำร้องที่ถูกส่งกลับ โดยยังคงสถานะ RETURNED
-      if (!sub && method === "PATCH") {
-        if (!isOwner) throw error(403, "แก้ไขได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
+      // แก้ไขคำร้องที่ถูกส่งคืน แล้วส่งอีกครั้งบนคำขอเดิม
+      if (sub === "resend" && method === "POST") {
+        if (!isOwner) throw error(403, "ส่งใหม่ได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
 
         if (claim.status !== "RETURNED") {
-          throw error(409, "แก้ไขได้เฉพาะคำร้องที่ถูกส่งกลับ");
-        }
-
-        Object.assign(claim, body, {
-          id: claim.id,
-          status: "RETURNED",
-          updated_at: new Date().toISOString(),
-        });
-
-        return { claim: clone(claim) };
-      }
-
-      // ยื่นคำร้องเดิมอีกครั้งหลังแก้ไข
-      if (sub === "submit" && method === "POST") {
-        if (!isOwner) throw error(403, "ยื่นใหม่ได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
-
-        if (claim.status !== "RETURNED") {
-          throw error(409, "ยื่นซ้ำได้เฉพาะคำร้องที่ถูกส่งกลับ");
+          throw error(409, "ส่งใหม่ได้เฉพาะคำร้องที่ถูกส่งคืนแก้ไข");
         }
 
         addLog(claim, "RESUBMIT", "RETURNED", "SUBMITTED");
 
-        Object.assign(claim, {
+        Object.assign(claim, body, {
+          id: claim.id,
           status: "SUBMITTED",
           submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
