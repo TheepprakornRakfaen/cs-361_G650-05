@@ -1,17 +1,24 @@
+import { PERMISSION as P, can } from "./roles";
+import { isReviewed } from "./workflow";
+
 /*
  * ข้อมูลหน้าแจ้งเตือน
  *
- * แจ้งเตือนมี 2 ประเภท
- *  1) type "claim"  — สร้างจากสถานะคำขอของผู้ใช้เอง (อนุมัติ / ไม่อนุมัติ / รอตรวจสอบ)
- *                     คำนวณสดจาก claims จึงไม่ต้องเก็บแยก และไม่แตะ store/backend
- *  2) type "news"   — ข่าวสารประกาศจากระบบ (ANNOUNCEMENTS ด้านล่าง)
+ * แจ้งเตือนมี 3 กลุ่ม (สร้างสดจากคำขอที่โหลดมาแล้ว ไม่ต้องเก็บแยกที่ backend)
+ *  1) type "claim", scope "own"   — สถานะคำขอของผู้ใช้เอง (อนุมัติ / ไม่อนุมัติ / ส่งกลับ / ตรวจสอบแล้ว)
+ *  2) type "claim", scope "queue" — งานที่รอผู้ตรวจสอบ/ผู้อนุมัติดำเนินการ (ตามบทบาท)
+ *       ผู้ตรวจสอบ : คำขอที่ยังไม่ผ่านการตรวจสอบ
+ *       ผู้อนุมัติ  : คำขอที่ผู้ตรวจสอบส่งต่อมาแล้ว
+ *       ผู้ดูแลระบบ : ไม่มี (ดูอย่างเดียว)
+ *  3) type "news" — ข่าวสารประกาศจากระบบ (ANNOUNCEMENTS ด้านล่าง)
  *
  * สถานะ "อ่านแล้ว" เก็บใน localStorage แยกตามผู้ใช้
- * id ของแจ้งเตือนคำขอผูกกับสถานะ (claim-<id>-<status>) ดังนั้นเมื่อสถานะเปลี่ยน
- * จะกลายเป็นแจ้งเตือนใหม่ที่ยังไม่อ่านโดยอัตโนมัติ
+ * id ผูกกับเหตุการณ์ (สถานะ + เวลาที่ยื่น/ตรวจ) เมื่อเกิดเหตุการณ์ใหม่ เช่น ถูกส่งกลับครั้งที่สอง
+ * จะเป็นแจ้งเตือนใหม่ที่ยังไม่อ่านโดยอัตโนมัติ
  *
- * TODO: เมื่อ backend พร้อม ให้เปลี่ยน ANNOUNCEMENTS และ buildNotifications
- *       ไปดึงจาก API (ใช้ shape เดียวกันนี้ได้เลย)
+ * informational = แจ้งให้ทราบเฉย ๆ (เช่น "คุณเพิ่งยื่นคำขอ") ไม่นับเป็นรายการที่ยังไม่อ่าน
+ *
+ * TODO: เมื่อ backend พร้อม ให้เปลี่ยน ANNOUNCEMENTS ไปดึงจาก API (ใช้ shape เดียวกันนี้ได้เลย)
  */
 
 // ข่าวสารตัวอย่าง — แก้ข้อความ/วันที่ได้ตามต้องการ
@@ -53,14 +60,17 @@ export function shortClaimId(id) {
   return `#${isUuid ? text.slice(0, 8).toUpperCase() : text}`;
 }
 
-function claimNotification(claim) {
+const claimLabel = (claim) =>
+  claim.code ? `#${claim.code}` : shortClaimId(claim.id);
+
+const courseText = (claim) =>
+  claim.courseCode && claim.courseCode !== "-" ? `วิชา ${claim.courseCode} · ` : "";
+
+// แจ้งเตือนสถานะคำขอของผู้ใช้เอง
+function ownClaimNotification(claim) {
   const when = claim.updatedAt || claim.statusUpdatedAt || claim.createdAt;
-  const base = {
-    type: "claim",
-    claimId: claim.id,
-    date: when,
-  };
-  const course = claim.courseCode && claim.courseCode !== "-" ? ` วิชา ${claim.courseCode}` : "";
+  const base = { type: "claim", scope: "own", claimId: claim.id, date: when };
+  const course = courseText(claim);
 
   switch (claim.status) {
     case "Approved":
@@ -68,60 +78,119 @@ function claimNotification(claim) {
         ...base,
         id: `claim-${claim.id}-Approved`,
         kind: "approved",
-        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ได้รับการอนุมัติแล้ว`,
-        description: `${course ? course.trim() + " · " : ""}ยอดเบิก ${baht(claim.amount)} บาท`,
+        title: `คำขอ ${claimLabel(claim)} ได้รับการอนุมัติแล้ว`,
+        description: `${course}ยอดเบิก ${baht(claim.amount)} บาท`,
       };
     case "Rejected":
       return {
         ...base,
         id: `claim-${claim.id}-Rejected`,
         kind: "rejected",
-        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ไม่ได้รับการอนุมัติ`,
-        description: `${course ? course.trim() + " · " : ""}ดูเหตุผลที่ไม่อนุมัติในรายละเอียดคำขอ`,
-      };
-    case "Reviewed":
-      return {
-        ...base,
-        id: `claim-${claim.id}-Reviewed`,
-        kind: "submitted",
-        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ผ่านการตรวจสอบแล้ว`,
-        description: `${course ? course.trim() + " · " : ""}รอผู้อนุมัติพิจารณา`,
+        title: `คำขอ ${claimLabel(claim)} ไม่ได้รับการอนุมัติ`,
+        description: `${course}ดูเหตุผลที่ไม่อนุมัติในรายละเอียดคำขอ`,
       };
     case "Returned":
       return {
         ...base,
-        id: `claim-${claim.id}-Returned`,
+        // ผูกกับรอบที่ยื่น: ถูกส่งกลับซ้ำหลังยื่นใหม่ จะเป็นแจ้งเตือนใหม่
+        id: `claim-${claim.id}-Returned-${claim.submittedAt || ""}`,
         kind: "returned",
-        title: `คำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} ถูกส่งกลับให้แก้ไข`,
-        description: `${course ? course.trim() + " · " : ""}เปิดดูสิ่งที่ต้องแก้ไข แล้วยื่นใหม่`,
+        title: `คำขอ ${claimLabel(claim)} ถูกส่งกลับให้แก้ไข`,
+        description: `${course}เปิดดูสิ่งที่ต้องแก้ไข แล้วยื่นใหม่`,
       };
     case "Submitted":
+      if (isReviewed(claim)) {
+        return {
+          ...base,
+          date: claim.reviewedAt || when,
+          id: `claim-${claim.id}-Reviewed-${claim.reviewedAt || ""}`,
+          kind: "reviewed",
+          title: `คำขอ ${claimLabel(claim)} ผ่านการตรวจสอบแล้ว`,
+          description: `${course}ส่งต่อผู้อนุมัติ อยู่ระหว่างรอพิจารณา`,
+        };
+      }
+
       return {
         ...base,
         // ใช้เวลาที่ยื่นจริงถ้า backend ส่งมา
         date: claim.submittedAt || when,
-        id: `claim-${claim.id}-Submitted`,
+        id: `claim-${claim.id}-Submitted-${claim.submittedAt || ""}`,
         kind: "submitted",
-        title: `ส่งคำขอ ${(claim.code ? `#${claim.code}` : shortClaimId(claim.id))} เรียบร้อยแล้ว`,
-        description: `${course ? course.trim() + " · " : ""}อยู่ระหว่างการตรวจสอบ`,
+        informational: true, // เป็นการกระทำของผู้ใช้เอง ไม่ต้องเด้งเป็นรายการใหม่
+        title: `ส่งคำขอ ${claimLabel(claim)} เรียบร้อยแล้ว`,
+        description: `${course}อยู่ระหว่างการตรวจสอบ`,
       };
     default:
       return null; // แบบร่างไม่ต้องแจ้งเตือน
   }
 }
 
-// รวมแจ้งเตือนทั้งหมด เรียงใหม่สุดก่อน
-export function buildNotifications(claims = []) {
-  const fromClaims = claims.map(claimNotification).filter(Boolean);
-  const news = ANNOUNCEMENTS.map((a) => ({ ...a, type: "news", kind: "news" }));
+// งานที่รอให้ผู้ตรวจสอบ/ผู้อนุมัติดำเนินการ (ตามลำดับขั้น: ตรวจสอบก่อน แล้วจึงอนุมัติ)
+function queueNotification(claim, user) {
+  if (claim.status !== "Submitted") return null;
+  if (claim.ownerSub && claim.ownerSub === user?.cognitoSub) return null;
 
-  return [...fromClaims, ...news].sort(
+  const who = claim.claimantName ? `ผู้ยื่น ${claim.claimantName}` : "";
+  const course = courseText(claim);
+  const detail = `${course}${who}`.replace(/ · $/, "");
+  const base = { type: "claim", scope: "queue", claimId: claim.id };
+
+  if (can(user, P.CLAIM_APPROVE)) {
+    if (!isReviewed(claim)) return null; // ยังไม่ถึงขั้นผู้อนุมัติ
+
+    return {
+      ...base,
+      date: claim.reviewedAt || claim.updatedAt || claim.createdAt,
+      id: `queue-${claim.id}-ToApprove-${claim.reviewedAt || ""}`,
+      kind: "toApprove",
+      title: `คำขอ ${claimLabel(claim)} รอพิจารณาอนุมัติ`,
+      description: detail || "ผู้ตรวจสอบส่งต่อมาแล้ว",
+    };
+  }
+
+  if (can(user, P.CLAIM_REVIEW) && !isReviewed(claim)) {
+    return {
+      ...base,
+      date: claim.submittedAt || claim.updatedAt || claim.createdAt,
+      // ยื่นใหม่หลังถูกส่งกลับ → submittedAt เปลี่ยน → แจ้งเตือนใหม่
+      id: `queue-${claim.id}-ToReview-${claim.submittedAt || ""}`,
+      kind: "toReview",
+      title: `คำขอ ${claimLabel(claim)} รอตรวจสอบ`,
+      description: detail || "มีคำขอใหม่รอตรวจสอบ",
+    };
+  }
+
+  return null;
+}
+
+/*
+ * รวมแจ้งเตือนทั้งหมด เรียงใหม่สุดก่อน
+ *  ownClaims   — คำขอของผู้ใช้เอง (ผู้ยื่นเท่านั้น)
+ *  queueClaims — คิวตรวจสอบ/อนุมัติ (ผู้มีสิทธิ์ดูคิวเท่านั้น)
+ */
+export function buildNotifications({
+  ownClaims = [],
+  queueClaims = [],
+  user = null,
+  announcements = ANNOUNCEMENTS,
+} = {}) {
+  const own = can(user, P.CLAIM_CREATE)
+    ? ownClaims.map(ownClaimNotification).filter(Boolean)
+    : [];
+
+  const queue = can(user, P.CLAIM_VIEW_ALL)
+    ? queueClaims.map((c) => queueNotification(c, user)).filter(Boolean)
+    : [];
+
+  const news = announcements.map((a) => ({ ...a, type: "news", kind: "news" }));
+
+  return [...own, ...queue, ...news].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 }
 
 // ---------- สถานะอ่านแล้ว (localStorage) ----------
-const readKey = (username) => `teaching-claim-system:notif-read:${username || "guest"}`;
+export const readKey = (username) => `teaching-claim-system:notif-read:${username || "guest"}`;
 
 export function loadReadIds(username) {
   try {
@@ -134,7 +203,8 @@ export function loadReadIds(username) {
 
 export function saveReadIds(username, ids) {
   try {
-    localStorage.setItem(readKey(username), JSON.stringify(ids));
+    // เก็บเฉพาะ 500 รายการล่าสุด กัน localStorage โตไม่จำกัด
+    localStorage.setItem(readKey(username), JSON.stringify(ids.slice(-500)));
   } catch {
     /* เก็บไม่ได้ก็ไม่เป็นไร */
   }

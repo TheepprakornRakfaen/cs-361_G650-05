@@ -9,6 +9,8 @@ import {
   CheckCheck,
   ChevronRight,
   RotateCcw,
+  ClipboardCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -20,29 +22,31 @@ const KIND_STYLE = {
   rejected: { icon: XCircle, bg: "#FBE2E2", fg: "#C23B3B" },
   returned: { icon: RotateCcw, bg: "#FDEBDD", fg: "#B4531A" },
   submitted: { icon: Clock, bg: "#FEF6D8", fg: "#9A7B06" },
+  reviewed: { icon: ShieldCheck, bg: C.tealSoft, fg: C.tealDark },
+  toReview: { icon: ClipboardCheck, bg: "#FEF6D8", fg: "#9A7B06" },
+  toApprove: { icon: ClipboardCheck, bg: "#DFF5E6", fg: "#1E8E4F" },
   news: { icon: Megaphone, bg: C.tealSoft, fg: C.tealDark },
 };
 
 const TABS = [
   { id: "all", label: "ทั้งหมด" },
-  { id: "claim", label: "คำขอของฉัน" },
+  { id: "claim", label: "คำขอ" },
   { id: "news", label: "ข่าวสาร" },
 ];
 
 export default function Notifications({
   notifications = [],
-  readIds = [],
   onRead,
   onReadAll,
   goDetail,
 }) {
   const [tab, setTab] = useState("all");
 
-  const isRead = (n) => readIds.includes(n.id);
-  const unreadTotal = notifications.filter((n) => !isRead(n)).length;
+  // n.unread คำนวณจาก hook useNotifications (แจ้งให้ทราบเฉย ๆ ไม่นับเป็นยังไม่อ่าน)
+  const unreadTotal = notifications.filter((n) => n.unread).length;
 
   const countOf = (id) =>
-    notifications.filter((n) => (id === "all" ? true : n.type === id) && !isRead(n)).length;
+    notifications.filter((n) => (id === "all" ? true : n.type === id) && n.unread).length;
 
   const visible = useMemo(
     () => notifications.filter((n) => tab === "all" || n.type === tab),
@@ -51,7 +55,10 @@ export default function Notifications({
 
   const open = (n) => {
     onRead && onRead(n.id);
-    if (n.type === "claim" && goDetail) goDetail(n.claimId);
+    // งานในคิว → เปิดแบบมาจากหน้าตรวจสอบ (ปุ่มย้อนกลับกลับไปคิว)
+    if (n.type === "claim" && goDetail) {
+      goDetail(n.claimId, n.scope === "queue" ? "review" : "myclaims");
+    }
   };
 
   return (
@@ -120,7 +127,7 @@ export default function Notifications({
               ยังไม่มีการแจ้งเตือน
             </p>
             <p className="text-xs mt-1" style={{ color: C.sub }}>
-              เมื่อคำขอได้รับการอนุมัติหรือมีข่าวสารใหม่ จะแสดงที่นี่
+              เมื่อคำขอมีความคืบหน้า มีงานรอดำเนินการ หรือมีข่าวสารใหม่ จะแสดงที่นี่
             </p>
           </div>
         ) : (
@@ -128,7 +135,7 @@ export default function Notifications({
             {visible.map((n, i) => {
               const s = KIND_STYLE[n.kind] || KIND_STYLE.news;
               const Icon = s.icon;
-              const unread = !isRead(n);
+              const unread = n.unread;
               return (
                 <li
                   key={n.id}
@@ -139,8 +146,14 @@ export default function Notifications({
                   <button
                     type="button"
                     onClick={() => open(n)}
-                    className="w-full text-left flex items-start gap-4 px-5 py-4 transition-colors hover:bg-[#F5F9FD]"
-                    style={{ background: unread ? "#F3F8FE" : "transparent" }}
+                    className={`w-full text-left flex items-start gap-4 px-5 py-4 transition-colors ${
+                      unread ? "hover:brightness-95" : "hover:bg-[#F5F9FD]"
+                    }`}
+                    // ยังไม่อ่าน: พื้นฟ้าเข้ม + แถบสีด้านซ้าย / อ่านแล้ว: พื้นขาวเหมือนกันทุกรายการ
+                    style={{
+                      background: unread ? "#DCE9FA" : "#FFFFFF",
+                      boxShadow: unread ? `inset 4px 0 0 ${C.tealDark}` : "none",
+                    }}
                   >
                     <span
                       className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
