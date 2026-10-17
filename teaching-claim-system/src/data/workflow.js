@@ -13,8 +13,7 @@ export const STATUS = {
   SUBMITTED: "Submitted", // ยื่นแล้ว รอตรวจสอบ (ตรวจสอบเสร็จแล้วอนุมัติ → Approved ทันที ไม่มีขั้น "รออนุมัติ" แยก)
   RETURNED: "Returned", // ส่งกลับให้ผู้ยื่นแก้ไข
   APPROVED: "Approved",
-  // ไม่อนุมัติ — ตามขั้นตอนจริงไม่มีการปฏิเสธ มีแค่ "ส่งกลับแก้ไข"
-  // เก็บไว้เพื่อแสดงคำขอเก่าที่อาจมีสถานะนี้อยู่แล้วเท่านั้น ห้ามมีปุ่ม/ตัวกรองให้เลือก
+  // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา ผู้ยื่นแก้ไข/ยื่นซ้ำไม่ได้)
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
   UNKNOWN: "Unknown",
@@ -35,6 +34,8 @@ const NUMERIC_STATUS = {
   2: STATUS.CANCELLED,
   3: STATUS.RETURNED,
   4: STATUS.APPROVED,
+  // TODO: สมมติรหัส 5 = Rejected — ต้องยืนยันกับ backend (ถ้าส่งเป็นข้อความ "REJECTED" ใช้ได้เลยไม่ต้องพึ่งรหัสนี้)
+  5: STATUS.REJECTED,
 };
 
 /*
@@ -81,7 +82,7 @@ export const QUEUE_STATUSES = [
   STATUS.SUBMITTED,
   STATUS.RETURNED,
   STATUS.APPROVED,
-  STATUS.REJECTED, // คำขอเก่าเท่านั้น (ยังให้เห็นใน "ทั้งหมด") — ไม่มีการ์ด/ตัวกรองแยก
+  STATUS.REJECTED,
 ];
 
 // ผู้ยื่นแก้ไขและยื่นใหม่ได้
@@ -156,6 +157,18 @@ const ACTION = {
     commentLabel: "หมายเหตุ (ไม่บังคับ)",
     confirmButton: "ยืนยันอนุมัติ",
   },
+  // ไม่อนุมัติ: เฉพาะผู้อนุมัติ (claim.approve) · บังคับระบุเหตุผล · สิ้นสุดการพิจารณา
+  REJECT: {
+    key: "REJECT",
+    label: "ไม่อนุมัติ",
+    tone: "red",
+    requireComment: true,
+    confirmTitle: "ยืนยันการไม่อนุมัติ",
+    confirmText:
+      "คำขอจะสิ้นสุดการพิจารณา ผู้ยื่นจะแก้ไขหรือยื่นซ้ำไม่ได้ ระบบเก็บประวัติและเหตุผลไว้ให้ตรวจสอบย้อนหลัง",
+    commentLabel: "เหตุผลที่ไม่อนุมัติ",
+    confirmButton: "ยืนยันไม่อนุมัติ",
+  },
   RETURN: {
     key: "RETURN",
     label: "ส่งกลับแก้ไข",
@@ -171,7 +184,9 @@ const ACTION = {
 /*
  * คำขอที่ "รอตรวจสอบ" (Submitted) ผู้มีสิทธิ์ตรวจสอบ/อนุมัติทำได้ 2 อย่าง:
  *   ตรวจสอบแล้วอนุมัติ / ส่งกลับแก้ไข
- * ไม่มี "ไม่อนุมัติ" — เจ้าหน้าที่ยืนยันว่าไม่มีการปฏิเสธ มีแค่ส่งกลับให้แก้ (เซ็นขาด/เกิน/เซ็นวันหยุด ฯลฯ)
+ * สิทธิ์แยกตามบทบาท:
+ *   ผู้ตรวจสอบ (claim.review)  → ส่งกลับแก้ไข
+ *   ผู้อนุมัติ  (claim.approve) → ไม่อนุมัติ / อนุมัติ (ผู้อนุมัติมี claim.review ด้วยจึงส่งกลับได้)
  * ห้ามจัดการคำขอของตัวเอง
  * คืน { actions, blockedReason } — blockedReason ใช้แสดงแทนปุ่มเมื่อติดเงื่อนไข
  */
@@ -187,7 +202,14 @@ export function getAllowedActions(claim, user) {
   const canApprove = can(user, P.CLAIM_APPROVE);
 
   if (!canReview && !canApprove) {
-    return none;
+    // ดูคำขอของผู้อื่นได้แต่ไม่มีสิทธิ์ตัดสิน (เช่น ผู้ดูแลระบบ) → บอกชัดว่าทำไมไม่มีปุ่ม
+    return can(user, P.CLAIM_VIEW_ALL)
+      ? {
+          actions: [],
+          blockedReason:
+            "บทบาทของคุณดูข้อมูลได้อย่างเดียว ไม่มีสิทธิ์ตรวจสอบหรืออนุมัติคำขอ",
+        }
+      : none;
   }
 
   if (isOwnClaim(claim, user)) {
@@ -200,14 +222,14 @@ export function getAllowedActions(claim, user) {
 
   const actions = [];
 
-  // Reviewer ส่งกลับแก้ไขได้
+  // ผู้ตรวจสอบ (และผู้อนุมัติ) ส่งกลับแก้ไขได้ — อนุมัติต้องมี claim.approve เท่านั้น
   if (canReview) {
     actions.push(ACTION.RETURN);
   }
 
-  // Approver อนุมัติได้
+  // ผู้อนุมัติ: ไม่อนุมัติ / อนุมัติ
   if (canApprove) {
-    actions.push(ACTION.APPROVE);
+    actions.push(ACTION.REJECT, ACTION.APPROVE);
   }
 
   return {

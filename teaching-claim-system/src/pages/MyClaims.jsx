@@ -195,7 +195,7 @@ export default function MyClaims({
     "Submitted",
     "Returned",
     "Approved",
-    // ไม่มี "ไม่อนุมัติ" — ตามขั้นตอนจริงมีแค่ส่งกลับแก้ไข
+    "Rejected",
   ];
 
   const statusCards = STATUS_KEYS.map((key) => [
@@ -321,7 +321,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button

@@ -3,6 +3,7 @@
  * ตอบกลับรูปแบบเดียวกับ backend จริง เก็บข้อมูลในหน่วยความจำ — รีเฟรชหน้าแล้วกลับเป็นค่าเริ่มต้น
  */
 import { getDevUser } from "./devAuth";
+import { PERMISSION as P, can, maskEmail } from "../data/roles";
 
 const DAY = 86400000;
 const now = Date.now();
@@ -124,6 +125,7 @@ const STATUSES = [
   "RETURNED",
   "APPROVED",
   "APPROVED",
+  "REJECTED",
   "DRAFT",
 ];
 
@@ -158,7 +160,11 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_email: person.email,
     claimant_role: person.role,
     decision_comment:
-      status === "RETURNED" ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่" : null,
+      status === "RETURNED"
+        ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่"
+        : status === "REJECTED"
+          ? "ชั่วโมงสอนที่เบิกเกินสิทธิ์ตามเงื่อนไขของรายวิชา"
+          : null,
     // ยื่นห่างกันวันละรายการ (ย้อนหลัง ~3 สัปดาห์) → มีทั้งที่ยังทันและเกินกำหนด 10 วันทำการ
     created_at: iso(-22 + i),
     submitted_at: status === "DRAFT" ? null : iso(-21 + i),
@@ -191,6 +197,17 @@ let logs = claims
         actor_name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)",
         actor_role: "REVIEWER",
         created_at: afterSubmit(c, 2),
+      });
+    }
+    if (c.status === "REJECTED") {
+      entries.push({
+        action: "REJECT",
+        from_status: "Submitted",
+        to_status: "Rejected",
+        actor_name: "ผู้อนุมัติ (ทดลอง)",
+        actor_role: "APPROVER",
+        comment: c.decision_comment,
+        created_at: afterSubmit(c, 3),
       });
     }
     if (c.status === "RETURNED") {
@@ -268,6 +285,36 @@ function error(status, message) {
   return err;
 }
 
+/*
+ * จำลองการตรวจสิทธิ์ฝั่ง backend — ตอบ 403 เหมือนของจริง เพื่อทดสอบว่า UI รับมือได้
+ * (backend จริงต้องตรวจแบบเดียวกันนี้ทุก endpoint ไม่พึ่งการซ่อนปุ่มฝั่ง UI)
+ */
+function requirePermission(user, ...permissions) {
+  if (!permissions.some((permission) => can(user, permission))) {
+    throw error(403, "คุณไม่มีสิทธิ์ดำเนินการนี้ (ข้อมูลจำลอง)");
+  }
+}
+
+// ผู้ยื่นเห็นได้เฉพาะคำขอของตัวเอง ผู้มีสิทธิ์ดูคิวเห็นของผู้อื่นได้ — คืน true ถ้าเป็นเจ้าของ
+function requireClaimAccess(user, claim) {
+  const own = claim.owner_sub === user?.cognitoSub;
+
+  if (!own && !can(user, P.CLAIM_VIEW_ALL)) {
+    throw error(403, "คุณไม่มีสิทธิ์ดูคำขอนี้ (ข้อมูลจำลอง)");
+  }
+
+  return own;
+}
+
+// ผู้ที่ไม่มีสิทธิ์ดูข้อมูลส่วนบุคคลจะได้อีเมลที่ถูกปิดบังจาก backend (ไม่ใช่แค่ซ่อนที่หน้าจอ)
+function redactClaim(user, claim) {
+  if (can(user, P.PII_VIEW) || claim.owner_sub === user?.cognitoSub) {
+    return claim;
+  }
+
+  return { ...claim, claimant_email: maskEmail(claim.claimant_email) };
+}
+
 export async function devMockRequest(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const url = new URL(path, "http://dev.local");
@@ -307,6 +354,8 @@ export async function devMockRequest(path, options = {}) {
     }
 
     case "audit-logs": {
+      requirePermission(user, P.AUDIT_VIEW_ALL);
+
       // กรองแบบเดียวกับที่ backend ควรทำ: actor / action / from / to
       const actor = (url.searchParams.get("actor") || "").toLowerCase();
       const action = url.searchParams.get("action") || "";
@@ -340,14 +389,24 @@ export async function devMockRequest(path, options = {}) {
       if (!id) {
         if (method === "GET") {
           const scope = url.searchParams.get("scope");
+
+          requirePermission(
+            user,
+            scope === "review" ? P.CLAIM_VIEW_ALL : P.CLAIM_CREATE,
+          );
+
           const list =
             scope === "review"
-              ? claims.filter((c) => c.status !== "DRAFT")
+              ? claims
+                  .filter((c) => c.status !== "DRAFT")
+                  .map((c) => redactClaim(user, c))
               : claims.filter((c) => c.owner_sub === user?.cognitoSub);
           return { claims: clone(list) };
         }
 
         if (method === "POST") {
+          requirePermission(user, P.CLAIM_CREATE);
+
           const claim = {
             ...body,
             id: uuid(),
@@ -376,9 +435,26 @@ export async function devMockRequest(path, options = {}) {
       const claim = claims.find((c) => c.id === id);
       if (!claim) throw error(404, "ไม่พบคำขอ (ข้อมูลจำลอง)");
 
+      const isOwner = requireClaimAccess(user, claim);
+
       if (sub === "actions" && method === "POST") {
+        // อนุมัติต้องมี claim.approve · ส่งกลับใช้ claim.review หรือ claim.approve
+        if (body.action === "APPROVE" || body.action === "REJECT") {
+          requirePermission(user, P.CLAIM_APPROVE);
+        } else {
+          requirePermission(user, P.CLAIM_REVIEW, P.CLAIM_APPROVE);
+        }
+
+        if (isOwner)
+          throw error(403, "ไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้ (ข้อมูลจำลอง)");
+
         const next = ACTION_TO_STATUS[body.action];
         if (!next) throw error(400, "action ไม่ถูกต้อง");
+        if (
+          (body.action === "REJECT" || body.action === "RETURN") &&
+          !String(body.comment || "").trim()
+        )
+          throw error(400, "กรุณาระบุเหตุผล");
         if (claim.status !== "SUBMITTED")
           throw error(409, "คำขอนี้ไม่ได้อยู่ในสถานะรอตรวจสอบ");
 
@@ -392,6 +468,8 @@ export async function devMockRequest(path, options = {}) {
 
       // แก้ไขข้อมูลคำร้องที่ถูกส่งกลับ โดยยังคงสถานะ RETURNED
       if (!sub && method === "PATCH") {
+        if (!isOwner) throw error(403, "แก้ไขได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
+
         if (claim.status !== "RETURNED") {
           throw error(409, "แก้ไขได้เฉพาะคำร้องที่ถูกส่งกลับ");
         }
@@ -407,6 +485,8 @@ export async function devMockRequest(path, options = {}) {
 
       // ยื่นคำร้องเดิมอีกครั้งหลังแก้ไข
       if (sub === "submit" && method === "POST") {
+        if (!isOwner) throw error(403, "ยื่นใหม่ได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
+
         if (claim.status !== "RETURNED") {
           throw error(409, "ยื่นซ้ำได้เฉพาะคำร้องที่ถูกส่งกลับ");
         }
@@ -423,6 +503,8 @@ export async function devMockRequest(path, options = {}) {
       }
 
       if (sub === "history") {
+        requirePermission(user, P.AUDIT_VIEW);
+
         return {
           history: clone(logs.filter((l) => l.claim_id === id)),
         };
@@ -430,6 +512,8 @@ export async function devMockRequest(path, options = {}) {
 
       if (sub === "evidence") {
         if (method === "GET") {
+          requirePermission(user, P.EVIDENCE_VIEW);
+
           // คำขอที่ยื่นแล้วมีไฟล์ตัวอย่าง 1 ไฟล์ (ผู้ตรวจต้องเห็นหลักฐานก่อนอนุมัติ)
           const evidence =
             claim.status === "DRAFT"
@@ -452,7 +536,7 @@ export async function devMockRequest(path, options = {}) {
         return { ok: true };
       }
 
-      return clone(claim);
+      return clone(redactClaim(user, claim));
     }
 
     default:

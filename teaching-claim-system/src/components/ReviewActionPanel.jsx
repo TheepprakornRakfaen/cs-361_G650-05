@@ -272,7 +272,7 @@ export default function ReviewActionPanel({
           {actions.map((action) => {
             const tone = TONE[action.tone] || TONE.teal;
             const Icon = tone.icon;
-            const outlined = action.key === "RETURN";
+            const outlined = action.key !== "APPROVE";
 
             return (
               <button

@@ -34,6 +34,7 @@ const SUMMARY = [
   STATUS.SUBMITTED,
   STATUS.RETURNED,
   STATUS.APPROVED,
+  STATUS.REJECTED,
 ];
 
 const PAGE_SIZE = 10;
@@ -89,6 +90,7 @@ export default function ReviewQueue({
 
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
+  const canExport = can(user, P.DATA_EXPORT);
 
   // แบบร่างของผู้อื่นไม่เกี่ยวกับคิว
   const queue = useMemo(
@@ -252,6 +254,7 @@ export default function ReviewQueue({
               รีเฟรช
             </button>
 
+{canExport && (
             <button
               type="button"
               onClick={exportCsv}
@@ -263,6 +266,7 @@ export default function ReviewQueue({
               <Download size={15} />
               ส่งออก CSV
             </button>
+)}
           </div>
         }
       />
@@ -347,7 +351,7 @@ export default function ReviewQueue({
       </div>
 
       {/* สรุปตามสถานะ — กดเพื่อกรอง (รูปแบบเดียวกับหน้า "คำขอของฉัน") */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {SUMMARY.map((key) => {
           const style = STATUS_STYLE[key];
           const active = statusFilter === key;

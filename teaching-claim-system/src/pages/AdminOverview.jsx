@@ -11,6 +11,7 @@ import {
   Sparkles,
   History,
   ClipboardCheck,
+  XCircle,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -98,6 +99,7 @@ export default function AdminOverview({
       pending: pending.length,
       returned: claims.filter((c) => c.status === STATUS.RETURNED).length,
       approved: claims.filter((c) => c.status === STATUS.APPROVED).length,
+      rejected: claims.filter((c) => c.status === STATUS.REJECTED).length,
       overdue: withWait.filter((w) => slaLevel(w.days) === "overdue").length,
       pendingAmount: sum(pending),
       approvedAmount: sum(claims.filter((c) => c.status === STATUS.APPROVED)),
@@ -143,6 +145,7 @@ export default function AdminOverview({
     { key: "overdue", label: "เกินกำหนด", value: stats.overdue, icon: AlertTriangle, style: SLA_STYLE.overdue, hint: `รอเกิน ${SLA_BUSINESS_DAYS} วันทำการ` },
     { key: STATUS.RETURNED, label: "ส่งกลับแก้ไข", value: stats.returned, icon: RotateCcw, style: STATUS_STYLE.Returned, hint: "รอผู้ยื่นแก้ไข" },
     { key: STATUS.APPROVED, label: "อนุมัติแล้ว", value: stats.approved, icon: CheckCircle2, style: STATUS_STYLE.Approved, hint: "ดำเนินการเรียบร้อยแล้ว" },
+    { key: STATUS.REJECTED, label: "ไม่อนุมัติ", value: stats.rejected, icon: XCircle, style: STATUS_STYLE.Rejected, hint: "สิ้นสุดการพิจารณา" },
   ];
 
   return (
@@ -215,7 +218,7 @@ export default function AdminOverview({
       </div>
 
       {/* ===== การ์ดสถานะ ===== */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {cards.map(({ key, label, value, icon: Icon, style, hint }) => {
           const highlight = key === "overdue" && value > 0;
 

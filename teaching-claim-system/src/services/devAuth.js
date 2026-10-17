@@ -24,6 +24,7 @@ const DEV_PROFILES = {
   [ROLE.REVIEWER]: { group: "STAFF", name: "เจ้าหน้าที่ตรวจสอบ (ทดลอง)", email: "staff@dev.local" },
   [ROLE.APPROVER]: { group: "APPROVER", name: "ผู้อนุมัติ (ทดลอง)", email: "approver@dev.local" },
   [ROLE.TEACHER]: { group: "TEACHER", name: "อ.ทดลอง ระบบ", email: "teacher@dev.local" },
+  [ROLE.TA]: { group: "TA", sub: "ta-01", name: "นายภูมิ ช่วยสอน", email: "phum@dev.local" },
 };
 
 export const DEV_ROLE_OPTIONS = Object.keys(DEV_PROFILES).map((role) => ({
@@ -41,7 +42,7 @@ export function buildDevUser(role) {
 
   return {
     username: profile.email.split("@")[0],
-    cognitoSub: `dev-${role.toLowerCase()}`,
+    cognitoSub: profile.sub || `dev-${role.toLowerCase()}`,
     email: profile.email,
     name: profile.name,
     firstName: profile.name,

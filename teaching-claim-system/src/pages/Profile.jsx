@@ -21,6 +21,7 @@ import {
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import AccountSecurity from "../components/AccountSecurity";
+import RoleAccessSummary from "../components/RoleAccessSummary";
 import Select from "../components/Select";
 import { getInitial } from "../data/users";
 import { FACULTIES, getDepartments } from "../data/faculties";
@@ -272,6 +273,7 @@ export default function Profile({
       Submitted: 0,
       Returned: 0,
       Approved: 0,
+      Rejected: 0,
     };
 
     claims.forEach((claim) => {
@@ -733,9 +735,8 @@ export default function Profile({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* เฉพาะสถานะที่ใช้จริง — ไม่มี "ไม่อนุมัติ" (มีแค่ส่งกลับแก้ไข) */}
-              {["Draft", "Submitted", "Returned", "Approved"]
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {["Draft", "Submitted", "Returned", "Approved", "Rejected"]
                 .map((key) => [key, STATUS_STYLE[key]])
                 .map(
                 ([key, style]) => {
@@ -924,6 +925,9 @@ export default function Profile({
               </div>
             )}
           </SectionCard>
+
+          {/* [V3] สิทธิ์ของบทบาทที่ล็อกอินอยู่ — ทำได้/ไม่ได้อะไรบ้าง */}
+          <RoleAccessSummary user={user} />
 
           {/* [V3] ความปลอดภัยของบัญชี */}
           <AccountSecurity onLogoutAll={onLogoutAll} />

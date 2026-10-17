@@ -224,14 +224,11 @@ export default function AuditLog({
           aria-label="การดำเนินการ"
         >
           <option value="">ทุกการดำเนินการ</option>
-          {Object.entries(AUDIT_ACTION_META)
-            // ไม่มีการ "ไม่อนุมัติ" ในขั้นตอนจริง
-            .filter(([key]) => key !== "REJECT")
-            .map(([key, meta]) => (
-              <option key={key} value={key}>
-                {meta.label}
-              </option>
-            ))}
+          {Object.entries(AUDIT_ACTION_META).map(([key, meta]) => (
+            <option key={key} value={key}>
+              {meta.label}
+            </option>
+          ))}
         </Select>
 
         <div

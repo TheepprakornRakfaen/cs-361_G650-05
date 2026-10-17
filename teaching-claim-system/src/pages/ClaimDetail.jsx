@@ -640,6 +640,12 @@ export default function ClaimDetail({
               >
                 {claim.decisionComment}
               </p>
+
+              {status === STATUS.REJECTED && own && (
+                <p className="text-xs mt-2 leading-5" style={{ color: C.sub }}>
+                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขหรือยื่นซ้ำไม่ได้ หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่
+                </p>
+              )}
             </div>
           </div>
         )}

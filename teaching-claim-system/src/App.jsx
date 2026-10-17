@@ -22,6 +22,7 @@ import Notifications from "./pages/Notifications";
 import ReviewQueue from "./pages/ReviewQueue";
 import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
+import AccessControl from "./pages/AccessControl";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
 
@@ -89,6 +90,7 @@ const SUBTITLE_MAP = {
   admin: "ภาพรวมระบบ",
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
+  settings: "บทบาทและสิทธิ์",
 };
 
 /*
@@ -107,6 +109,7 @@ const PROTECTED_VIEWS = new Set([
   "admin",
   "review",
   "auditlog",
+  "settings",
 ]);
 
 export default function App() {
@@ -1822,6 +1825,9 @@ export default function App() {
             goDetail={goReviewDetail}
           />
         );
+
+      case "settings":
+        return <AccessControl user={currentUser} />;
 
       case "create":
       case "rounds":

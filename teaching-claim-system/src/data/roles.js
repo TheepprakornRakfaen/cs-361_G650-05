@@ -56,10 +56,16 @@ export const PERMISSION = {
   PII_VIEW: "pii.view", // เห็นข้อมูลส่วนบุคคลของผู้ยื่นแบบเต็ม
   AUDIT_VIEW: "audit.view", // เห็นประวัติการดำเนินการของคำขอ
   AUDIT_VIEW_ALL: "audit.view_all", // ค้นประวัติรวมทุกคำขอ / export
+  DATA_EXPORT: "data.export", // ส่งออก CSV รายการคำขอ (มีชื่อผู้ยื่น/ยอดเงิน)
+  SETTINGS_MANAGE: "settings.manage", // ดูบทบาท/สิทธิ์ และจัดการข้อมูลพื้นฐาน/กฎ/การตั้งค่า
 };
 
 const P = PERMISSION;
 
+/*
+ * ผู้ยื่นคำขอ (อาจารย์ / TA): เห็นเฉพาะคำขอ ยอดเงิน เอกสาร และประวัติ "ของตัวเอง"
+ * (backend ต้องกรองตามเจ้าของคำขอ — ฝั่ง UI แค่ไม่แสดงเมนู/ปุ่มของคนอื่น)
+ */
 const CLAIMANT = [
   P.CLAIM_CREATE,
   P.FINANCE_VIEW,
@@ -67,12 +73,23 @@ const CLAIMANT = [
   P.AUDIT_VIEW,
 ];
 
+/*
+ * ตารางสิทธิ์ตามหลัก least privilege (อ้างอิงตารางบทบาทในเอกสารโครงการ)
+ *
+ *  บทบาท              ยื่น  คิว  ส่งกลับ  อนุมัติ/ไม่อนุมัติ  เงิน  เอกสาร  PII   ประวัติ     export  ตั้งค่า
+ *  อาจารย์ / TA        ✓    –    –       –       ของตน  ของตน    –     ของตน      –       –
+ *  เจ้าหน้าที่ตรวจสอบ   –    ✓    ✓       –       ✓     ✓       ✓     ต่อคำขอ     –       –
+ *  ผู้อนุมัติ           –    ✓    ✓       ✓       ✓     ✓       ✓     ทั้งระบบ    ✓       –
+ *  ผู้ดูแลระบบ/บริหาร   –    ✓*   –       –       สรุป   –       –     ทั้งระบบ    ✓       ✓
+ *  (* อ่านอย่างเดียว) — ผู้ดูแลระบบไม่แตะเอกสารแนบ/ข้อมูลส่วนบุคคล และไม่ตรวจสอบ-อนุมัติ
+ *    เพื่อแยกหน้าที่ (segregation of duties) แก้ที่ตารางนี้ที่เดียวถ้านโยบายเปลี่ยน
+ */
 export const ROLE_PERMISSIONS = {
   [ROLE.TEACHER]: CLAIMANT,
   [ROLE.TA]: CLAIMANT,
   [ROLE.REVIEWER]: [
     P.CLAIM_VIEW_ALL,
-    P.CLAIM_REVIEW,
+    P.CLAIM_REVIEW, // ตรวจสอบแล้วส่งกลับให้แก้ได้ แต่ไม่มีสิทธิ์อนุมัติ (ดู getAllowedActions)
     P.FINANCE_VIEW,
     P.EVIDENCE_VIEW,
     P.PII_VIEW,
@@ -80,16 +97,6 @@ export const ROLE_PERMISSIONS = {
   ],
   [ROLE.APPROVER]: [
     P.CLAIM_VIEW_ALL,
-    P.CLAIM_APPROVE,
-    P.FINANCE_VIEW,
-    P.EVIDENCE_VIEW,
-    P.PII_VIEW,
-    P.AUDIT_VIEW,
-    P.AUDIT_VIEW_ALL,
-  ],
-  // ผู้ดูแลระบบ: ดูหลักฐาน ตรวจสอบ/อนุมัติ/ส่งกลับ/ไม่อนุมัติ ได้เต็มรูปแบบ (ยกเว้นคำขอของตัวเอง)
-  [ROLE.ADMIN]: [
-    P.CLAIM_VIEW_ALL,
     P.CLAIM_REVIEW,
     P.CLAIM_APPROVE,
     P.FINANCE_VIEW,
@@ -97,8 +104,56 @@ export const ROLE_PERMISSIONS = {
     P.PII_VIEW,
     P.AUDIT_VIEW,
     P.AUDIT_VIEW_ALL,
+    P.DATA_EXPORT,
+  ],
+  // ผู้บริหาร / ผู้ดูแลระบบ: ดูภาพรวม ประวัติรวม ตั้งค่าและสิทธิ์ — ไม่ตัดสินคำขอ ไม่เห็นเอกสาร/PII
+  [ROLE.ADMIN]: [
+    P.CLAIM_VIEW_ALL,
+    P.FINANCE_VIEW,
+    P.AUDIT_VIEW,
+    P.AUDIT_VIEW_ALL,
+    P.DATA_EXPORT,
+    P.SETTINGS_MANAGE,
   ],
 };
+
+/* คำอธิบายบทบาท (ตามตาราง "ผู้ใช้งานหลักของระบบ" ในเอกสาร) */
+export const ROLE_DESCRIPTION = {
+  [ROLE.TEACHER]:
+    "สร้างและยื่นคำขอเบิกค่าตอบแทนที่ตนมีสิทธิ์ ดูรายละเอียด ติดตามสถานะ และแก้ไขเมื่อถูกส่งกลับ",
+  [ROLE.TA]:
+    "สร้างและยื่นคำขอตามงานที่ได้รับมอบหมาย พร้อมแนบหลักฐาน ติดตามสถานะ และแก้ไขเมื่อถูกส่งกลับ",
+  [ROLE.REVIEWER]:
+    "ตรวจสอบความครบถ้วน ความถูกต้อง สิทธิ์ และเอกสารประกอบ แล้วส่งกลับให้ผู้ยื่นแก้ไขเมื่อไม่ถูกต้อง (ไม่มีสิทธิ์อนุมัติ)",
+  [ROLE.APPROVER]:
+    "พิจารณาอนุมัติ ไม่อนุมัติ หรือส่งกลับคำขอ พร้อมดูประวัติการดำเนินการทั้งระบบและส่งออกรายงาน",
+  [ROLE.ADMIN]:
+    "ดูข้อมูลสรุปและประวัติทั้งระบบ จัดการบทบาท/สิทธิ์และการตั้งค่า โดยไม่เข้าถึงเอกสารแนบหรือข้อมูลส่วนบุคคล",
+};
+
+/* ชื่อ/กลุ่มของแต่ละสิทธิ์ — ใช้แสดงในหน้า "บทบาทและสิทธิ์" */
+export const PERMISSION_META = [
+  { key: P.CLAIM_CREATE, group: "คำขอ", label: "สร้าง / ยื่น / แก้ไขคำขอของตนเอง" },
+  { key: P.CLAIM_VIEW_ALL, group: "คำขอ", label: "ดูคำขอของผู้อื่น (คิวคำขอ)" },
+  { key: P.CLAIM_REVIEW, group: "ขั้นตอนพิจารณา", label: "ตรวจสอบและส่งกลับให้แก้ไข" },
+  { key: P.CLAIM_APPROVE, group: "ขั้นตอนพิจารณา", label: "อนุมัติ / ไม่อนุมัติคำขอ" },
+  { key: P.FINANCE_VIEW, group: "ข้อมูลที่จำกัดสิทธิ์", label: "ดูอัตราค่าตอบแทนและยอดเงิน" },
+  { key: P.EVIDENCE_VIEW, group: "ข้อมูลที่จำกัดสิทธิ์", label: "เปิดดูเอกสารประกอบ" },
+  { key: P.PII_VIEW, group: "ข้อมูลที่จำกัดสิทธิ์", label: "ดูข้อมูลส่วนบุคคลของผู้ยื่นแบบเต็ม" },
+  { key: P.AUDIT_VIEW, group: "ประวัติและรายงาน", label: "ดูประวัติการดำเนินการรายคำขอ" },
+  { key: P.AUDIT_VIEW_ALL, group: "ประวัติและรายงาน", label: "ค้นประวัติรวมทุกคำขอ" },
+  { key: P.DATA_EXPORT, group: "ประวัติและรายงาน", label: "ส่งออกข้อมูล (CSV)" },
+  { key: P.SETTINGS_MANAGE, group: "ผู้ดูแลระบบ", label: "ดูบทบาท/สิทธิ์ และตั้งค่าระบบ" },
+];
+
+/*
+ * สิทธิ์ที่ "ขอบเขตจำกัดเฉพาะของตนเอง" สำหรับผู้ยื่น (แสดงเป็น "เฉพาะของตน" ในตาราง)
+ */
+export const OWN_ONLY_PERMISSIONS = new Set([
+  P.FINANCE_VIEW,
+  P.EVIDENCE_VIEW,
+  P.AUDIT_VIEW,
+]);
 
 /*
  * แปลง Cognito groups → ข้อมูลบทบาทที่ UI ใช้
@@ -136,6 +191,10 @@ export function hasAnyRole(user, ...roles) {
   return roles.some((role) => user?.roles?.includes(role));
 }
 
+// ตัดสินคำขอได้ (ตรวจสอบ/อนุมัติ/ส่งกลับ) — ผู้ดูแลระบบดูได้อย่างเดียว จึงเป็น false
+export const canDecideClaims = (user) =>
+  can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE);
+
 // เป็นผู้ยื่นคำขอ (อาจารย์ / TA)
 export const isClaimant = (user) => can(user, P.CLAIM_CREATE);
 
@@ -156,6 +215,7 @@ export const VIEW_PERMISSION = {
   admin: P.CLAIM_VIEW_ALL,
   review: P.CLAIM_VIEW_ALL,
   auditlog: P.AUDIT_VIEW_ALL,
+  settings: P.SETTINGS_MANAGE,
 };
 
 export function canAccessView(user, view) {

@@ -12,10 +12,11 @@ import {
   ClipboardCheck,
   History,
   Gauge,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { C } from "../theme";
-import { canAccessView } from "../data/roles";
+import { canAccessView, canDecideClaims } from "../data/roles";
 
 export const NAV_ITEMS = [
   { id: "home", label: "หน้าแรก", icon: Home },
@@ -28,6 +29,7 @@ export const NAV_ITEMS = [
   { id: "admin", label: "ภาพรวมระบบ", icon: Gauge, requiresLogin: true, staffOnly: true },
   { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true, staffOnly: true },
   { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true, staffOnly: true },
+  { id: "settings", label: "บทบาทและสิทธิ์", icon: ShieldCheck, requiresLogin: true, staffOnly: true },
 ];
 
 export default function Sidebar({
@@ -199,7 +201,12 @@ export default function Sidebar({
                         : ""
                     }
                   >
-                    {item.label}
+                    {
+                      // ผู้ที่ดูคิวได้แต่ตัดสินไม่ได้ (ผู้ดูแลระบบ) → ป้ายเมนูไม่ควรบอกว่า "ตรวจสอบ/อนุมัติ"
+                      item.id === "review" && !canDecideClaims(user)
+                        ? "คำขอทั้งหมด"
+                        : item.label
+                    }
                   </span>
 
                   {/* แม่กุญแจ = ต้องเข้าสู่ระบบก่อน */}
