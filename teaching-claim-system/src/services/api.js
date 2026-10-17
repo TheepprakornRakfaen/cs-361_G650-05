@@ -242,31 +242,22 @@ export function getCourses(termId) {
  *   RETURN      : 1 หรือ 2 → 5
  * backend ต้องตรวจสิทธิ์และสถานะปัจจุบันเอง (ไม่ตรง → 409)
  */
-const ACTION_PATH = {
-  REVIEW_PASS: "pass",
-  APPROVE: "approve",
-  REJECT: "reject",
-  RETURN: "return",
-};
+
+const VALID_ACTIONS = new Set(["REVIEW_PASS", "APPROVE", "REJECT", "RETURN"]);
 
 // comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
 export function submitClaimAction(claimId, action, comment) {
-  const actionPath = ACTION_PATH[action];
-
-  if (!actionPath) {
+  if (!VALID_ACTIONS.has(action)) {
     throw new Error(`ไม่รู้จัก action: ${action}`);
   }
 
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(claimId)}/${actionPath}`,
-    {
-      method: "POST",
-
-      body: {
-        comment: comment?.trim() || null,
-      },
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/actions`, {
+    method: "POST",
+    body: {
+      action,
+      comment: comment?.trim() || null,
     },
-  );
+  });
 }
 
 /*

@@ -161,8 +161,7 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     claimant_role: person.role,
     // REVIEWED = ผู้ตรวจสอบส่งต่อแล้ว (ให้ผู้อนุมัติมีงานให้ทดลอง)
     reviewed_at: status === "REVIEWED" ? iso(-18 + i) : null,
-    reviewed_by_name:
-      status === "REVIEWED" ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
+    reviewed_by_name: status === "REVIEWED" ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
     decision_comment:
       status === "RETURNED"
         ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่"
@@ -236,11 +235,37 @@ let logs = claims
 
 // path → { action ใน audit log, สถานะที่ทำได้, สถานะใหม่, สิทธิ์ที่ต้องมี }
 const ACTION_ROUTES = {
-  pass: { action: "REVIEW_PASS", from: ["SUBMITTED"], to: "REVIEWED", permission: P.CLAIM_REVIEW },
-  approve: { action: "APPROVE", from: ["REVIEWED"], to: "APPROVED", permission: P.CLAIM_APPROVE },
-  reject: { action: "REJECT", from: ["REVIEWED"], to: "REJECTED", permission: P.CLAIM_APPROVE, requireComment: true },
-  return: { action: "RETURN", from: ["SUBMITTED", "REVIEWED"], to: "RETURNED", requireComment: true },
+  pass: {
+    action: "REVIEW_PASS",
+    from: ["SUBMITTED"],
+    to: "REVIEWED",
+    permission: P.CLAIM_REVIEW,
+  },
+  approve: {
+    action: "APPROVE",
+    from: ["REVIEWED"],
+    to: "APPROVED",
+    permission: P.CLAIM_APPROVE,
+  },
+  reject: {
+    action: "REJECT",
+    from: ["REVIEWED"],
+    to: "REJECTED",
+    permission: P.CLAIM_APPROVE,
+    requireComment: true,
+  },
+  return: {
+    action: "RETURN",
+    from: ["SUBMITTED", "REVIEWED"],
+    to: "RETURNED",
+    requireComment: true,
+  },
 };
+
+const ACTIONS_BY_NAME = Object.fromEntries(
+  Object.values(ACTION_ROUTES).map((route) => [route.action, route]),
+);
+
 const STATUS_LABEL = {
   SUBMITTED: "Submitted",
   REVIEWED: "Reviewed",
@@ -445,7 +470,12 @@ export async function devMockRequest(path, options = {}) {
       const isOwner = requireClaimAccess(user, claim);
 
       // POST /api/claims/{id}/pass | approve | reject | return
-      const route = ACTION_ROUTES[sub];
+      const route =
+        sub === "actions" ? ACTIONS_BY_NAME[body.action] : ACTION_ROUTES[sub];
+
+      if (sub === "actions" && !route && method === "POST") {
+        throw error(400, "ไม่รู้จัก action ที่ระบุ");
+      }
 
       if (route && method === "POST") {
         if (route.permission) {
@@ -459,14 +489,14 @@ export async function devMockRequest(path, options = {}) {
         }
 
         // /pass และการส่งคืนตอนรอตรวจ ทำได้เฉพาะผู้ตรวจสอบ (ไม่ใช่ผู้อนุมัติ)
-        if (
-          claim.status === "SUBMITTED" &&
-          can(user, P.CLAIM_APPROVE)
-        )
+        if (claim.status === "SUBMITTED" && can(user, P.CLAIM_APPROVE))
           throw error(403, "ขั้นรอตรวจเป็นงานของผู้ตรวจสอบ (ข้อมูลจำลอง)");
 
         if (isOwner)
-          throw error(403, "ไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้ (ข้อมูลจำลอง)");
+          throw error(
+            403,
+            "ไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้ (ข้อมูลจำลอง)",
+          );
 
         if (!route.from.includes(claim.status))
           throw error(409, "สถานะของคำขอไม่ตรงกับขั้นตอนนี้ (ข้อมูลจำลอง)");
@@ -480,7 +510,7 @@ export async function devMockRequest(path, options = {}) {
         claim.status = route.to;
         claim.updated_at = now;
 
-        if (sub === "pass") {
+        if (route.action === "REVIEW_PASS") {
           claim.reviewed_at = now;
           claim.reviewed_by_name = user?.name || "";
         } else {
@@ -493,7 +523,8 @@ export async function devMockRequest(path, options = {}) {
 
       // แก้ไขข้อมูลคำร้องที่ถูกส่งกลับ โดยยังคงสถานะ RETURNED
       if (!sub && method === "PATCH") {
-        if (!isOwner) throw error(403, "แก้ไขได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
+        if (!isOwner)
+          throw error(403, "แก้ไขได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
 
         if (claim.status !== "RETURNED") {
           throw error(409, "แก้ไขได้เฉพาะคำร้องที่ถูกส่งกลับ");
@@ -510,7 +541,8 @@ export async function devMockRequest(path, options = {}) {
 
       // ยื่นคำร้องเดิมอีกครั้งหลังแก้ไข
       if (sub === "submit" && method === "POST") {
-        if (!isOwner) throw error(403, "ยื่นใหม่ได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
+        if (!isOwner)
+          throw error(403, "ยื่นใหม่ได้เฉพาะเจ้าของคำขอ (ข้อมูลจำลอง)");
 
         if (claim.status !== "RETURNED") {
           throw error(409, "ยื่นซ้ำได้เฉพาะคำร้องที่ถูกส่งกลับ");
