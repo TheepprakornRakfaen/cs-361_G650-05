@@ -1184,6 +1184,20 @@ export default function App() {
   };
 
   /*
+   * คำขอที่ยื่นไปแล้วของรอบนี้ (ไม่นับแบบร่าง)
+   * มีแล้ว → ปุ่ม "สร้างคำขอ" เปลี่ยนเป็น "ยื่นคำขอแล้ว" กดแล้วเปิดคำขอนั้น
+   */
+  const findSubmittedClaim = (round) =>
+    round
+      ? claims.find(
+          (claim) =>
+            String(claim.periodId) === String(round.id) &&
+            claim.status !== STATUS.DRAFT &&
+            claim.status !== STATUS.UNKNOWN
+        ) || null
+      : null;
+
+  /*
    * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
    */
   const goEditClaim = (id) => {
@@ -1757,6 +1771,7 @@ export default function App() {
             termLabel={currentTermLabel}
             goCreate={goCreate}
             goCreateForRound={goCreateForRound}
+            findSubmittedClaim={findSubmittedClaim}
             goDetail={goDetail}
             goMyClaims={openMyClaims}
           />
@@ -1840,6 +1855,8 @@ export default function App() {
             onReload={() => loadAllPeriods(terms)}
             courses={courses}
             goCreateForRound={goCreateForRound}
+            findSubmittedClaim={findSubmittedClaim}
+            goDetail={goDetail}
           />
         );
 

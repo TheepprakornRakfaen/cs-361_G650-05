@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Loader2,
   CalendarDays,
+  CheckCircle2,
   X,
 } from "lucide-react";
 
@@ -51,6 +52,8 @@ export default function CreateClaimList({
   error = "",
   onReload,
   goCreateForRound,
+  findSubmittedClaim,
+  goDetail,
 }) {
   const [query, setQuery] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
@@ -314,6 +317,7 @@ export default function CreateClaimList({
                       const quota = Number(course?.quota || 45);
                       const used = Number(course?.used || 0);
                       const remaining = Math.max(quota - used, 0);
+                      const submitted = findSubmittedClaim?.(round);
 
                       return (
                         <SectionCard key={round.id} className="p-5">
@@ -384,20 +388,33 @@ export default function CreateClaimList({
                               เหลือ {remaining} จาก {quota} ชม.
                             </span>
 
-                            <button
-                              type="button"
-                              disabled={!open}
-                              onClick={() => open && goCreateForRound?.(round)}
-                              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-                              style={{
-                                background: open
-                                  ? `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`
-                                  : C.sub,
-                              }}
-                            >
-                              สร้างคำขอ
-                              <Plus size={14} />
-                            </button>
+                            {submitted ? (
+                              <button
+                                type="button"
+                                onClick={() => goDetail?.(submitted.id)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
+                                style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                                title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
+                              >
+                                <CheckCircle2 size={14} />
+                                ยื่นคำขอแล้ว
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={!open}
+                                onClick={() => open && goCreateForRound?.(round)}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                style={{
+                                  background: open
+                                    ? `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`
+                                    : C.sub,
+                                }}
+                              >
+                                สร้างคำขอ
+                                <Plus size={14} />
+                              </button>
+                            )}
                           </div>
                         </SectionCard>
                       );

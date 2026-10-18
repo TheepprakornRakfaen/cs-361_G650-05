@@ -74,6 +74,7 @@ export default function Dashboard({
   termLabel = "",
   goCreate,
   goCreateForRound,
+  findSubmittedClaim,
   goDetail,
   goMyClaims,
 }) {
@@ -116,6 +117,8 @@ export default function Dashboard({
    * มีรอบเปิดอยู่ → แสดงรอบนั้น / ไม่มี → แสดงรอบถัดไปที่จะเปิด
    */
   const openRound = rounds.find((r) => r.status === "Open");
+  // ยื่นในรอบนี้ไปแล้ว → แสดง "ยื่นคำขอแล้ว" แทนปุ่มสร้าง
+  const submittedClaim = findSubmittedClaim?.(openRound) || null;
 
   const nextRound = openRound
     ? null
@@ -388,7 +391,19 @@ export default function Dashboard({
             </div>
           </div>
 
-          {openRound && (
+          {openRound && submittedClaim && (
+            <button
+              onClick={() => goDetail?.(submittedClaim.id)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
+              style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+              title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
+            >
+              <CheckCircle2 size={16} />
+              ยื่นคำขอแล้ว
+            </button>
+          )}
+
+          {openRound && !submittedClaim && (
             <button
               onClick={() =>
                 goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
