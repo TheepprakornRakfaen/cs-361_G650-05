@@ -32,9 +32,11 @@ async function apiRequest(path, options = {}) {
 
   const { headers = {}, body, ...fetchOptions } = options;
 
-  const token = await getIdToken();
+  const token = await getIdToken().catch(() => null);
 
+  // ไม่มี token (session หาย/ถูกล้าง) → ถือเป็นหมดอายุ ให้ App พาไปหน้า Login เหมือน 401
   if (!token) {
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
     throw new Error("NO_AUTH_TOKEN");
   }
 
