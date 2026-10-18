@@ -19,7 +19,10 @@ CREATE INDEX idx_claim_date_claim_id ON claim_date (claim_id);
 INSERT INTO claim_date (claim_id, teach_date, hour)
 SELECT id, teach_date, hour FROM claim;
 
--- วันสอนย้ายไปเก็บที่ claim_date แทน
-ALTER TABLE claim DROP COLUMN teach_date;
+-- วันสอนและชั่วโมงย้ายไปเก็บที่ claim_date แทน
+-- (ชั่วโมงรวมของคำร้องคำนวณจาก SUM(claim_date.hour))
+ALTER TABLE claim
+  DROP COLUMN teach_date,
+  DROP COLUMN hour;
 
 COMMIT;
