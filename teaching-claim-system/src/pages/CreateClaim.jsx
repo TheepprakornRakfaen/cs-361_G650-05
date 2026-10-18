@@ -12,6 +12,7 @@ import {
   Send,
   Save,
   Plus,
+  Loader2,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -311,6 +312,10 @@ export default function CreateClaim({
   ] = useState([]);
 
   const fileInputRef = useRef(null);
+
+  // กันกดยื่นซ้ำระหว่างรอ backend (ref กันคลิกรัวก่อน state อัปเดตทัน)
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const course =
     normalizedCourses.find(
@@ -617,7 +622,9 @@ export default function CreateClaim({
    * ตรวจทุกขั้นอีกรอบก่อนยื่นจริง
    * ถ้ามีข้อผิดพลาด พากลับไปขั้นที่ผิด
    */
-  function handleSubmit() {
+  async function handleSubmit() {
+    if (submittingRef.current) return;
+
     if (!validateStep1()) {
       setStep(1);
       return;
@@ -628,8 +635,16 @@ export default function CreateClaim({
       return;
     }
 
-    // 1 = ยื่นจริง
-    onSubmit?.({ ...buildPayload(), status: 1 }, evidenceFiles);
+    submittingRef.current = true;
+    setSubmitting(true);
+
+    try {
+      // 1 = ยื่นจริง
+      await onSubmit?.({ ...buildPayload(), status: 1 }, evidenceFiles);
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -1406,7 +1421,8 @@ export default function CreateClaim({
             <button
               type="button"
               onClick={back}
-              className="px-6 py-2.5 rounded-full text-sm font-semibold"
+              disabled={submitting}
+              className="px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-40"
               style={{
                 background: "#EEF2F5",
                 color: C.ink,
@@ -1421,7 +1437,7 @@ export default function CreateClaim({
                 // 0 = แบบร่าง
                 onClick={() => onSaveDraft?.({ ...buildPayload(), status: 0 }, evidenceFiles)}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
-                disabled={normalizedCourses.length === 0}
+                disabled={normalizedCourses.length === 0 || submitting}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   borderColor: C.border,
@@ -1449,7 +1465,8 @@ export default function CreateClaim({
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border"
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40"
                     style={{
                       borderColor: C.border,
                       color: C.ink,
@@ -1462,13 +1479,22 @@ export default function CreateClaim({
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white"
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-wait"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                     }}
                   >
-                    <Send size={14} />
-                    {isEditing ? "ยื่นคำขออีกครั้ง" : "ยื่นคำขอ"}
+                    {submitting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    {submitting
+                      ? "กำลังยื่นคำขอ..."
+                      : isEditing
+                        ? "ยื่นคำขออีกครั้ง"
+                        : "ยื่นคำขอ"}
                   </button>
                 </div>
               )}
