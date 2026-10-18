@@ -21,6 +21,9 @@ import {
   AlertTriangle,
   User as UserIcon,
   CheckCircle2,
+  Copy,
+  Check,
+  Printer,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -238,6 +241,7 @@ export default function ClaimDetail({
   const canViewPii = can(user, P.PII_VIEW);
   const canViewAudit = can(user, P.AUDIT_VIEW);
 
+  const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -512,12 +516,22 @@ export default function ClaimDetail({
       )
     : [];
 
+  const copyClaimCode = async () => {
+    try {
+      await navigator.clipboard.writeText(String(claim.code || claim.id));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* เบราว์เซอร์ไม่อนุญาตก็ไม่เป็นไร */
+    }
+  };
+
   return (
     <div className="w-full">
       <button
         type="button"
         onClick={goBack}
-        className="flex items-center gap-2 text-sm font-semibold mb-6 transition-opacity hover:opacity-70"
+        className="no-print flex items-center gap-2 text-sm font-semibold mb-6 transition-opacity hover:opacity-70"
         style={{ color: C.tealDark }}
       >
         <span
@@ -532,21 +546,47 @@ export default function ClaimDetail({
       <SectionCard className="p-6 md:p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h2
-            className="text-xl font-extrabold"
-            style={{ color: C.ink }}
-          >
-            คำขอ #{claim.code || claim.id}
-          </h2>
+          <div className="flex items-center gap-2 min-w-0">
+            <h2
+              className="text-xl font-extrabold break-all"
+              style={{ color: C.ink }}
+            >
+              คำขอ #{claim.code || claim.id}
+            </h2>
+
+            <button
+              type="button"
+              onClick={copyClaimCode}
+              title="คัดลอกรหัสคำขอ"
+              aria-label="คัดลอกรหัสคำขอ"
+              className="no-print shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[#EEF4F8]"
+              style={{ color: copied ? "#1E8E4F" : C.sub }}
+            >
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
+              style={{
+                borderColor: C.border,
+                color: C.ink,
+              }}
+            >
+              <Printer size={13} />
+              พิมพ์
+            </button>
+
             {canEdit && (
               <button
                 type="button"
                 onClick={() =>
                   onEdit?.(claim.id)
                 }
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
+                className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
                 style={{
                   borderColor: C.border,
                   color: C.tealDark,

@@ -1801,6 +1801,8 @@ export default function App() {
             goDetail={goDetail}
             goCreate={goCreate}
             onDelete={handleDeleteClaim}
+            onReload={loadClaims}
+            loading={claimsLoading}
             initialStatus={myClaimsFilter}
           />
         );
@@ -2080,6 +2082,7 @@ export default function App() {
             duration-200
 
             ${collapsed ? "md:ml-[84px]" : "md:ml-[280px]"}
+            print:!ml-0
           `}
         >
           <main className="flex-1 overflow-y-auto">

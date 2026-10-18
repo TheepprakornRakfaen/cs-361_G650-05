@@ -87,3 +87,12 @@ main {
   font-variant-numeric: lining-nums tabular-nums;
   letter-spacing: -0.02em;
 }
+/* พิมพ์หน้ารายละเอียดคำขอ: ซ่อนแถบเมนู/ปุ่ม เหลือแต่เนื้อหา */
+@media print {
+  aside,
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+}
