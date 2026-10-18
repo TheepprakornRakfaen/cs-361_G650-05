@@ -9,6 +9,8 @@ import {
   Plus,
   ClipboardList,
   Trash2,
+  RefreshCw,
+  X,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -25,6 +27,9 @@ export default function MyClaims({
   goDetail,
   goCreate,
   onDelete,
+  // โหลดรายการใหม่จาก backend (เช่น ดูว่าผู้ตรวจสอบเปลี่ยนสถานะแล้วหรือยัง)
+  onReload,
+  loading = false,
   // สถานะที่ให้กรองไว้ตั้งแต่เปิดหน้า เช่น "Draft" เมื่อกดมาจากการ์ดแบบร่างในโปรไฟล์
   initialStatus = "All",
   // ภาคปัจจุบัน เช่น "1/2569" ใช้เป็นค่าเริ่มต้นของตัวกรองภาค
@@ -213,6 +218,26 @@ export default function MyClaims({
         title="คำขอของฉัน"
         description="ติดตามสถานะคำขอเบิกค่าสอนทั้งหมดของคุณ กดที่แถวเพื่อดูรายละเอียด"
         action={
+          <div className="flex items-center gap-2">
+          {onReload && (
+            <button
+              type="button"
+              onClick={onReload}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm border bg-white transition-opacity hover:opacity-80 disabled:opacity-50"
+              style={{
+                borderColor: C.border,
+                color: C.ink,
+              }}
+            >
+              <RefreshCw
+                size={15}
+                className={loading ? "animate-spin" : ""}
+              />
+              รีเฟรช
+            </button>
+          )}
+
           <button
             type="button"
             onClick={goCreate}
@@ -224,6 +249,7 @@ export default function MyClaims({
             สร้างคำขอ
             <Plus size={16} />
           </button>
+          </div>
         }
       />
 
@@ -319,6 +345,26 @@ export default function MyClaims({
             </option>
           ))}
         </Select>
+
+        {(query ||
+          statusFilter !== "All" ||
+          courseFilter !== "All" ||
+          termChoice !== null) && (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setStatusFilter("All");
+              setCourseFilter("All");
+              setTermChoice(null);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-70"
+            style={{ color: C.sub }}
+          >
+            <X size={14} />
+            ล้างตัวกรอง
+          </button>
+        )}
       </div>
 
       {/* Status Summary */}
