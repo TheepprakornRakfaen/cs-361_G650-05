@@ -1,5 +1,5 @@
 -- ============================================================
--- CS361 Migration 010 : V3 Monthly Claim + Course Rate
+-- CS361 Migration 009 : V3 Monthly Claim + Course Rate
 --   1) อัตราค่าตอบแทนต่อชั่วโมงกำหนดตามรายวิชา (course.hourly_rate)
 --   2) คำร้องเก็บอัตรา ณ วันที่สร้าง (claim.hourly_rate) เติมให้อัตโนมัติ
 --   3) 1 คน : 1 section : ยื่นได้ 1 คำร้องต่อรอบ (เดือน)

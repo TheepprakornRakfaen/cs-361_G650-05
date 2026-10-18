@@ -1,5 +1,5 @@
 -- ============================================================
--- CS361 Migration 012 : Audit Log & Claim History
+-- CS361 Migration 011 : Audit Log & Claim History
 -- Issue #44 - Secure Audit Trail
 -- Adds a dedicated table without altering existing tables.
 -- ============================================================
