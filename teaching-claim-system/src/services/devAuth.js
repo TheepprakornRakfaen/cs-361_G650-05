@@ -2,8 +2,8 @@
  * โหมดทดลอง (dev) — เข้าระบบโดยไม่ต้องล็อกอิน Cognito
  *
  * ใช้ระหว่างที่ Cognito ยังตั้งค่าไม่เสร็จ เพื่อเปิดดูหน้าหลังบ้าน (แอดมิน/เจ้าหน้าที่) ได้
- *  - เปิดอัตโนมัติเมื่อรัน `npm run dev` (ทุกคนในทีมใช้ได้เลย ไม่ต้องตั้ง .env)
- *    ปิดได้ด้วย VITE_DEV_AUTH_BYPASS=false ใน .env.local
+ *  - ปิดเป็นค่าเริ่มต้น (ใช้ API + Cognito จริง)
+ *    เปิดเฉพาะเครื่องตัวเองได้ด้วย VITE_DEV_AUTH_BYPASS=true ใน .env.local แล้วรัน `npm run dev`
  *  - ตอน build จริง (npm run build) DEV = false → โหมดนี้ปิดเสมอ และโค้ดส่วนนี้ถูกตัดทิ้ง
  *  - ข้อมูลทั้งหมดเป็นข้อมูลจำลองในหน่วยความจำ (services/devMockApi.js) ไม่แตะ backend จริง
  *  - เลือกบทบาทได้ที่หน้าเข้าสู่ระบบ (กล่อง "โหมดทดลอง") — ล็อกอินด้วย Cognito จริงยังใช้ได้ตามปกติ
@@ -14,7 +14,7 @@ import { ROLE, resolveRoles, getRoleLabel } from "../data/roles";
 
 export const DEV_AUTH_BYPASS =
   import.meta.env.DEV &&
-  import.meta.env.VITE_DEV_AUTH_BYPASS !== "false";
+  import.meta.env.VITE_DEV_AUTH_BYPASS === "true";
 
 const STORAGE_KEY = "teaching-claim-system:dev-role";
 
