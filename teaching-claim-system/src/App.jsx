@@ -1550,14 +1550,13 @@ export default function App() {
       * ถ้าพัง เราก็ยังมี createdClaim
       * ให้หน้า Detail ใช้อยู่
       */
-      try {
-        await loadClaims();
-      } catch (error) {
+      // ไม่รอ — ไปหน้ารายละเอียดได้เลย แล้วค่อยอัปเดตรายการตามหลัง
+      Promise.resolve(loadClaims()).catch((error) => {
         console.error(
           "Claim created but GET /api/claims refresh failed:",
           error
         );
-      }
+      });
 
       setEditingClaimId(
         null

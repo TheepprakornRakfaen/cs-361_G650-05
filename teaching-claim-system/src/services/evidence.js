@@ -288,39 +288,45 @@ export async function uploadClaimEvidenceFiles(claimId, files = []) {
  * failed เก็บ File ไว้ เพื่อให้ผู้ใช้กด "ลองอีกครั้ง" ได้โดยไม่ต้องเลือกไฟล์ใหม่
  */
 export async function uploadAndRegisterEvidence(claimId, entries = []) {
-  const registered = [];
-  const failed = [];
+  // อัปโหลดทุกไฟล์พร้อมกัน (ไม่รอทีละไฟล์) แล้วเรียงผลตามลำดับเดิม
+  const results = await Promise.all(
+    entries.map(async (entry) => {
+      const file = entry instanceof File ? entry : entry?.file;
+      let uploaded = entry instanceof File ? null : entry?.uploaded || null;
+      let stage = "upload";
 
-  for (const entry of entries) {
-    const file = entry instanceof File ? entry : entry?.file;
-    let uploaded = entry instanceof File ? null : entry?.uploaded || null;
-    let stage = "upload";
+      try {
+        if (!uploaded) {
+          uploaded = await uploadClaimEvidence(claimId, file);
+        }
 
-    try {
-      if (!uploaded) {
-        uploaded = await uploadClaimEvidence(claimId, file);
+        stage = "register";
+
+        await registerClaimEvidence(claimId, uploaded);
+
+        return { ok: true, uploaded };
+      } catch (error) {
+        return {
+          ok: false,
+          failed: {
+            file,
+            fileName: file?.name || uploaded?.fileName || "",
+            stage,
+            uploaded: stage === "register" ? uploaded : null,
+            message:
+              error?.data?.message ||
+              error?.message ||
+              (stage === "register"
+                ? "บันทึกข้อมูลไฟล์ไม่สำเร็จ"
+                : "อัปโหลดไม่สำเร็จ"),
+          },
+        };
       }
+    })
+  );
 
-      stage = "register";
-
-      await registerClaimEvidence(claimId, uploaded);
-
-      registered.push(uploaded);
-    } catch (error) {
-      failed.push({
-        file,
-        fileName: file?.name || uploaded?.fileName || "",
-        stage,
-        uploaded: stage === "register" ? uploaded : null,
-        message:
-          error?.data?.message ||
-          error?.message ||
-          (stage === "register"
-            ? "บันทึกข้อมูลไฟล์ไม่สำเร็จ"
-            : "อัปโหลดไม่สำเร็จ"),
-      });
-    }
-  }
-
-  return { registered, failed };
+  return {
+    registered: results.filter((r) => r.ok).map((r) => r.uploaded),
+    failed: results.filter((r) => !r.ok).map((r) => r.failed),
+  };
 }
