@@ -146,11 +146,6 @@ export async function uploadClaimEvidence(
         file.size,
     });
 
-  console.log(
-    `[API] POST ${presignPath} body:`,
-    presignBody
-  );
-
   const presignResponse =
     await fetch(
       `${API_URL}${presignPath}`,
@@ -174,11 +169,6 @@ export async function uploadClaimEvidence(
     await readJson(
       presignResponse
     );
-
-  console.log(
-    `[API] POST ${presignPath} → ${presignResponse.status}`,
-    presignData
-  );
 
   if (
     !presignResponse.ok
