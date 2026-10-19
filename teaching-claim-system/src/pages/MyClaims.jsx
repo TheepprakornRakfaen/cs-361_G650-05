@@ -125,8 +125,10 @@ export default function MyClaims({
     const result = {
       Draft: 0,
       Submitted: 0,
+      Reviewed: 0,
       Returned: 0,
       Approved: 0,
+      Rejected: 0,
     };
 
     scoped.forEach((claim) => {
