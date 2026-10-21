@@ -16,6 +16,7 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  Landmark,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -30,6 +31,7 @@ import {
   applyProfileEdits,
   validateProfile,
 } from "../data/profile";
+import { getAccountBySub } from "../data/financeMock";
 
 // ช่องในฟอร์มแก้ไขข้อมูลส่วนตัว (อีเมลมาจากบัญชีเข้าสู่ระบบ แก้ไม่ได้)
 const PROFILE_FIELDS = [
@@ -95,6 +97,7 @@ export default function Profile({
 }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState("");
+  const bank = getAccountBySub(user?.cognitoSub)?.bank;
 
   // แก้ไขข้อมูลส่วนตัว
   const [editing, setEditing] = useState(false);
@@ -699,6 +702,17 @@ export default function Profile({
                 icon={GraduationCap}
                 label="สาขาวิชา"
                 value={user.department}
+              />
+
+              {/* บัญชีรับเงิน: ผูกกับ Cognito sub แสดงเฉพาะแบบปกปิด แก้ในหน้านี้ไม่ได้ */}
+              <InfoRow
+                icon={Landmark}
+                label="บัญชีรับเงิน (ปกปิด)"
+                value={
+                  bank
+                    ? `${bank.bankName} • ${bank.accountMasked}`
+                    : "ยังไม่มีข้อมูลบัญชี"
+                }
               />
             </>
           )}
