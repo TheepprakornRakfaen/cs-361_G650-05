@@ -17,6 +17,7 @@ import { loginWithCognito, confirmNewPassword} from "../services/auth";
 import {
   DEV_AUTH_BYPASS,
   DEV_ROLE_OPTIONS,
+  DEV_TEST_ACCOUNT_OPTIONS,
   startDevSession,
 } from "../services/devAuth";
 import ForgotPasswordForm from "../components/ForgotPasswordForm";
@@ -489,6 +490,24 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
 
                 <div className="grid grid-cols-2 gap-2">
                   {DEV_ROLE_OPTIONS.map(({ role, label }) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => onLoginSuccess?.(startDevSession(role))}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border transition-colors hover:bg-[#FDEBDD]"
+                      style={{ borderColor: "#F0B37E", color: "#B4531A" }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-[11px] mt-3 mb-2 font-semibold" style={{ color: "#B4531A" }}>
+                  บัญชีทดสอบ Project 6 (Cognito sub ชั่วคราว)
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {DEV_TEST_ACCOUNT_OPTIONS.map(({ role, label }) => (
                     <button
                       key={role}
                       type="button"

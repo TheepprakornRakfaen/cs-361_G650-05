@@ -23,6 +23,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
 import AccessControl from "./pages/AccessControl";
+import Finance from "./pages/Finance";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
 
@@ -91,6 +92,7 @@ const SUBTITLE_MAP = {
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
   settings: "บทบาทและสิทธิ์",
+  finance: "การเงิน",
 };
 
 /*
@@ -110,6 +112,7 @@ const PROTECTED_VIEWS = new Set([
   "review",
   "auditlog",
   "settings",
+  "finance",
 ]);
 
 export default function App() {
@@ -1844,6 +1847,9 @@ export default function App() {
 
       case "settings":
         return <AccessControl user={currentUser} />;
+
+      case "finance":
+        return <Finance user={currentUser} />;
 
       case "create":
       case "rounds":
