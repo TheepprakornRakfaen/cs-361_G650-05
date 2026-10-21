@@ -269,7 +269,11 @@ export default function AdminOverview({
         })}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[3fr_2fr] gap-6 mb-8">
+      <div
+        className={`grid grid-cols-1 gap-6 mb-8 ${
+          canSeeAudit ? "xl:grid-cols-[3fr_2fr]" : ""
+        }`}
+      >
         {/* ===== รอนานที่สุด ===== */}
         <div className="min-w-0">
           <div className="flex items-end justify-between mb-3">
