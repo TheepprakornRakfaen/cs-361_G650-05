@@ -1780,6 +1780,8 @@ export default function App() {
         return (
           <Assignments
             courses={apiCourses}
+            claims={apiClaims}
+            periods={periods}
             goCreateFor={goCreateFor}
             courseLoading={courseLoading}
             courseError={courseError}
