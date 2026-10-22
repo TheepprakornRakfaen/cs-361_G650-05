@@ -1184,18 +1184,22 @@ export default function App() {
   };
 
   /*
-   * คำขอที่ยื่นไปแล้วของรอบนี้ (ไม่นับแบบร่าง)
-   * มีแล้ว → ปุ่ม "สร้างคำขอ" เปลี่ยนเป็น "ยื่นคำขอแล้ว" กดแล้วเปิดคำขอนั้น
+   * คำขอที่ยื่นไปแล้วของรอบนี้ (ไม่นับแบบร่าง) เรียงล่าสุดก่อน
+   * รอบเดียวยื่นได้หลายคำขอจนครบชั่วโมง (ห้ามใช้วันสอนซ้ำ — ตรวจใน CreateClaim)
    */
-  const findSubmittedClaim = (round) =>
+  const findRoundClaims = (round) =>
     round
-      ? claims.find(
-          (claim) =>
-            String(claim.periodId) === String(round.id) &&
-            claim.status !== STATUS.DRAFT &&
-            claim.status !== STATUS.UNKNOWN
-        ) || null
-      : null;
+      ? claims
+          .filter(
+            (claim) =>
+              String(claim.periodId) === String(round.id) &&
+              claim.status !== STATUS.DRAFT &&
+              claim.status !== STATUS.UNKNOWN
+          )
+          .sort((a, b) =>
+            String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+          )
+      : [];
 
   /*
    * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
@@ -1288,9 +1292,9 @@ export default function App() {
     return result;
   };
 
-  const handleClaimAction = async (claimId, action, comment) => {
+  const handleClaimAction = async (claimId, action, comment, extra) => {
     try {
-      await submitClaimAction(claimId, action, comment);
+      await submitClaimAction(claimId, action, comment, extra);
     } catch (error) {
       if (error?.status === 409) {
         // มีคนดำเนินการไปก่อน → ดึงสถานะล่าสุดมาแสดง
@@ -1770,7 +1774,7 @@ export default function App() {
             termLabel={currentTermLabel}
             goCreate={goCreate}
             goCreateForRound={goCreateForRound}
-            findSubmittedClaim={findSubmittedClaim}
+            findRoundClaims={findRoundClaims}
             goDetail={goDetail}
             goMyClaims={openMyClaims}
           />
@@ -1858,7 +1862,7 @@ export default function App() {
             onReload={() => loadAllPeriods(terms)}
             courses={courses}
             goCreateForRound={goCreateForRound}
-            findSubmittedClaim={findSubmittedClaim}
+            findRoundClaims={findRoundClaims}
             goDetail={goDetail}
           />
         );
@@ -1891,6 +1895,7 @@ export default function App() {
             onSubmit={handleSubmit}
             onSaveDraft={handleSaveDraft}
             user={currentUser}
+            existingClaims={claims}
           />
         );
       }

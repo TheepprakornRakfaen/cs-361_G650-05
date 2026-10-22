@@ -156,8 +156,37 @@ export default function CreateClaim({
   onSaveDraft,
   user,
   onCancel,
+  // คำขออื่นของผู้ใช้ — กันเบิกวันสอนเดียวกันซ้ำ (รอบเดียวยื่นได้หลายคำขอจนครบชั่วโมง)
+  existingClaims = [],
 }) {
   const isEditing = Boolean(initialClaim);
+
+  /*
+   * วันสอนที่ถูกเบิกไปแล้วในคำขออื่น (ไม่นับแบบร่าง / ไม่อนุมัติ / วันที่ถูกตัดตอนอนุมัติแยกวัน)
+   * key = "<section หรือ รหัสวิชา>|<วันที่>" → รหัสคำขอที่ใช้วันนั้นไปแล้ว
+   */
+  const claimedDayKey = (sectionId, courseCode, date) =>
+    `${sectionId ? `s${sectionId}` : `c${courseCode || ""}`}|${date}`;
+
+  const claimedDays = new Map();
+
+  existingClaims.forEach((claim) => {
+    if (
+      String(claim.id) === String(initialClaim?.id ?? "") ||
+      ["Draft", "Rejected", "Unknown"].includes(claim.status)
+    ) {
+      return;
+    }
+
+    (claim.sessions || []).forEach((session) => {
+      if (!session.date || session.decision === "rejected") return;
+
+      claimedDays.set(
+        claimedDayKey(claim.sectionId, claim.courseCode, session.date),
+        claim.code || claim.id
+      );
+    });
+  });
 
   const normalizeCourse = (course) => {
     if (!course) return null;
@@ -500,6 +529,16 @@ export default function CreateClaim({
 
       if (!dateError && isDuplicate) {
         dateError = "วันที่ซ้ำกับแถวด้านบน";
+      }
+
+      const claimedBy =
+        session.date &&
+        claimedDays.get(
+          claimedDayKey(form.sectionId, form.courseCode, session.date)
+        );
+
+      if (!dateError && claimedBy) {
+        dateError = `วันนี้เบิกไปแล้วในคำขอ #${claimedBy}`;
       }
 
       const timeError = validateSessionTime(session);
