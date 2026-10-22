@@ -24,7 +24,9 @@ import {
   Copy,
   Check,
   Printer,
+  FileSignature,
 } from "lucide-react";
+import { printSignatureForm } from "../utils/signatureForm";
 
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -53,6 +55,7 @@ import {
   getAllowedActions,
   isReviewed,
   isOwnClaim,
+  isApprovedOrLater,
 } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -500,6 +503,10 @@ export default function ClaimDetail({
 
   const { actions, blockedReason } = getAllowedActions(claim, user);
 
+  // แบบฟอร์มให้ลงนามจริง: หลังอนุมัติ — เจ้าของคำขอ หรือเจ้าหน้าที่ที่ดูแลเอกสาร
+  const canPrintSignForm =
+    isApprovedOrLater(status) && (own || can(user, P.CLAIM_REVIEW));
+
   const showDecision =
     claim.decisionComment &&
     (status === STATUS.RETURNED || status === STATUS.REJECTED);
@@ -579,6 +586,25 @@ export default function ClaimDetail({
               <Printer size={13} />
               พิมพ์
             </button>
+
+            {canPrintSignForm && (
+              <button
+                type="button"
+                onClick={() =>
+                  printSignatureForm({
+                    claim,
+                    courseName: course?.name || "",
+                    claimantName:
+                      claim.claimantName || (own ? user?.name : "") || "",
+                  })
+                }
+                className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: C.tealDark }}
+              >
+                <FileSignature size={13} />
+                แบบฟอร์มลงนาม
+              </button>
+            )}
 
             {canEdit && (
               <button
@@ -695,9 +721,10 @@ export default function ClaimDetail({
         <ReviewActionPanel
           actions={actions}
           blockedReason={blockedReason}
-          onAction={(action, comment) =>
-            onAction?.(claim.id, action, comment)
+          onAction={(action, comment, extra) =>
+            onAction?.(claim.id, action, comment, extra)
           }
+          sessions={sessions}
           reviewed={isReviewed(claim)}
           reviewedBy={claim.reviewedBy}
           evidence={{
@@ -759,6 +786,21 @@ export default function ClaimDetail({
                     <span className="font-normal" style={{ color: C.sub }}>
                       {" "}· {formatDuration(sessionMinutes(session))}
                     </span>
+                    {/* อนุมัติแยกวัน */}
+                    {session.decision && (
+                      <span
+                        className="ml-2 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                        style={
+                          session.decision === "approved"
+                            ? { background: "#DFF5E6", color: "#1E8E4F" }
+                            : { background: "#FBE2E2", color: "#C23B3B" }
+                        }
+                      >
+                        {session.decision === "approved"
+                          ? "อนุมัติ"
+                          : "ไม่อนุมัติ"}
+                      </span>
+                    )}
                   </p>
                 ))}
               </div>
@@ -787,6 +829,18 @@ export default function ClaimDetail({
                   : Number(claim.hours || 0) * 60
               )}
             </p>
+
+            {/* อนุมัติแยกวัน → แสดงชั่วโมงที่อนุมัติจริง */}
+            {sessions.some((s) => s.decision === "rejected") && (
+              <p className="text-xs mt-0.5" style={{ color: "#1E8E4F" }}>
+                อนุมัติ{" "}
+                {formatDuration(
+                  sessions
+                    .filter((s) => s.decision !== "rejected")
+                    .reduce((sum, s) => sum + sessionMinutes(s), 0)
+                )}
+              </p>
+            )}
           </div>
 
           <div>

@@ -2,6 +2,22 @@ import { HOURLY_RATE } from "../data/rates";
 import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
 import { normalizeStatus } from "../data/workflow";
 
+/*
+ * ผลพิจารณารายวัน (อนุมัติแยกวัน) — ⚠️ backend ต้องส่ง claim_date.status มา
+ * คืน "approved" | "rejected" | null (null = ยังไม่พิจารณา/backend ไม่ส่งมา)
+ */
+function normalizeDateDecision(item) {
+  if (item?.approved === true) return "approved";
+  if (item?.approved === false) return "rejected";
+
+  const raw = String(item?.status ?? "").trim().toUpperCase();
+
+  if (["APPROVED", "APPROVE", "3"].includes(raw)) return "approved";
+  if (["REJECTED", "REJECT", "4"].includes(raw)) return "rejected";
+
+  return null;
+}
+
 function sessionToHour(
   session
 ) {
@@ -181,8 +197,15 @@ export function normalizeClaim(
         id:
           `session-${item.id ?? `${raw.id}-${item.date}`}`,
 
+        // claim_date.id ใช้ส่งตอนอนุมัติแยกวัน
+        dateId:
+          item.id ?? null,
+
         date:
           item.date,
+
+        decision:
+          normalizeDateDecision(item),
 
         ...hoursToParts(item.hour),
       })),
