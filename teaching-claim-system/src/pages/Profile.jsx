@@ -271,8 +271,11 @@ export default function Profile({
     const result = {
       Draft: 0,
       Submitted: 0,
+      Reviewed: 0,
       Returned: 0,
       Approved: 0,
+      SignedDocs: 0,
+      Paid: 0,
       Rejected: 0,
     };
 
@@ -286,7 +289,9 @@ export default function Profile({
   }, [claims]);
 
   const approvedAmount = claims
-    .filter((claim) => claim.status === "Approved")
+    .filter((claim) =>
+      ["Approved", "SignedDocs", "Paid"].includes(claim.status)
+    )
     .reduce(
       (sum, claim) => sum + Number(claim.amount || 0),
       0
@@ -735,8 +740,8 @@ export default function Profile({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Rejected"]
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "SignedDocs", "Paid", "Rejected"]
                 .map((key) => [key, STATUS_STYLE[key]])
                 .map(
                 ([key, style]) => {

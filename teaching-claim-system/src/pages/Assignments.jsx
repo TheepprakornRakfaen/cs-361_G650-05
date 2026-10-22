@@ -71,12 +71,16 @@ export default function Assignments({
       label: "ชั่วโมงที่ยื่นแล้ว",
       value: sumHours([
         "Submitted", "Reviewed",
-        "Approved", "Rejected", "Returned"
+        "Approved", "SignedDocs", "Paid", "Rejected", "Returned"
       ]),
     },
     {
       label: "อนุมัติคำร้องแล้ว",
-      value: sumHours(["Approved"]),
+      value: sumHours(["Approved", "SignedDocs", "Paid"]),
+    },
+    {
+      label: "จ่ายแล้ว",
+      value: sumHours(["Paid"]),
     },
     {
       label: "รอตรวจ / รออนุมัติ",
@@ -132,7 +136,7 @@ export default function Assignments({
         </div>
 
         {targetCourse ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {instructorSummary.map((item) => (
               <div
                 key={item.label}

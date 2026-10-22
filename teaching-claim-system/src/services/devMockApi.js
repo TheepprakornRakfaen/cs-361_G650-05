@@ -127,6 +127,8 @@ const STATUSES = [
   "APPROVED",
   "REJECTED",
   "DRAFT",
+  "SIGNED_DOCS",
+  "PAID",
 ];
 
 // UUID v4 แบบสุ่ม (รหัสคำขอใช้ 4 ตัวแรก จึงต้องไม่ซ้ำกัน)
@@ -137,7 +139,7 @@ const uuid = () =>
         Math.floor(Math.random() * 16).toString(16),
       );
 
-let claims = Array.from({ length: 18 }, (_, i) => {
+let claims = Array.from({ length: 20 }, (_, i) => {
   const person = PEOPLE[i % PEOPLE.length];
   const course = COURSES[i % COURSES.length];
   const status = STATUSES[i % STATUSES.length];
@@ -152,8 +154,16 @@ let claims = Array.from({ length: 18 }, (_, i) => {
     section_id: course.section_id,
     course_code: course.course_code,
     course_name: course.course_name_th,
-    date: [{ id: i + 1, date: dateOnly(-10 - (i % 6)), hour }],
-    hour,
+    // ทุก 3 รายการมี 3 วันสอน (ไว้ทดลองอนุมัติแยกวัน)
+    date:
+      i % 3 === 0
+        ? [0, 1, 2].map((d) => ({
+            id: (i + 1) * 10 + d,
+            date: dateOnly(-10 - (i % 6) - d * 7),
+            hour,
+          }))
+        : [{ id: (i + 1) * 10, date: dateOnly(-10 - (i % 6)), hour }],
+    hour: i % 3 === 0 ? hour * 3 : hour,
     note: i % 3 === 0 ? "สอนชดเชยวันหยุดราชการ" : null,
     owner_sub: person.sub,
     claimant_name: person.name,
@@ -260,6 +270,21 @@ const ACTION_ROUTES = {
     to: "RETURNED",
     requireComment: true,
   },
+  "signed-docs": {
+    action: "RECORD_SIGNED_DOCS",
+    from: ["APPROVED"],
+    to: "SIGNED_DOCS",
+    permission: P.CLAIM_REVIEW,
+    requireComment: true,
+    afterApproval: true,
+  },
+  paid: {
+    action: "MARK_PAID",
+    from: ["SIGNED_DOCS"],
+    to: "PAID",
+    permission: P.CLAIM_REVIEW,
+    afterApproval: true,
+  },
 };
 
 const ACTIONS_BY_NAME = Object.fromEntries(
@@ -273,6 +298,8 @@ const STATUS_LABEL = {
   RETURNED: "Returned",
   REJECTED: "Rejected",
   DRAFT: "Draft",
+  SIGNED_DOCS: "SignedDocs",
+  PAID: "Paid",
 };
 
 function addLog(claim, action, from, to, comment) {
@@ -489,7 +516,11 @@ export async function devMockRequest(path, options = {}) {
         }
 
         // /pass และการส่งคืนตอนรอตรวจ ทำได้เฉพาะผู้ตรวจสอบ (ไม่ใช่ผู้อนุมัติ)
-        if (claim.status === "SUBMITTED" && can(user, P.CLAIM_APPROVE))
+        if (
+          !route.afterApproval &&
+          claim.status === "SUBMITTED" &&
+          can(user, P.CLAIM_APPROVE)
+        )
           throw error(403, "ขั้นรอตรวจเป็นงานของผู้ตรวจสอบ (ข้อมูลจำลอง)");
 
         if (isOwner)
@@ -510,9 +541,26 @@ export async function devMockRequest(path, options = {}) {
         claim.status = route.to;
         claim.updated_at = now;
 
+        // อนุมัติแยกวัน: วันที่ไม่อนุมัติถูกตัดออกจากชั่วโมง/ยอดเงิน
+        if (route.action === "APPROVE") {
+          const rejected = new Set(
+            (body.rejected_date_ids || []).map(String),
+          );
+
+          claim.date = claim.date.map((d) => ({
+            ...d,
+            status: rejected.has(String(d.id)) ? "REJECTED" : "APPROVED",
+          }));
+          claim.hour = claim.date
+            .filter((d) => d.status === "APPROVED")
+            .reduce((sum, d) => sum + Number(d.hour || 0), 0);
+        }
+
         if (route.action === "REVIEW_PASS") {
           claim.reviewed_at = now;
           claim.reviewed_by_name = user?.name || "";
+        } else if (route.afterApproval) {
+          // เก็บหมายเหตุไว้ในประวัติอย่างเดียว
         } else {
           claim.decision_comment = body.comment || null;
           claim.decision_by = user?.name || "";

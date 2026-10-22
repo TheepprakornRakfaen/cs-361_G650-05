@@ -81,6 +81,22 @@ function ownClaimNotification(claim) {
         title: `คำขอ ${claimLabel(claim)} ได้รับการอนุมัติแล้ว`,
         description: `${course}ยอดเบิก ${baht(claim.amount)} บาท`,
       };
+    case "SignedDocs":
+      return {
+        ...base,
+        id: `claim-${claim.id}-SignedDocs`,
+        kind: "approved",
+        title: `ได้รับเอกสารลงนามของคำขอ ${claimLabel(claim)} แล้ว`,
+        description: `${course}ส่งเรื่องให้การเงินดำเนินการจ่าย`,
+      };
+    case "Paid":
+      return {
+        ...base,
+        id: `claim-${claim.id}-Paid`,
+        kind: "approved",
+        title: `คำขอ ${claimLabel(claim)} จ่ายเงินแล้ว`,
+        description: `${course}ยอด ${baht(claim.amount)} บาท`,
+      };
     case "Rejected":
       return {
         ...base,

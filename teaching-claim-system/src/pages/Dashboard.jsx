@@ -14,12 +14,15 @@ import {
   CalendarClock,
   Sparkles,
   XCircle,
+  FileSignature,
+  Banknote,
   ClipboardCheck,
 } from "lucide-react";
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import StatusPill from "../components/StatusPill";
 import { formatDuration } from "../utils/time";
+import { isApprovedOrLater } from "../data/workflow";
 
 // การ์ดสรุปสถานะ — กดแล้วไปหน้าคำขอของฉันที่กรองสถานะนั้นไว้
 // bar = สีในแถบสัดส่วนบนพื้นน้ำเงิน (สีพาสเทลของ STATUS_STYLE จางเกินไปบนพื้นเข้ม)
@@ -28,7 +31,9 @@ const STAT_CARDS = [
   { key: "Submitted", icon: Clock3, hint: "อยู่ระหว่างการตรวจสอบโดยเจ้าหน้าที่", bar: "#FCD34D" },
   { key: "Reviewed", icon: ClipboardCheck, hint: "ตรวจสอบแล้ว รอผู้อนุมัติพิจารณา", bar: "#A5B4FC" },
   { key: "Returned", icon: RotateCcw, hint: "กรุณาแก้ไขและยื่นคำขออีกครั้ง", bar: "#FB923C" },
-  { key: "Approved", icon: CheckCircle2, hint: "ดำเนินการเรียบร้อยแล้ว", bar: "#4ADE80" },
+  { key: "Approved", icon: CheckCircle2, hint: "อนุมัติแล้ว รอส่งเอกสารลงนาม", bar: "#4ADE80" },
+  { key: "SignedDocs", icon: FileSignature, hint: "ได้รับเอกสารลงนามแล้ว รอการเงินจ่าย", bar: "#7DD3FC" },
+  { key: "Paid", icon: Banknote, hint: "ได้รับเงินเรียบร้อยแล้ว", bar: "#22C55E" },
   { key: "Rejected", icon: XCircle, hint: "สิ้นสุดการพิจารณา ดูเหตุผลในรายละเอียด", bar: "#F87171" },
 ];
 
@@ -74,7 +79,7 @@ export default function Dashboard({
   termLabel = "",
   goCreate,
   goCreateForRound,
-  findSubmittedClaim,
+  findRoundClaims,
   goDetail,
   goMyClaims,
 }) {
@@ -84,6 +89,8 @@ export default function Dashboard({
       Submitted: 0,
       Returned: 0,
       Approved: 0,
+      SignedDocs: 0,
+      Paid: 0,
       Rejected: 0,
     };
 
@@ -95,7 +102,7 @@ export default function Dashboard({
   }, [claims]);
 
   const approvedAmount = claims
-    .filter((cl) => cl.status === "Approved")
+    .filter((cl) => isApprovedOrLater(cl.status))
     .reduce((sum, cl) => sum + Number(cl.amount || 0), 0);
 
   // ยังพิจารณาไม่เสร็จ (รอตรวจ + รออนุมัติ)
@@ -118,7 +125,9 @@ export default function Dashboard({
    */
   const openRound = rounds.find((r) => r.status === "Open");
   // ยื่นในรอบนี้ไปแล้ว → แสดง "ยื่นคำขอแล้ว" แทนปุ่มสร้าง
-  const submittedClaim = findSubmittedClaim?.(openRound) || null;
+  // รอบเดียวยื่นได้หลายคำขอ → แสดงจำนวนที่ยื่นแล้ว และยังกด "ยื่นเพิ่ม" ได้
+  const roundClaims = findRoundClaims?.(openRound) || [];
+  const submittedClaim = roundClaims[0] || null;
 
   const nextRound = openRound
     ? null
@@ -244,7 +253,7 @@ export default function Dashboard({
       </div>
 
       {/* ===== การ์ดสถานะ ===== */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {STAT_CARDS.map(({ key, icon: Icon, hint }) => {
           const style = STATUS_STYLE[key];
           const highlight = key === "Returned" && counts.Returned > 0;
@@ -391,29 +400,33 @@ export default function Dashboard({
             </div>
           </div>
 
-          {openRound && submittedClaim && (
-            <button
-              onClick={() => goDetail?.(submittedClaim.id)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
-              style={{ background: "#DFF5E6", color: "#1E8E4F" }}
-              title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
-            >
-              <CheckCircle2 size={16} />
-              ยื่นคำขอแล้ว
-            </button>
-          )}
+          {openRound && (
+            <div className="flex items-center gap-2 flex-wrap">
+            {openRound && submittedClaim && (
+              <button
+                onClick={() => goDetail?.(submittedClaim.id)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
+                style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
+              >
+                <CheckCircle2 size={16} />
+                ยื่นแล้ว {roundClaims.length} คำขอ
+              </button>
+            )}
 
-          {openRound && !submittedClaim && (
-            <button
-              onClick={() =>
-                goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
-              }
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm"
-              style={{ background: gradient }}
-            >
-              <Plus size={16} />
-              สร้างคำขอในรอบนี้
-            </button>
+            {openRound && (
+              <button
+                onClick={() =>
+                  goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
+                }
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm"
+                style={{ background: gradient }}
+              >
+                <Plus size={16} />
+                {submittedClaim ? "ยื่นเพิ่ม" : "สร้างคำขอในรอบนี้"}
+              </button>
+            )}
+            </div>
           )}
         </div>
 

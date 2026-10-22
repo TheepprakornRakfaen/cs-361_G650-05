@@ -26,7 +26,7 @@ function iconFor(step, index) {
 }
 
 /*
- * [V3] แถบสถานะ 3 ขั้น: ยื่นคำขอ → ตรวจสอบ → อนุมัติ
+ * [V3] แถบสถานะ: ยื่นคำขอ → ตรวจสอบ → อนุมัติ → เอกสารลงนาม → จ่ายเงิน
  */
 export default function WorkflowStepper({ status, reviewed = false }) {
   const steps = getWorkflowSteps(status, reviewed);
@@ -48,14 +48,14 @@ export default function WorkflowStepper({ status, reviewed = false }) {
               aria-current={step.state === "current" ? "step" : undefined}
             >
               <span
-                className="w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center"
+                className="w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center"
                 style={{ background: style.bg }}
               >
                 <Icon size={18} style={{ color: style.fg }} />
               </span>
 
               <span
-                className="text-[11px] md:text-xs font-medium text-center w-24"
+                className="text-[10px] md:text-xs font-medium text-center w-14 sm:w-20 md:w-24"
                 style={{ color: style.text }}
               >
                 {step.label}

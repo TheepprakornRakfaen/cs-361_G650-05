@@ -75,7 +75,7 @@ export function getAssignmentRate(assignment) {
 }
 
 // ชั่วโมงที่นับว่าใช้โควตาไปแล้ว = คำขอที่ยื่นแล้วและยังไม่ถูกปฏิเสธ
-const COUNTED_STATUSES = ["Pending", "Approved"];
+const COUNTED_STATUSES = ["Pending", "Approved", "SignedDocs", "Paid"];
 
 /*
  * รวมรายวิชาที่ผู้ใช้ได้รับมอบหมาย + อัตราตามตำแหน่ง + ชั่วโมงที่ใช้ไปจากคำขอของผู้ใช้เอง
