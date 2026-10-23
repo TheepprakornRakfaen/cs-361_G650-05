@@ -23,7 +23,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
 import AccessControl from "./pages/AccessControl";
-import Finance from "./pages/Finance";
+import Report from "./pages/Report";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
 
@@ -92,7 +92,7 @@ const SUBTITLE_MAP = {
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
   settings: "บทบาทและสิทธิ์",
-  finance: "การเงิน",
+  report: "รายงานสรุปยอดเบิก",
 };
 
 /*
@@ -112,7 +112,7 @@ const PROTECTED_VIEWS = new Set([
   "review",
   "auditlog",
   "settings",
-  "finance",
+  "report",
 ]);
 
 export default function App() {
@@ -1190,15 +1190,25 @@ export default function App() {
    * คำขอที่ยื่นไปแล้วของรอบนี้ (ไม่นับแบบร่าง)
    * มีแล้ว → ปุ่ม "สร้างคำขอ" เปลี่ยนเป็น "ยื่นคำขอแล้ว" กดแล้วเปิดคำขอนั้น
    */
-  const findSubmittedClaim = (round) =>
+  /*
+   * คำขอที่ยื่นไปแล้วของรอบนี้ (ไม่นับแบบร่าง) — 1 รอบยื่นได้หลายคำขอ
+   * จนกว่าชั่วโมงของวิชาจะครบ จึงคืนเป็นรายการ (ใหม่สุดก่อน)
+   */
+  const findRoundClaims = (round) =>
     round
-      ? claims.find(
-          (claim) =>
-            String(claim.periodId) === String(round.id) &&
-            claim.status !== STATUS.DRAFT &&
-            claim.status !== STATUS.UNKNOWN
-        ) || null
-      : null;
+      ? claims
+          .filter(
+            (claim) =>
+              String(claim.periodId) === String(round.id) &&
+              claim.status !== STATUS.DRAFT &&
+              claim.status !== STATUS.UNKNOWN
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt || 0).getTime() -
+              new Date(a.createdAt || 0).getTime()
+          )
+      : [];
 
   /*
    * แก้ไขคำขอเดิม (แบบร่าง / ถูกส่งกลับ)
@@ -1270,7 +1280,11 @@ export default function App() {
     setPendingEvidence((current) => {
       const next = { ...current };
       const retriedNames = new Set(
-        entries.map((entry) => (entry instanceof File ? entry.name : entry?.fileName))
+        entries.map((entry) =>
+          entry instanceof File
+            ? entry.name
+            : entry?.fileName || entry?.file?.name
+        )
       );
 
       // ตัดรายการที่ลองรอบนี้ออก แล้วใส่เฉพาะที่ยังพลาดกลับเข้าไป
@@ -1291,9 +1305,9 @@ export default function App() {
     return result;
   };
 
-  const handleClaimAction = async (claimId, action, comment) => {
+  const handleClaimAction = async (claimId, action, comment, extra) => {
     try {
-      await submitClaimAction(claimId, action, comment);
+      await submitClaimAction(claimId, action, comment, extra);
     } catch (error) {
       if (error?.status === 409) {
         // มีคนดำเนินการไปก่อน → ดึงสถานะล่าสุดมาแสดง
@@ -1773,7 +1787,7 @@ export default function App() {
             termLabel={currentTermLabel}
             goCreate={goCreate}
             goCreateForRound={goCreateForRound}
-            findSubmittedClaim={findSubmittedClaim}
+            findRoundClaims={findRoundClaims}
             goDetail={goDetail}
             goMyClaims={openMyClaims}
           />
@@ -1848,8 +1862,16 @@ export default function App() {
       case "settings":
         return <AccessControl user={currentUser} />;
 
-      case "finance":
-        return <Finance user={currentUser} />;
+      case "report":
+        return (
+          <Report
+            user={currentUser}
+            claims={reviewClaims.map(decorateClaim)}
+            loading={reviewLoading}
+            error={reviewError}
+            onReload={loadReviewClaims}
+          />
+        );
 
       case "create":
       case "rounds":
@@ -1862,7 +1884,7 @@ export default function App() {
             onReload={() => loadAllPeriods(terms)}
             courses={courses}
             goCreateForRound={goCreateForRound}
-            findSubmittedClaim={findSubmittedClaim}
+            findRoundClaims={findRoundClaims}
             goDetail={goDetail}
           />
         );
@@ -1894,6 +1916,7 @@ export default function App() {
             onCancel={() => setView("myclaims")}
             onSubmit={handleSubmit}
             onSaveDraft={handleSaveDraft}
+            claims={claims}
             user={currentUser}
           />
         );

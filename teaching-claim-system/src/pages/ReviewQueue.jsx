@@ -35,6 +35,7 @@ const SUMMARY = [
   STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
+  STATUS.PAID,
   STATUS.REJECTED,
 ];
 
@@ -353,7 +354,7 @@ export default function ReviewQueue({
       </div>
 
       {/* สรุปตามสถานะ — กดเพื่อกรอง (รูปแบบเดียวกับหน้า "คำขอของฉัน") */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
         {SUMMARY.map((key) => {
           const style = STATUS_STYLE[key];
           const active = statusFilter === key;

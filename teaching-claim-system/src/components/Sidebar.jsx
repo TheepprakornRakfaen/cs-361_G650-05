@@ -26,11 +26,10 @@ export const NAV_ITEMS = [
   { id: "assignments", label: "งานสอน", icon: BookOpen, requiresLogin: true },
   { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList, requiresLogin: true },
   { id: "create", label: "สร้างคำขอ", icon: FilePlus2, requiresLogin: true },
-  // [Project 6] ทุกบทบาทเข้าได้ ข้อมูลกรองตาม Cognito sub (ดู data/financeMock.js)
-  { id: "finance", label: "การเงิน", icon: Wallet, requiresLogin: true },
   // [V3] เห็นเฉพาะผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ (ดู VIEW_PERMISSION ใน data/roles.js)
   { id: "admin", label: "ภาพรวมระบบ", icon: Gauge, requiresLogin: true, staffOnly: true },
   { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true, staffOnly: true },
+  { id: "report", label: "รายงานสรุปยอดเบิก", icon: Wallet, requiresLogin: true, staffOnly: true },
   { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true, staffOnly: true },
   { id: "settings", label: "บทบาทและสิทธิ์", icon: ShieldCheck, requiresLogin: true, staffOnly: true },
 ];

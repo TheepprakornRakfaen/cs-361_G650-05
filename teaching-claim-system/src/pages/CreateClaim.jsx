@@ -13,6 +13,9 @@ import {
   Save,
   Plus,
   Loader2,
+  Download,
+  Printer,
+  FileSignature,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -29,11 +32,15 @@ import {
   roundMoney,
 } from "../utils/time";
 import { HOURLY_RATE } from "../data/rates";
+import { downloadSignForm, printSignForm } from "../utils/signForm";
+import { getClaimEvidence } from "../services/api";
+import { getCompType } from "../services/claimMapper";
+import { STATUS } from "../data/workflow";
 
 const STEP_TITLES = [
   "ข้อมูล",
   "รายละเอียดคำขอ",
-  "หลักฐานประกอบการเบิก",
+  "เอกสารลงนามและหลักฐาน",
   "ตรวจสอบความถูกต้อง",
 ];
 
@@ -51,6 +58,15 @@ const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
 const MAX_NOTES_LENGTH = 500;
 const MAX_FILE_MB = 10;
 const MAX_FILES = 5;
+const MAX_SIGNED_FILES = 3;
+
+// สถานะที่ "ใช้ชั่วโมงไปแล้ว" — คำขอเหล่านี้ห้ามเบิกวันสอนซ้ำ (แบบร่าง/ไม่อนุมัติ/ส่งกลับ ไม่นับ)
+const COUNTED_CLAIM_STATUSES = [
+  STATUS.SUBMITTED,
+  STATUS.REVIEWED,
+  STATUS.APPROVED,
+  STATUS.PAID,
+];
 const ALLOWED_FILE_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png"];
 
 // วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง (ใช้กับ min/max ของ input type="date")
@@ -156,6 +172,8 @@ export default function CreateClaim({
   onSaveDraft,
   user,
   onCancel,
+  // คำขอของผู้ใช้เอง — ใช้ตรวจวันสอนซ้ำกับคำขอที่ยื่นไปแล้วในรอบ/วิชาเดียวกัน
+  claims = [],
 }) {
   const isEditing = Boolean(initialClaim);
 
@@ -312,6 +330,47 @@ export default function CreateClaim({
   ] = useState([]);
 
   const fileInputRef = useRef(null);
+
+  // เอกสารลงนาม (สแกนหลังลงนามจริง) — แยกจากหลักฐานประกอบ
+  const [signedFiles, setSignedFiles] = useState([]);
+  const signedInputRef = useRef(null);
+
+  // จำนวนเอกสารลงนามที่มีในระบบแล้ว (กรณีแก้ไขคำขอที่ถูกส่งกลับ ไม่ต้องแนบซ้ำถ้ายังใช้ได้)
+  const [existingSignedCount, setExistingSignedCount] = useState(0);
+
+  useEffect(() => {
+    const id = initialClaim?.id;
+
+    if (
+      !id ||
+      initialClaim?.status !== STATUS.RETURNED ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(id))
+    ) {
+      setExistingSignedCount(0);
+      return undefined;
+    }
+
+    let active = true;
+
+    getClaimEvidence(id)
+      .then((data) => {
+        if (!active) return;
+
+        const list = Array.isArray(data?.evidence) ? data.evidence : [];
+
+        setExistingSignedCount(
+          list.filter(
+            (item) =>
+              (item.evidence_type || item.evidenceType) === "signed_form",
+          ).length,
+        );
+      })
+      .catch(() => active && setExistingSignedCount(0));
+
+    return () => {
+      active = false;
+    };
+  }, [initialClaim?.id, initialClaim?.status]);
 
   // กันกดยื่นซ้ำระหว่างรอ backend (ref กันคลิกรัวก่อน state อัปเดตทัน)
   const [submitting, setSubmitting] = useState(false);
@@ -502,6 +561,24 @@ export default function CreateClaim({
         dateError = "วันที่ซ้ำกับแถวด้านบน";
       }
 
+      /*
+       * วันสอนนี้เคยอยู่ในคำขออื่นที่ยื่นแล้ว (วิชา/section เดียวกัน) → เบิกซ้ำไม่ได้
+       * เบิกต่อได้เฉพาะวันที่ยังไม่เคยเบิก จนกว่าชั่วโมงจะครบ
+       */
+      if (!dateError && session.date) {
+        const clash = claims.find(
+          (other) =>
+            String(other.id) !== String(initialClaim?.id) &&
+            COUNTED_CLAIM_STATUSES.includes(other.status) &&
+            String(other.sectionId) === String(form.sectionId) &&
+            (other.sessions || []).some((item) => item.date === session.date),
+        );
+
+        if (clash) {
+          dateError = `วันที่นี้ถูกเบิกแล้วในคำขอ ${clash.code || clash.id}`;
+        }
+      }
+
       const timeError = validateSessionTime(session);
 
       if (dateError || timeError) {
@@ -528,6 +605,20 @@ export default function CreateClaim({
     return Object.keys(nextErrors).length === 0;
   }
 
+  // ต้องมีเอกสารลงนามอย่างน้อย 1 ไฟล์ (ในระบบแล้ว หรือเลือกใหม่) ก่อนยื่น
+  function validateStep3() {
+    const nextErrors = {};
+
+    if (signedFiles.length + existingSignedCount === 0) {
+      nextErrors.signed =
+        "กรุณาแนบเอกสารแบบขอเบิกที่ลงนามแล้ว (ดาวน์โหลดแบบฟอร์มด้านบน → พิมพ์ → ลงนาม → สแกนแนบ)";
+    }
+
+    setErrors((current) => ({ ...current, ...nextErrors, signed: nextErrors.signed || "" }));
+
+    return Object.keys(nextErrors).length === 0;
+  }
+
   function next() {
     if (step === 1 && !validateStep1()) {
       return;
@@ -536,6 +627,8 @@ export default function CreateClaim({
     if (step === 2 && !validateStep2()) {
       return;
     }
+
+    // ไปขั้นตรวจสอบได้แม้ยังไม่แนบ (บันทึกร่างได้) แต่จะยื่นจริงไม่ได้จนกว่าจะแนบเอกสารลงนาม
 
     setStep((current) => Math.min(4, current + 1));
   }
@@ -556,20 +649,29 @@ export default function CreateClaim({
     );
   }
 
-  function handleFiles(fileList) {
+  const sameFile = (a, b) =>
+    a.name === b.name &&
+    a.size === b.size &&
+    a.lastModified === b.lastModified;
+
+  /*
+   * kind = "signed" (เอกสารลงนาม) | "support" (หลักฐานประกอบ)
+   * ไฟล์เดียวกันแนบข้ามประเภทไม่ได้ กันแนบผิดช่อง
+   */
+  function handleFiles(fileList, kind = "support") {
     const incoming = Array.from(fileList || []);
 
     if (incoming.length === 0) {
       return;
     }
 
-    const accepted = [...evidenceFiles];
-    const problems = [];
+    const isSigned = kind === "signed";
+    const current = isSigned ? signedFiles : evidenceFiles;
+    const other = isSigned ? evidenceFiles : signedFiles;
+    const limit = isSigned ? MAX_SIGNED_FILES : MAX_FILES;
 
-    const sameFile = (a, b) =>
-      a.name === b.name &&
-      a.size === b.size &&
-      a.lastModified === b.lastModified;
+    const accepted = [...current];
+    const problems = [];
 
     for (const file of incoming) {
       const fileError = validateFile(file);
@@ -579,43 +681,87 @@ export default function CreateClaim({
         continue;
       }
 
-      if (accepted.some((existing) => sameFile(existing, file))) {
+      if (
+        accepted.some((existing) => sameFile(existing, file)) ||
+        other.some((existing) => sameFile(existing, file))
+      ) {
         problems.push(`${file.name}: เลือกไฟล์นี้ไปแล้ว`);
         continue;
       }
 
-      if (accepted.length >= MAX_FILES) {
-        problems.push(`แนบได้ไม่เกิน ${MAX_FILES} ไฟล์ ข้าม ${file.name}`);
+      if (accepted.length >= limit) {
+        problems.push(`แนบได้ไม่เกิน ${limit} ไฟล์ ข้าม ${file.name}`);
         continue;
       }
 
       accepted.push(file);
     }
 
-    setEvidenceFiles(accepted);
-    syncFileName(accepted);
+    if (isSigned) {
+      setSignedFiles(accepted);
+    } else {
+      setEvidenceFiles(accepted);
+    }
 
-    setErrors((current) => ({
-      ...current,
-      file: problems.join(" · "),
+    syncFileName([...(isSigned ? accepted : signedFiles), ...(isSigned ? evidenceFiles : accepted)]);
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [isSigned ? "signedFile" : "file"]: problems.join(" · "),
+      ...(isSigned && accepted.length > 0 ? { signed: "" } : {}),
     }));
   }
 
-  function removeFile(index) {
-    const next = evidenceFiles.filter((_, i) => i !== index);
+  function removeFile(index, kind = "support") {
+    const isSigned = kind === "signed";
+    const list = isSigned ? signedFiles : evidenceFiles;
+    const nextList = list.filter((_, i) => i !== index);
 
-    setEvidenceFiles(next);
-    syncFileName(next);
+    if (isSigned) {
+      setSignedFiles(nextList);
+    } else {
+      setEvidenceFiles(nextList);
+    }
 
-    setErrors((current) => ({
-      ...current,
-      file: "",
+    syncFileName(isSigned ? [...nextList, ...evidenceFiles] : [...signedFiles, ...nextList]);
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [isSigned ? "signedFile" : "file"]: "",
     }));
 
     // ล้าง input เพื่อให้เลือกไฟล์เดิมซ้ำได้
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    const input = isSigned ? signedInputRef.current : fileInputRef.current;
+
+    if (input) {
+      input.value = "";
     }
+  }
+
+  // ข้อมูลสำหรับสร้างเอกสารลงนาม (ตรงกับที่จะยื่นจริง)
+  function buildSignFormData() {
+    return {
+      claimantName: user?.name || user?.username || "",
+      claimantRole: user?.role || "",
+      roleKey: getCompType(user?.roleKey),
+      staffId: user?.staffId || "",
+      courseCode: form.courseCode,
+      courseName: form.courseName,
+      sectionNo: course?.section_no || "",
+      semester: form.semester,
+      round: form.round,
+      sessions: form.sessions,
+      rate,
+      notes: form.notes,
+    };
+  }
+
+  // รวมไฟล์ทั้งสองประเภทเป็นรายการอัปโหลด พร้อมระบุประเภท
+  function buildUploadEntries() {
+    return [
+      ...signedFiles.map((file) => ({ file, category: "signed_form" })),
+      ...evidenceFiles.map((file) => ({ file, category: "supporting" })),
+    ];
   }
 
   /*
@@ -635,12 +781,17 @@ export default function CreateClaim({
       return;
     }
 
+    if (!validateStep3()) {
+      setStep(3);
+      return;
+    }
+
     submittingRef.current = true;
     setSubmitting(true);
 
     try {
       // 1 = ยื่นจริง
-      await onSubmit?.({ ...buildPayload(), status: 1 }, evidenceFiles);
+      await onSubmit?.({ ...buildPayload(), status: 1 }, buildUploadEntries());
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -1195,146 +1346,274 @@ export default function CreateClaim({
             </div>
           )}
 
-          {/* STEP 3 */}
+          {/* STEP 3 — เอกสารลงนาม + หลักฐานประกอบ */}
           {step === 3 && (
-            <div>
-              <p
-                className="text-sm font-semibold mb-3"
-                style={{
-                  color: C.ink,
-                }}
-              >
-                อัปโหลดไฟล์
-              </p>
-
+            <div className="space-y-8">
+              {/* 3.1 ดาวน์โหลดแบบฟอร์มลงนาม */}
               <div
-                className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-12 px-6 text-center"
-                style={{
-                  borderColor: C.border,
-                  background: "#FAFDFE",
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-
-                  handleFiles(e.dataTransfer.files);
-                }}
+                className="rounded-2xl border p-5"
+                style={{ borderColor: C.border, background: "#FAFDFE" }}
               >
+                <p
+                  className="flex items-center gap-2 text-sm font-bold mb-1"
+                  style={{ color: C.ink }}
+                >
+                  <FileSignature size={16} style={{ color: C.tealDark }} />
+                  1) ดาวน์โหลดแบบขอเบิกเพื่อลงนาม
+                </p>
+
+                <p className="text-xs leading-5 mb-4" style={{ color: C.sub }}>
+                  {getCompType(user?.roleKey) === "TA"
+                    ? "TA ดาวน์โหลดเอกสารนี้ → พิมพ์ → นำไปให้อาจารย์ผู้สอนลงนามรับรอง → สแกนแล้วแนบกลับด้านล่าง"
+                    : "ดาวน์โหลดเอกสารนี้ → พิมพ์ → ลงนาม (และให้ผู้มีอำนาจลงนามรับรอง) → สแกนแล้วแนบกลับด้านล่าง"}
+                  {" "}
+                  ข้อมูลในเอกสารมาจากคำขอนี้ หากแก้ไขวันสอน/ชั่วโมงภายหลัง ต้องดาวน์โหลดและลงนามใหม่
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadSignForm(buildSignFormData())}
+                    className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white"
+                    style={{
+                      background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                    }}
+                  >
+                    <Download size={15} />
+                    ดาวน์โหลดเอกสารลงนาม
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => printSignForm(buildSignFormData())}
+                    className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold border"
+                    style={{ borderColor: C.teal, color: C.tealDark }}
+                  >
+                    <Printer size={15} />
+                    เปิดเพื่อพิมพ์ / บันทึก PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* 3.2 แนบเอกสารลงนาม (บังคับ) */}
+              <div>
+                <p
+                  className="text-sm font-bold mb-1"
+                  style={{ color: C.ink }}
+                >
+                  2) แนบเอกสารที่ลงนามแล้ว
+                  <span style={{ color: C.rose }}> *</span>
+                </p>
+
+                <p className="text-xs mb-3" style={{ color: C.sub }}>
+                  ไฟล์สแกน/ภาพถ่ายของแบบขอเบิกที่ลงนามครบแล้ว (สูงสุด {MAX_SIGNED_FILES} ไฟล์)
+                  {existingSignedCount > 0 &&
+                    ` · มีเอกสารลงนามในคำขอเดิมแล้ว ${existingSignedCount} ไฟล์ (แนบใหม่เมื่อต้องการแทนที่)`}
+                </p>
+
                 <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
+                  className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-8 px-6 text-center"
                   style={{
-                    background: C.tealSoft,
+                    borderColor: errors.signed ? C.rose : C.border,
+                    background: "#FAFDFE",
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleFiles(e.dataTransfer.files, "signed");
                   }}
                 >
                   <UploadCloud
-                    size={24}
-                    style={{
-                      color: C.tealDark,
-                    }}
+                    size={22}
+                    className="mb-2"
+                    style={{ color: C.tealDark }}
                   />
-                </div>
 
-                <p
-                  className="font-semibold mb-1"
-                  style={{
-                    color: C.ink,
-                  }}
-                >
-                  เลือกไฟล์ หรือลากมาวางที่นี่ (แนบได้สูงสุด {MAX_FILES} ไฟล์)
-                </p>
-
-                <p
-                  className="text-xs mb-4"
-                  style={{
-                    color: C.sub,
-                  }}
-                >
-                  PDF, JPG, PNG ไฟล์ละไม่เกิน {MAX_FILE_MB} MB ·
-                  ไฟล์จะถูกอัปโหลดเป็นหลักฐานประกอบคำขอ
-                </p>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                  hidden
-                  multiple
-                  onChange={(e) => {
-                    handleFiles(e.target.files);
-                    // ล้างค่า เพื่อให้เลือกไฟล์ชื่อเดิมซ้ำหลังลบได้
-                    e.target.value = "";
-                  }}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-5 py-2 rounded-full text-sm font-semibold border"
-                  style={{
-                    borderColor: C.teal,
-                    color: C.tealDark,
-                  }}
-                >
-                  {evidenceFiles.length > 0 ? "เพิ่มไฟล์" : "เลือกไฟล์"}
-                </button>
-              </div>
-
-              {errors.file && (
-                <p
-                  className="text-xs mt-2 flex items-center gap-1.5"
-                  style={{ color: C.rose }}
-                >
-                  <AlertTriangle size={13} />
-                  {errors.file}
-                </p>
-              )}
-
-              {evidenceFiles.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs" style={{ color: C.sub }}>
-                    แนบแล้ว {evidenceFiles.length} / {MAX_FILES} ไฟล์
+                  <p className="text-xs mb-3" style={{ color: C.sub }}>
+                    PDF, JPG, PNG ไฟล์ละไม่เกิน {MAX_FILE_MB} MB
                   </p>
 
-                  {evidenceFiles.map((file, index) => (
-                    <div
-                      key={`${file.name}-${file.size}-${file.lastModified}`}
-                      className="flex items-center justify-between rounded-2xl border px-5 py-3.5"
-                      style={{ borderColor: C.border }}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <FileText
-                          size={18}
-                          style={{ color: C.tealDark }}
-                        />
+                  <input
+                    ref={signedInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    hidden
+                    multiple
+                    onChange={(e) => {
+                      handleFiles(e.target.files, "signed");
+                      e.target.value = "";
+                    }}
+                  />
 
-                        <div className="min-w-0">
-                          <p
-                            className="text-sm font-medium truncate"
-                            style={{ color: C.ink }}
-                          >
-                            {file.name}
-                          </p>
-
-                          <p
-                            className="text-xs mt-0.5"
-                            style={{ color: C.sub }}
-                          >
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        aria-label={`ลบไฟล์ ${file.name}`}
-                      >
-                        <Trash2 size={16} style={{ color: C.sub }} />
-                      </button>
-                    </div>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => signedInputRef.current?.click()}
+                    className="px-5 py-2 rounded-full text-sm font-semibold border"
+                    style={{ borderColor: C.teal, color: C.tealDark }}
+                  >
+                    {signedFiles.length > 0 ? "เพิ่มไฟล์" : "เลือกไฟล์เอกสารลงนาม"}
+                  </button>
                 </div>
-              )}
+
+                {(errors.signed || errors.signedFile) && (
+                  <p
+                    className="text-xs mt-2 flex items-center gap-1.5"
+                    style={{ color: C.rose }}
+                  >
+                    <AlertTriangle size={13} />
+                    {errors.signed || errors.signedFile}
+                  </p>
+                )}
+
+                {signedFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {signedFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="flex items-center justify-between rounded-2xl border px-5 py-3"
+                        style={{ borderColor: C.border }}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileSignature
+                            size={18}
+                            style={{ color: C.tealDark }}
+                          />
+
+                          <div className="min-w-0">
+                            <p
+                              className="text-sm font-medium truncate"
+                              style={{ color: C.ink }}
+                            >
+                              {file.name}
+                            </p>
+
+                            <p className="text-xs" style={{ color: C.sub }}>
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index, "signed")}
+                          aria-label={`ลบไฟล์ ${file.name}`}
+                        >
+                          <Trash2 size={16} style={{ color: C.sub }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3.3 หลักฐานประกอบเพิ่มเติม (ไม่บังคับ) */}
+              <div>
+                <p
+                  className="text-sm font-bold mb-1"
+                  style={{ color: C.ink }}
+                >
+                  3) หลักฐานประกอบการเบิกเพิ่มเติม (ถ้ามี)
+                </p>
+
+                <p className="text-xs mb-3" style={{ color: C.sub }}>
+                  เช่น ใบลงเวลาสอน ตารางสอน คำสั่งแต่งตั้ง ใบรับรองการปฏิบัติงาน (สูงสุด {MAX_FILES} ไฟล์)
+                </p>
+
+                <div
+                  className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-8 px-6 text-center"
+                  style={{ borderColor: C.border, background: "#FAFDFE" }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleFiles(e.dataTransfer.files, "support");
+                  }}
+                >
+                  <UploadCloud
+                    size={22}
+                    className="mb-2"
+                    style={{ color: C.tealDark }}
+                  />
+
+                  <p className="text-xs mb-3" style={{ color: C.sub }}>
+                    PDF, JPG, PNG ไฟล์ละไม่เกิน {MAX_FILE_MB} MB
+                  </p>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                    hidden
+                    multiple
+                    onChange={(e) => {
+                      handleFiles(e.target.files, "support");
+                      e.target.value = "";
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-5 py-2 rounded-full text-sm font-semibold border"
+                    style={{ borderColor: C.teal, color: C.tealDark }}
+                  >
+                    {evidenceFiles.length > 0 ? "เพิ่มไฟล์" : "เลือกไฟล์"}
+                  </button>
+                </div>
+
+                {errors.file && (
+                  <p
+                    className="text-xs mt-2 flex items-center gap-1.5"
+                    style={{ color: C.rose }}
+                  >
+                    <AlertTriangle size={13} />
+                    {errors.file}
+                  </p>
+                )}
+
+                {evidenceFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs" style={{ color: C.sub }}>
+                      แนบแล้ว {evidenceFiles.length} / {MAX_FILES} ไฟล์
+                    </p>
+
+                    {evidenceFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="flex items-center justify-between rounded-2xl border px-5 py-3"
+                        style={{ borderColor: C.border }}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText
+                            size={18}
+                            style={{ color: C.tealDark }}
+                          />
+
+                          <div className="min-w-0">
+                            <p
+                              className="text-sm font-medium truncate"
+                              style={{ color: C.ink }}
+                            >
+                              {file.name}
+                            </p>
+
+                            <p className="text-xs" style={{ color: C.sub }}>
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index, "support")}
+                          aria-label={`ลบไฟล์ ${file.name}`}
+                        >
+                          <Trash2 size={16} style={{ color: C.sub }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1392,25 +1671,39 @@ export default function CreateClaim({
               />
 
               <SummaryRow
-                label="หลักฐานแนบ"
+                label="เอกสารลงนาม"
                 value={
-                  evidenceFiles.length > 0
-                    ? `${evidenceFiles.length} ไฟล์: ${form.fileName}`
-                    : "ไม่มีไฟล์แนบ"
+                  signedFiles.length > 0
+                    ? `${signedFiles.length} ไฟล์: ${signedFiles.map((f) => f.name).join(", ")}`
+                    : existingSignedCount > 0
+                      ? `ใช้เอกสารลงนามเดิมในระบบ (${existingSignedCount} ไฟล์)`
+                      : "ยังไม่ได้แนบ"
                 }
               />
 
-              {!form.fileName && (
+              <SummaryRow
+                label="หลักฐานประกอบเพิ่มเติม"
+                value={
+                  evidenceFiles.length > 0
+                    ? `${evidenceFiles.length} ไฟล์: ${evidenceFiles.map((f) => f.name).join(", ")}`
+                    : "ไม่มี"
+                }
+              />
+
+              {signedFiles.length + existingSignedCount === 0 && (
                 <div
                   className="flex items-start gap-2 text-xs rounded-xl px-4 py-3"
                   style={{
-                    background: "#FEF6D8",
-                    color: "#9A7B06",
+                    background: "#FCE9EA",
+                    color: C.rose,
                   }}
                 >
                   <AlertTriangle size={15} />
 
-                  <span>ยังไม่ได้แนบหลักฐาน สามารถยื่นคำขอได้</span>
+                  <span>
+                    ยังไม่ได้แนบเอกสารลงนาม ยื่นคำขอไม่ได้ (บันทึกเป็นแบบร่างไว้ก่อนได้)
+                    — กลับไปขั้นที่ 3 เพื่อดาวน์โหลดแบบฟอร์มและแนบไฟล์
+                  </span>
                 </div>
               )}
             </div>
@@ -1435,7 +1728,7 @@ export default function CreateClaim({
               <button
                 type="button"
                 // 0 = แบบร่าง
-                onClick={() => onSaveDraft?.({ ...buildPayload(), status: 0 }, evidenceFiles)}
+                onClick={() => onSaveDraft?.({ ...buildPayload(), status: 0 }, buildUploadEntries())}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={normalizedCourses.length === 0 || submitting}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"

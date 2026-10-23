@@ -24,6 +24,9 @@ import {
   Copy,
   Check,
   Printer,
+  Download,
+  FileSignature,
+  Banknote,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -34,6 +37,8 @@ import {
   formatDuration,
   formatThaiDate,
 } from "../utils/time";
+import { downloadSignForm } from "../utils/signForm";
+import { getCompType } from "../services/claimMapper";
 
 import {
   getClaimEvidence,
@@ -88,7 +93,15 @@ function normalizeEvidence(item) {
     contentType === "application/pdf" ||
     lower.endsWith(".pdf");
 
+  const type =
+    item.evidence_type ||
+    item.evidenceType ||
+    item.category ||
+    "supporting";
+
   return {
+    // signed_form = เอกสารลงนาม · supporting = หลักฐานประกอบ
+    isSigned: type === "signed_form",
     id:
       item.id ||
       item.evidence_id ||
@@ -281,6 +294,7 @@ export default function ClaimDetail({
   const [attaching, setAttaching] = useState(false);
   const [attachMessage, setAttachMessage] = useState("");
   const fileInputRef = useRef(null);
+  const signedInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -516,6 +530,116 @@ export default function ClaimDetail({
       )
     : [];
 
+  const signedItems = evidenceItems.filter((item) => item.isSigned);
+  const supportItems = evidenceItems.filter((item) => !item.isSigned);
+
+  // เอกสารลงนามสร้างจากข้อมูลคำขอที่ยื่นจริง (มีเลขที่คำขอกำกับ)
+  const signFormData = {
+    claimantName: claim.claimantName || user?.name || "",
+    claimantRole:
+      getCompType(claim.claimantRole || user?.roleKey) === "TA"
+        ? "ผู้ช่วยสอน (TA)"
+        : getCompType(claim.claimantRole || user?.roleKey) === "TEACHER"
+          ? "อาจารย์ผู้สอน"
+          : user?.role || "",
+    roleKey: getCompType(claim.claimantRole || user?.roleKey),
+    courseCode: claim.courseCode,
+    courseName: course?.name || claim.courseName || "",
+    sectionNo: course?.section_no || "",
+    semester: claim.termLabel || claim.semester || "",
+    round: claim.round || claim.month || "",
+    sessions,
+    rate: claim.rate,
+    notes: claim.notes,
+    claimCode: claim.code || claim.id,
+  };
+
+  // เจ้าของคำขอที่ยังแก้ไข/แนบได้ ดาวน์โหลดแบบฟอร์มไปลงนามได้
+  const canDownloadForm =
+    canViewFinance &&
+    amount !== null &&
+    (own || !claim.ownerSub) &&
+    (EDITABLE_STATUSES.includes(status) || ATTACHABLE_STATUSES.includes(status));
+
+
+  const renderItems = (list) => list.map((item) => {
+                  const FileIcon = item.isImage
+                    ? ImageIcon
+                    : item.isPdf
+                      ? FileText
+                      : Paperclip;
+  
+                  return (
+                    <button
+                      type="button"
+                      key={item.id}
+                      disabled={!item.url}
+                      onClick={() => openPreview(item)}
+                      className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        borderColor: C.border,
+                      }}
+                      title={
+                        item.url
+                          ? "กดเพื่อดูไฟล์"
+                          : "ไม่มีลิงก์ดาวน์โหลด"
+                      }
+                    >
+                      <span
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{
+                          background: C.tealSoft,
+                          color: C.tealDark,
+                        }}
+                      >
+                        <FileIcon size={18} />
+                      </span>
+  
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className="block text-sm font-semibold truncate"
+                          style={{ color: C.ink }}
+                        >
+                          {item.fileName}
+                        </span>
+  
+                        <span
+                          className="block text-xs"
+                          style={{ color: C.sub }}
+                        >
+                          {item.isPdf
+                            ? "PDF"
+                            : item.isImage
+                              ? "รูปภาพ"
+                              : "ไฟล์"}
+                          {item.fileSize > 0 &&
+                            ` · ${(
+                              item.fileSize /
+                              1024 /
+                              1024
+                            ).toFixed(2)} MB`}
+                        </span>
+                      </span>
+  
+                      {viewedIds.has(item.id) && (
+                        <span
+                          className="flex items-center gap-1 text-xs font-semibold shrink-0"
+                          style={{ color: "#1E8E4F" }}
+                        >
+                          <CheckCircle2 size={14} />
+                          เปิดดูแล้ว
+                        </span>
+                      )}
+  
+                      <Eye
+                        size={16}
+                        className="shrink-0"
+                        style={{ color: C.tealDark }}
+                      />
+                    </button>
+                  );
+                });
+
   const copyClaimCode = async () => {
     try {
       await navigator.clipboard.writeText(String(claim.code || claim.id));
@@ -579,6 +703,21 @@ export default function ClaimDetail({
               <Printer size={13} />
               พิมพ์
             </button>
+
+            {canDownloadForm && (
+              <button
+                type="button"
+                onClick={() => downloadSignForm(signFormData)}
+                className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
+                style={{
+                  borderColor: C.border,
+                  color: C.tealDark,
+                }}
+              >
+                <Download size={13} />
+                ดาวน์โหลดเอกสารลงนาม
+              </button>
+            )}
 
             {canEdit && (
               <button
@@ -691,12 +830,52 @@ export default function ClaimDetail({
           </div>
         )}
 
+        {/* สถานะการจ่ายเงิน: หลังอนุมัติระบบเปลี่ยนเป็น "จ่ายเงินแล้ว" เองเมื่อครบกำหนดเวลา */}
+        {status === STATUS.APPROVED && own && (
+          <div
+            className="flex gap-3 rounded-2xl p-4 mb-8 border"
+            style={{ background: "#F3FAFB", borderColor: "#C9E4E8" }}
+            role="note"
+          >
+            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#0F6F7C" }} />
+
+            <p className="text-sm leading-6" style={{ color: C.ink }}>
+              คำขออนุมัติแล้ว อยู่ระหว่างรอจ่ายเงิน เมื่อครบกำหนดเวลา
+              ระบบจะเปลี่ยนสถานะเป็น “จ่ายเงินแล้ว” ให้อัตโนมัติ
+            </p>
+          </div>
+        )}
+
+        {status === STATUS.PAID && (
+          <div
+            className="flex gap-3 rounded-2xl p-4 mb-8 border"
+            style={{ background: "#F2FBF5", borderColor: "#BFE5CC" }}
+            role="note"
+          >
+            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#136B3A" }} />
+
+            <p className="text-sm leading-6" style={{ color: C.ink }}>
+              <b>จ่ายเงินแล้ว</b>
+              {claim.paidAt
+                ? ` เมื่อ ${formatThaiDate(String(claim.paidAt).slice(0, 10))}`
+                : ""}
+              {claim.paidAccountMasked && (own || can(user, P.PII_VIEW)) && (
+                <>
+                  {" "}เข้าบัญชี
+                  {claim.paidBankName ? ` ${claim.paidBankName}` : ""} เลขที่{" "}
+                  <b className="figure">{claim.paidAccountMasked}</b>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
         {/* [V3] ปุ่มพิจารณา (แสดงเฉพาะผู้มีสิทธิ์ในสถานะนั้น) */}
         <ReviewActionPanel
           actions={actions}
           blockedReason={blockedReason}
-          onAction={(action, comment) =>
-            onAction?.(claim.id, action, comment)
+          onAction={(action, comment, extra) =>
+            onAction?.(claim.id, action, comment, extra)
           }
           reviewed={isReviewed(claim)}
           reviewedBy={claim.reviewedBy}
@@ -704,6 +883,7 @@ export default function ClaimDetail({
             canView: canViewEvidence,
             loading: evidenceLoading,
             total: evidenceItems.length,
+            signedCount: signedItems.length,
             viewed: evidenceItems.filter((item) =>
               viewedIds.has(item.id)
             ).length,
@@ -868,24 +1048,54 @@ export default function ClaimDetail({
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     e.target.value = "";
-                    attach(files);
+                    attach(
+                      files.map((file) => ({ file, category: "supporting" }))
+                    );
                   }}
                 />
 
-                <button
-                  type="button"
-                  disabled={attaching}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80 disabled:opacity-60"
-                  style={{ borderColor: C.border, color: C.tealDark }}
-                >
-                  {attaching ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
+                <input
+                  ref={signedInputRef}
+                  type="file"
+                  multiple
+                  accept="application/pdf,image/jpeg,image/png"
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = "";
+                    attach(
+                      files.map((file) => ({ file, category: "signed_form" }))
+                    );
+                  }}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={attaching}
+                    onClick={() => signedInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80 disabled:opacity-60"
+                    style={{ borderColor: C.border, color: C.tealDark }}
+                  >
+                    {attaching ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <FileSignature size={13} />
+                    )}
+                    แนบเอกสารลงนาม
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={attaching}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80 disabled:opacity-60"
+                    style={{ borderColor: C.border, color: C.tealDark }}
+                  >
                     <Upload size={13} />
-                  )}
-                  แนบไฟล์เพิ่ม
-                </button>
+                    แนบหลักฐานเพิ่ม
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -982,84 +1192,41 @@ export default function ClaimDetail({
               </button>
             </div>
           ) : evidenceItems.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {evidenceItems.map((item) => {
-                const FileIcon = item.isImage
-                  ? ImageIcon
-                  : item.isPdf
-                    ? FileText
-                    : Paperclip;
+            <div className="space-y-5">
+              <div>
+                <p
+                  className="flex items-center gap-1.5 text-xs font-semibold mb-2"
+                  style={{ color: C.sub }}
+                >
+                  <FileSignature size={13} />
+                  เอกสารลงนาม ({signedItems.length})
+                </p>
 
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    disabled={!item.url}
-                    onClick={() => openPreview(item)}
-                    className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      borderColor: C.border,
-                    }}
-                    title={
-                      item.url
-                        ? "กดเพื่อดูไฟล์"
-                        : "ไม่มีลิงก์ดาวน์โหลด"
-                    }
+                {signedItems.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderItems(signedItems)}
+                  </div>
+                ) : (
+                  <p className="text-sm" style={{ color: "#C23B3B" }}>
+                    ยังไม่มีเอกสารลงนาม
+                  </p>
+                )}
+              </div>
+
+              {supportItems.length > 0 && (
+                <div>
+                  <p
+                    className="text-xs font-semibold mb-2"
+                    style={{ color: C.sub }}
                   >
-                    <span
-                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                      style={{
-                        background: C.tealSoft,
-                        color: C.tealDark,
-                      }}
-                    >
-                      <FileIcon size={18} />
-                    </span>
+                    หลักฐานประกอบ ({supportItems.length})
+                  </p>
 
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className="block text-sm font-semibold truncate"
-                        style={{ color: C.ink }}
-                      >
-                        {item.fileName}
-                      </span>
-
-                      <span
-                        className="block text-xs"
-                        style={{ color: C.sub }}
-                      >
-                        {item.isPdf
-                          ? "PDF"
-                          : item.isImage
-                            ? "รูปภาพ"
-                            : "ไฟล์"}
-                        {item.fileSize > 0 &&
-                          ` · ${(
-                            item.fileSize /
-                            1024 /
-                            1024
-                          ).toFixed(2)} MB`}
-                      </span>
-                    </span>
-
-                    {viewedIds.has(item.id) && (
-                      <span
-                        className="flex items-center gap-1 text-xs font-semibold shrink-0"
-                        style={{ color: "#1E8E4F" }}
-                      >
-                        <CheckCircle2 size={14} />
-                        เปิดดูแล้ว
-                      </span>
-                    )}
-
-                    <Eye
-                      size={16}
-                      className="shrink-0"
-                      style={{ color: C.tealDark }}
-                    />
-                  </button>
-                );
-              })}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderItems(supportItems)}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p

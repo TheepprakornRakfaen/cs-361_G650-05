@@ -214,6 +214,7 @@ export const VIEW_PERMISSION = {
   "claim-create": P.CLAIM_CREATE,
   admin: P.CLAIM_VIEW_ALL,
   review: P.CLAIM_VIEW_ALL,
+  report: P.CLAIM_VIEW_ALL, // รายงานสรุปยอดเบิก
   auditlog: P.AUDIT_VIEW_ALL,
   settings: P.SETTINGS_MANAGE,
 };
@@ -231,6 +232,25 @@ export function getLandingView(user) {
   }
 
   return "home";
+}
+
+/*
+ * ซ่อนเลขบัญชีธนาคาร เหลือ 4 ตัวท้าย เช่น 1234567890 → xxxxxx7890
+ * ถ้า backend ส่งมาปิดบังแล้ว (มี x * •) ใช้ตามนั้น / ถ้ามีตัวเลขไม่ถึง 4 ตัว ไม่แสดง
+ * ⚠️ นี่เป็นเพียงชั้นป้องกันฝั่งหน้าเว็บ backend ควรส่งมาแบบปิดบังแล้วตั้งแต่ต้น
+ */
+export function maskAccount(value) {
+  const text = String(value || "").trim();
+
+  if (!text) return "";
+
+  if (/[xX*•]/.test(text)) return text;
+
+  const digits = text.replace(/\D/g, "");
+
+  if (digits.length < 4) return "";
+
+  return `${"x".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
 }
 
 /*

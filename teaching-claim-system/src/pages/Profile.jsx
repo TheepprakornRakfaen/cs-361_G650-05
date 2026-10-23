@@ -16,7 +16,6 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  Landmark,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -31,7 +30,6 @@ import {
   applyProfileEdits,
   validateProfile,
 } from "../data/profile";
-import { getAccountBySub } from "../data/financeMock";
 
 // ช่องในฟอร์มแก้ไขข้อมูลส่วนตัว (อีเมลมาจากบัญชีเข้าสู่ระบบ แก้ไม่ได้)
 const PROFILE_FIELDS = [
@@ -97,7 +95,6 @@ export default function Profile({
 }) {
   const [profileImage, setProfileImage] = useState(null);
   const [imageError, setImageError] = useState("");
-  const bank = getAccountBySub(user?.cognitoSub)?.bank;
 
   // แก้ไขข้อมูลส่วนตัว
   const [editing, setEditing] = useState(false);
@@ -276,6 +273,7 @@ export default function Profile({
       Submitted: 0,
       Returned: 0,
       Approved: 0,
+      Paid: 0,
       Rejected: 0,
     };
 
@@ -289,7 +287,9 @@ export default function Profile({
   }, [claims]);
 
   const approvedAmount = claims
-    .filter((claim) => claim.status === "Approved")
+    .filter((claim) =>
+      ["Approved", "Paid"].includes(claim.status)
+    )
     .reduce(
       (sum, claim) => sum + Number(claim.amount || 0),
       0
@@ -703,17 +703,6 @@ export default function Profile({
                 label="สาขาวิชา"
                 value={user.department}
               />
-
-              {/* บัญชีรับเงิน: ผูกกับ Cognito sub แสดงเฉพาะแบบปกปิด แก้ในหน้านี้ไม่ได้ */}
-              <InfoRow
-                icon={Landmark}
-                label="บัญชีรับเงิน (ปกปิด)"
-                value={
-                  bank
-                    ? `${bank.bankName} • ${bank.accountMasked}`
-                    : "ยังไม่มีข้อมูลบัญชี"
-                }
-              />
             </>
           )}
         </SectionCard>
@@ -749,8 +738,8 @@ export default function Profile({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Rejected"]
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Paid", "Rejected"]
                 .map((key) => [key, STATUS_STYLE[key]])
                 .map(
                 ([key, style]) => {

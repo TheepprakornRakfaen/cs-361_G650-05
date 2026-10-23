@@ -17,7 +17,15 @@ const TONE = {
   amber: { bg: "#D9772B", icon: RotateCcw },
 };
 
-function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
+function ConfirmDialog({
+  action,
+  busy,
+  error,
+  warning,
+  blockReason,
+  onCancel,
+  onConfirm,
+}) {
   const [comment, setComment] = useState("");
   const [touched, setTouched] = useState(false);
   const textareaRef = useRef(null);
@@ -40,7 +48,8 @@ function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
 
   const submit = () => {
     setTouched(true);
-    if (missing || busy) return;
+    if (missing || blockReason || busy) return;
+
     onConfirm(comment.trim());
   };
 
@@ -127,6 +136,17 @@ function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
           </p>
         </div>
 
+        {blockReason && (
+          <p
+            className="flex items-start gap-2 text-sm mt-2 px-3 py-2 rounded-xl"
+            style={{ background: C.roseSoft, color: "#C23B3B" }}
+            role="alert"
+          >
+            <Info size={15} className="mt-0.5 shrink-0" />
+            {blockReason}
+          </p>
+        )}
+
         {warning && (
           <p
             className="flex items-start gap-2 text-sm mt-2 px-3 py-2 rounded-xl"
@@ -161,7 +181,7 @@ function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
           <button
             type="button"
             onClick={submit}
-            disabled={busy}
+            disabled={busy || Boolean(blockReason)}
             className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             style={{ background: tone.bg }}
           >
@@ -234,6 +254,20 @@ export default function ReviewActionPanel({
       ? evidenceWarning
       : "";
 
+  /*
+   * ต้องมีเอกสารลงนามแนบในระบบก่อนผ่านขั้นตรวจสอบ/อนุมัติ/การเงินรับเอกสาร
+   * (ถ้าไม่มี ให้ส่งกลับให้ผู้ยื่นแนบเพิ่ม) backend ต้องบังคับกฎนี้ด้วย
+   */
+  const GATED = ["REVIEW_PASS", "APPROVE"];
+
+  const signedBlock =
+    GATED.includes(active?.key) &&
+    evidence?.canView &&
+    !evidence.loading &&
+    evidence.signedCount === 0
+      ? "ไม่พบเอกสารลงนามที่ผู้ยื่นแนบ จึงดำเนินการต่อไม่ได้ กรุณาส่งกลับให้ผู้ยื่นแนบเอกสารลงนาม"
+      : "";
+
   return (
     <div
       className="rounded-2xl p-5 md:p-6 mb-8 border"
@@ -253,7 +287,7 @@ export default function ReviewActionPanel({
               ? "กำลังโหลดหลักฐานแนบ..."
               : evidence.total === 0
                 ? "ไม่มีไฟล์แนบ"
-                : `หลักฐานแนบ ${evidence.total} ไฟล์ · เปิดดูแล้ว ${evidence.viewed}`}
+                : `ไฟล์แนบ ${evidence.total} ไฟล์ (เอกสารลงนาม ${evidence.signedCount ?? 0}) · เปิดดูแล้ว ${evidence.viewed}`}
           </span>
 
           <button
@@ -319,6 +353,7 @@ export default function ReviewActionPanel({
           busy={busy}
           error={error}
           warning={approveWarning}
+          blockReason={signedBlock}
           onCancel={close}
           onConfirm={confirm}
         />

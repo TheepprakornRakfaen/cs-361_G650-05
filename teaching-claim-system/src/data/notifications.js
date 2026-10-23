@@ -79,7 +79,18 @@ function ownClaimNotification(claim) {
         id: `claim-${claim.id}-Approved`,
         kind: "approved",
         title: `คำขอ ${claimLabel(claim)} ได้รับการอนุมัติแล้ว`,
-        description: `${course}ยอดเบิก ${baht(claim.amount)} บาท`,
+        description: `${course}ยอดเบิก ${baht(claim.amount)} บาท · รอจ่ายเงิน`,
+      };
+    case "Paid":
+      return {
+        ...base,
+        id: `claim-${claim.id}-Paid-${claim.paidAt || ""}`,
+        date: claim.paidAt || when,
+        kind: "paid",
+        title: `คำขอ ${claimLabel(claim)} จ่ายเงินแล้ว`,
+        description: `${course}ยอด ${baht(claim.amount)} บาท${
+          claim.paidAccountMasked ? ` · เข้าบัญชี ${claim.paidAccountMasked}` : ""
+        }`,
       };
     case "Rejected":
       return {
@@ -127,8 +138,9 @@ function ownClaimNotification(claim) {
 
 // งานที่รอให้ผู้ตรวจสอบ/ผู้อนุมัติดำเนินการ (ตามลำดับขั้น: ตรวจสอบก่อน แล้วจึงอนุมัติ)
 function queueNotification(claim, user) {
-  if (claim.status !== "Submitted") return null;
   if (claim.ownerSub && claim.ownerSub === user?.cognitoSub) return null;
+
+  if (claim.status !== "Submitted") return null;
 
   const who = claim.claimantName ? `ผู้ยื่น ${claim.claimantName}` : "";
   const course = courseText(claim);

@@ -1,4 +1,5 @@
 import { HOURLY_RATE } from "../data/rates";
+import { maskAccount } from "../data/roles";
 import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
 import { normalizeStatus } from "../data/workflow";
 
@@ -97,6 +98,30 @@ export function buildClaimApiPayload(form) {
       form.notes?.trim() ||
       null,
   };
+}
+
+/*
+ * ประเภทค่าตอบแทน — ใช้เป็นกุญแจจัดกลุ่มในรายงานสรุปยอดเบิก
+ * รองรับทั้งชื่อบทบาท (TEACHER / TA) และตำแหน่งในวิชา (INSTRUCTOR / TA)
+ */
+export const COMP_TYPES = {
+  TEACHER: "ค่าตอบแทนอาจารย์ผู้สอน",
+  TA: "ค่าตอบแทนผู้ช่วยสอน (TA)",
+  OTHER: "ไม่ระบุประเภท",
+};
+
+export function getCompType(role) {
+  const key = String(role || "").trim().toUpperCase();
+
+  if (key === "TEACHER" || key === "INSTRUCTOR" || key === "LECTURER") {
+    return "TEACHER";
+  }
+
+  if (key === "TA" || key === "ASSISTANT") {
+    return "TA";
+  }
+
+  return "OTHER";
 }
 
 export function normalizeClaim(
@@ -258,6 +283,37 @@ export function normalizeClaim(
     decisionBy:
       raw.decision_by ||
       "",
+
+    // วันที่จ่ายเงิน (backend ใส่ให้เมื่อสถานะเปลี่ยนเป็น Paid)
+    paidAt:
+      raw.paid_at || null,
+
+    // บัญชีที่รับเงิน: เก็บเฉพาะแบบปิดบังบางส่วน (ปิดบังอีกชั้นที่นี่แม้ backend ส่งเลขเต็มมา)
+    paidBankName:
+      raw.payment_bank_name || raw.bank_name || "",
+
+    paidAccountMasked:
+      maskAccount(
+        raw.payment_account_masked ||
+        raw.payment_account_no ||
+        raw.bank_account_no ||
+        ""
+      ),
+
+    /*
+     * ประเภทค่าตอบแทน (ใช้จัดกลุ่มรายงานสรุป)
+     * มาจากตำแหน่งของผู้ยื่นในคำขอ: อาจารย์ผู้สอน / ผู้ช่วยสอน (TA)
+     */
+    compType:
+      getCompType(
+        raw.claimant_role ||
+        raw.owner_role ||
+        raw.position ||
+        raw.role
+      ),
+
+    periodMonth:
+      raw.period_month ?? null,
 
     updatedAt:
       raw.updated_at,

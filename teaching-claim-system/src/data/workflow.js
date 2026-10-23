@@ -12,7 +12,8 @@ export const STATUS = {
   DRAFT: "Draft",
   SUBMITTED: "Submitted", // ยื่นแล้ว รอผู้ตรวจสอบ
   REVIEWED: "Reviewed", // ผู้ตรวจสอบผ่านแล้ว รอผู้อนุมัติ
-  APPROVED: "Approved",
+  APPROVED: "Approved", // อนุมัติแล้ว รอจ่ายเงิน (ระบบเปลี่ยนเป็น Paid เองเมื่อครบกำหนดเวลา)
+  PAID: "Paid", // จ่ายเงินแล้ว (สิ้นสุดกระบวนการ)
   // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา ผู้ยื่นแก้ไข/ยื่นซ้ำไม่ได้)
   REJECTED: "Rejected",
   RETURNED: "Returned", // ส่งคืนให้ผู้ยื่นแก้ไข
@@ -23,6 +24,7 @@ export const STATUS = {
  * รหัสตัวเลขที่ backend ใช้ (migration 010):
  * 0 = แบบร่าง, 1 = รอตรวจ, 2 = ตรวจแล้วรออนุมัติ
  * 3 = อนุมัติ, 4 = ไม่อนุมัติ, 5 = ส่งคืนแก้ไข
+ * 7 = จ่ายเงินแล้ว (backend เปลี่ยนจาก 3 ให้อัตโนมัติ)
  * รหัสที่ไม่รู้จักจะเป็น Unknown
  */
 const NUMERIC_STATUS = {
@@ -32,6 +34,7 @@ const NUMERIC_STATUS = {
   3: STATUS.APPROVED,
   4: STATUS.REJECTED,
   5: STATUS.RETURNED,
+  7: STATUS.PAID,
 };
 
 // ชื่อสถานะแบบข้อความอื่นๆ ที่ backend อาจส่งมา
@@ -73,8 +76,15 @@ export const QUEUE_STATUSES = [
   STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
+  STATUS.PAID,
   STATUS.REJECTED,
 ];
+
+// ผ่านการอนุมัติแล้ว (รอจ่ายเงิน หรือ จ่ายเงินแล้ว) — ใช้นับยอดอนุมัติ
+export const APPROVED_STATUSES = [STATUS.APPROVED, STATUS.PAID];
+
+export const isApprovedOrBeyond = (status) =>
+  APPROVED_STATUSES.includes(status);
 
 // อยู่ระหว่างพิจารณา (รอตรวจ / รออนุมัติ) — ใช้นับวันรอ (SLA) และยอดเงินที่รอ
 export const PENDING_STATUSES = [STATUS.SUBMITTED, STATUS.REVIEWED];
@@ -106,43 +116,64 @@ export const isReviewed = (claim) => claim?.status === STATUS.REVIEWED;
 export function getWorkflowSteps(status) {
   const step = (key, label, state) => ({ key, label, state });
 
+  // 4 ขั้น: ยื่น → ตรวจสอบ → อนุมัติ → จ่ายเงิน (หลังอนุมัติระบบเปลี่ยนเป็น "จ่ายเงินแล้ว" เอง)
+  const build = (a, b, c, d) => [
+    step("submit", a[0], a[1]),
+    step("review", b[0], b[1]),
+    step("approve", c[0], c[1]),
+    step("paid", d[0], d[1]),
+  ];
+
   switch (status) {
     case STATUS.SUBMITTED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "รอตรวจสอบ", "current"),
-        step("approve", "อนุมัติ", "pending"),
-      ];
+      return build(
+        ["ยื่นคำขอแล้ว", "done"],
+        ["รอตรวจสอบ", "current"],
+        ["อนุมัติ", "pending"],
+        ["จ่ายเงิน", "pending"],
+      );
     case STATUS.REVIEWED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบแล้ว", "done"),
-        step("approve", "รออนุมัติ", "current"),
-      ];
+      return build(
+        ["ยื่นคำขอแล้ว", "done"],
+        ["ตรวจสอบแล้ว", "done"],
+        ["รออนุมัติ", "current"],
+        ["จ่ายเงิน", "pending"],
+      );
     case STATUS.APPROVED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบแล้ว", "done"),
-        step("approve", "อนุมัติแล้ว", "done"),
-      ];
+      return build(
+        ["ยื่นคำขอแล้ว", "done"],
+        ["ตรวจสอบแล้ว", "done"],
+        ["อนุมัติแล้ว", "done"],
+        ["รอจ่ายเงิน", "current"],
+      );
+    case STATUS.PAID:
+      return build(
+        ["ยื่นคำขอแล้ว", "done"],
+        ["ตรวจสอบแล้ว", "done"],
+        ["อนุมัติแล้ว", "done"],
+        ["จ่ายเงินแล้ว", "done"],
+      );
     case STATUS.REJECTED:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบ", "done"),
-        step("approve", "ไม่อนุมัติ", "error"),
-      ];
+      return build(
+        ["ยื่นคำขอแล้ว", "done"],
+        ["ตรวจสอบ", "done"],
+        ["ไม่อนุมัติ", "error"],
+        ["จ่ายเงิน", "pending"],
+      );
     case STATUS.RETURNED:
-      return [
-        step("submit", "ส่งกลับแก้ไข", "warning"),
-        step("review", "ตรวจสอบ", "pending"),
-        step("approve", "อนุมัติ", "pending"),
-      ];
+      return build(
+        ["ส่งกลับแก้ไข", "warning"],
+        ["ตรวจสอบ", "pending"],
+        ["อนุมัติ", "pending"],
+        ["จ่ายเงิน", "pending"],
+      );
     default:
-      return [
-        step("submit", "ยื่นคำขอ", "pending"),
-        step("review", "ตรวจสอบ", "pending"),
-        step("approve", "อนุมัติ", "pending"),
-      ];
+      return build(
+        ["ยื่นคำขอ", "pending"],
+        ["ตรวจสอบ", "pending"],
+        ["อนุมัติ", "pending"],
+        ["จ่ายเงิน", "pending"],
+      );
   }
 }
 
@@ -281,6 +312,7 @@ export const AUDIT_ACTION_META = {
   APPROVE: { label: "อนุมัติ", tone: "green" },
   REJECT: { label: "ไม่อนุมัติ", tone: "red" },
   RETURN: { label: "ส่งกลับแก้ไข", tone: "amber" },
+  AUTO_PAY: { label: "ระบบจ่ายเงินอัตโนมัติ", tone: "green" },
   EVIDENCE_UPLOAD: { label: "แนบเอกสารประกอบ", tone: "neutral" },
   EVIDENCE_VIEW: { label: "เปิดดูเอกสารประกอบ", tone: "neutral" },
   CANCEL: { label: "ยกเลิกคำขอ", tone: "neutral" },
@@ -300,6 +332,7 @@ const AUDIT_ALIAS = {
   APPROVED: "APPROVE",
   REJECTED: "REJECT",
   RETURNED: "RETURN",
+  PAID: "AUTO_PAY",
   EVIDENCE_ADDED: "EVIDENCE_UPLOAD",
   EVIDENCE_REGISTERED: "EVIDENCE_UPLOAD",
   EVIDENCE_VIEWED: "EVIDENCE_VIEW",

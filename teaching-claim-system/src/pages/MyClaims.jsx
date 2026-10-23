@@ -127,6 +127,7 @@ export default function MyClaims({
       Submitted: 0,
       Returned: 0,
       Approved: 0,
+      Paid: 0,
     };
 
     scoped.forEach((claim) => {
@@ -201,6 +202,7 @@ export default function MyClaims({
     "Reviewed",
     "Returned",
     "Approved",
+    "Paid",
     "Rejected",
   ];
 
@@ -368,7 +370,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button

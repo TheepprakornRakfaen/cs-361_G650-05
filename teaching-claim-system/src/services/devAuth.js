@@ -11,7 +11,6 @@
  * TODO: ลบไฟล์นี้กับ devMockApi.js เมื่อ Cognito พร้อมใช้งาน
  */
 import { ROLE, resolveRoles, getRoleLabel } from "../data/roles";
-import { FINANCE_ACCOUNTS } from "../data/financeMock";
 
 export const DEV_AUTH_BYPASS =
   import.meta.env.DEV &&
@@ -33,15 +32,10 @@ export const DEV_ROLE_OPTIONS = Object.keys(DEV_PROFILES).map((role) => ({
   label: getRoleLabel(role),
 }));
 
-// [Project 6] บัญชีทดสอบ INST-A / INST-B / STAFF-1 / STU-A — ใช้ Cognito sub ชั่วคราวใน data/financeMock.js
-const TEST_PROFILES = Object.fromEntries(
-  FINANCE_ACCOUNTS.map((a) => [a.code, a])
-);
+// บัญชีทดสอบ Project 6 เคยมาจาก financeMock.js ซึ่งถูกลบแล้ว — เก็บ export ไว้ให้ Login.jsx ใช้ต่อได้ (ว่างเปล่า)
+const TEST_PROFILES = {};
 
-export const DEV_TEST_ACCOUNT_OPTIONS = FINANCE_ACCOUNTS.map((a) => ({
-  role: a.code,
-  label: a.code,
-}));
+export const DEV_TEST_ACCOUNT_OPTIONS = [];
 
 export function buildDevUser(role) {
   const profile = DEV_PROFILES[role] || TEST_PROFILES[role];

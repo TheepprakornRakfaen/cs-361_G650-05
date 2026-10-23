@@ -52,7 +52,7 @@ export default function CreateClaimList({
   error = "",
   onReload,
   goCreateForRound,
-  findSubmittedClaim,
+  findRoundClaims,
   goDetail,
 }) {
   const [query, setQuery] = useState("");
@@ -314,10 +314,30 @@ export default function CreateClaimList({
                     {list.map((round) => {
                       const course = getCourse(round.courseCode);
                       const open = round.status === "Open";
-                      const quota = Number(course?.quota || 45);
-                      const used = Number(course?.used || 0);
-                      const remaining = Math.max(quota - used, 0);
-                      const submitted = findSubmittedClaim?.(round);
+
+                      /*
+                       * รอบการยื่นไม่ผูกกับวิชา → ชั่วโมงคงเหลือรวมทุกวิชาที่ได้รับมอบหมาย
+                       * (ถ้ารอบระบุวิชามา ใช้ของวิชานั้น) สร้างคำขอเพิ่มได้จนกว่าจะครบทุกวิชา
+                       */
+                      const scope = course ? [course] : courses;
+                      const remaining = scope.reduce(
+                        (sum, c) =>
+                          sum +
+                          Math.max(
+                            Number(c.remaining ?? Number(c.quota || 45) - Number(c.used || 0)),
+                            0
+                          ),
+                        0
+                      );
+                      const quota = scope.reduce(
+                        (sum, c) => sum + Number(c.quota || 45),
+                        0
+                      );
+                      const hasCourses = scope.length > 0;
+                      // 1 รอบยื่นได้หลายคำขอ จนกว่าชั่วโมงของวิชาจะครบ
+                      const roundClaims = findRoundClaims?.(round) || [];
+                      const submitted = roundClaims[0] || null;
+                      const full = hasCourses && remaining <= 0;
 
                       return (
                         <SectionCard key={round.id} className="p-5">
@@ -385,25 +405,34 @@ export default function CreateClaimList({
                               style={{ color: C.sub }}
                             >
                               <Clock size={13} />
-                              เหลือ {remaining} จาก {quota} ชม.
+                              {hasCourses ? `เหลือ ${remaining} จาก ${quota} ชม.` : "ยังไม่มีรายวิชาที่ได้รับมอบหมาย"}
                             </span>
 
-                            {submitted ? (
+                            <div className="flex items-center gap-2">
+                              {submitted && (
+                                <button
+                                  type="button"
+                                  onClick={() => goDetail?.(submitted.id)}
+                                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
+                                  style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                                  title="ดูคำขอล่าสุดที่ยื่นในรอบนี้"
+                                >
+                                  <CheckCircle2 size={14} />
+                                  ยื่นแล้ว {roundClaims.length} คำขอ
+                                </button>
+                              )}
+
                               <button
                                 type="button"
-                                onClick={() => goDetail?.(submitted.id)}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
-                                style={{ background: "#DFF5E6", color: "#1E8E4F" }}
-                                title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
-                              >
-                                <CheckCircle2 size={14} />
-                                ยื่นคำขอแล้ว
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled={!open}
-                                onClick={() => open && goCreateForRound?.(round)}
+                                disabled={!open || full}
+                                title={
+                                  full
+                                    ? "ใช้ชั่วโมงครบตามเกณฑ์แล้ว"
+                                    : submitted
+                                      ? "สร้างคำขอเพิ่มในรอบนี้ (วันสอนที่ยังไม่เคยเบิก)"
+                                      : undefined
+                                }
+                                onClick={() => open && !full && goCreateForRound?.(round)}
                                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                                 style={{
                                   background: open
@@ -411,10 +440,14 @@ export default function CreateClaimList({
                                     : C.sub,
                                 }}
                               >
-                                สร้างคำขอ
+                                {full
+                                  ? "ชั่วโมงครบแล้ว"
+                                  : submitted
+                                    ? "สร้างคำขอเพิ่ม"
+                                    : "สร้างคำขอ"}
                                 <Plus size={14} />
                               </button>
-                            )}
+                            </div>
                           </div>
                         </SectionCard>
                       );

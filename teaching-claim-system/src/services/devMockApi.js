@@ -124,7 +124,7 @@ const STATUSES = [
   "REVIEWED",
   "RETURNED",
   "APPROVED",
-  "APPROVED",
+  "PAID",
   "REJECTED",
   "DRAFT",
 ];
@@ -168,6 +168,10 @@ let claims = Array.from({ length: 18 }, (_, i) => {
         : status === "REJECTED"
           ? "ชั่วโมงสอนที่เบิกเกินสิทธิ์ตามเงื่อนไขของรายวิชา"
           : null,
+    paid_at: status === "PAID" ? iso(-4) : null,
+    // ข้อมูลทดลอง: ส่งเลขเต็มมาเพื่อทดสอบว่าหน้าเว็บปิดบังให้
+    payment_bank_name: status === "PAID" ? "ธนาคารกรุงไทย" : "",
+    payment_account_no: status === "PAID" ? "1234567890" : "",
     // ยื่นห่างกันวันละรายการ (ย้อนหลัง ~3 สัปดาห์) → มีทั้งที่ยังทันและเกินกำหนด 10 วันทำการ
     created_at: iso(-22 + i),
     submitted_at: status === "DRAFT" ? null : iso(-21 + i),
@@ -270,6 +274,7 @@ const STATUS_LABEL = {
   SUBMITTED: "Submitted",
   REVIEWED: "Reviewed",
   APPROVED: "Approved",
+  PAID: "Paid",
   RETURNED: "Returned",
   REJECTED: "Rejected",
   DRAFT: "Draft",
@@ -293,6 +298,9 @@ function addLog(claim, action, from, to, comment) {
     ...logs,
   ];
 }
+
+// หลักฐานที่ลงทะเบียนผ่านโหมดทดลอง (claim_id → รายการไฟล์)
+const devEvidence = {};
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -347,7 +355,31 @@ function redactClaim(user, claim) {
   return { ...claim, claimant_email: maskEmail(claim.claimant_email) };
 }
 
+const DEV_AUTO_PAY_MS = 30 * 1000;
+
+// อนุมัติแล้วเกินเวลาที่กำหนด → จ่ายเงินแล้ว (จำลองงานตั้งเวลาของ backend)
+function autoPayApproved() {
+  const now = Date.now();
+
+  claims.forEach((claim) => {
+    if (
+      claim.status === "APPROVED" &&
+      claim.approved_at &&
+      now - new Date(claim.approved_at).getTime() >= DEV_AUTO_PAY_MS
+    ) {
+      addLog(claim, "AUTO_PAY", "APPROVED", "PAID", "ระบบจ่ายเงินอัตโนมัติ (โหมดทดลอง)");
+      claim.status = "PAID";
+      claim.paid_at = new Date().toISOString();
+      claim.payment_bank_name = "ธนาคารกรุงไทย";
+      claim.payment_account_no = "1234567890";
+      claim.updated_at = claim.paid_at;
+    }
+  });
+}
+
 export async function devMockRequest(path, options = {}) {
+  autoPayApproved();
+
   const method = (options.method || "GET").toUpperCase();
   const url = new URL(path, "http://dev.local");
   const parts = url.pathname.split("/").filter(Boolean); // ["api", "claims", id, "actions"]
@@ -518,6 +550,12 @@ export async function devMockRequest(path, options = {}) {
           claim.decision_by = user?.name || "";
         }
 
+        // จำลองระบบจ่ายเงินอัตโนมัติ: อนุมัติแล้วรอสักพัก (โหมดทดลอง 30 วินาที) สถานะเปลี่ยนเป็น "จ่ายเงินแล้ว"
+        // ของจริง backend ต้องมีงานตั้งเวลา (เช่น EventBridge + Lambda) ทำแทนส่วนนี้
+        if (route.action === "APPROVE") {
+          claim.approved_at = now;
+        }
+
         return { claim: clone(claim) };
       }
 
@@ -572,24 +610,51 @@ export async function devMockRequest(path, options = {}) {
         if (method === "GET") {
           requirePermission(user, P.EVIDENCE_VIEW);
 
-          // คำขอที่ยื่นแล้วมีไฟล์ตัวอย่าง 1 ไฟล์ (ผู้ตรวจต้องเห็นหลักฐานก่อนอนุมัติ)
+          // คำขอที่ยื่นแล้ว: ไฟล์ที่ลงทะเบียนไว้ + ไฟล์ตัวอย่าง (เอกสารลงนาม + หลักฐานประกอบ)
+          const registered = devEvidence[claim.id] || [];
           const evidence =
             claim.status === "DRAFT"
               ? []
-              : [
-                  {
-                    id: `ev-${claim.id}`,
-                    file_name: "ใบลงเวลาสอน (ตัวอย่าง).svg",
-                    content_type: "image/svg+xml",
-                    file_size: 2048,
-                    download_url: SAMPLE_EVIDENCE_URL,
-                  },
-                ];
+              : registered.length > 0
+                ? registered
+                : [
+                    {
+                      id: `ev-signed-${claim.id}`,
+                      file_name: "แบบขอเบิกที่ลงนามแล้ว (ตัวอย่าง).svg",
+                      content_type: "image/svg+xml",
+                      file_size: 2048,
+                      evidence_type: "signed_form",
+                      download_url: SAMPLE_EVIDENCE_URL,
+                    },
+                    {
+                      id: `ev-${claim.id}`,
+                      file_name: "ใบลงเวลาสอน (ตัวอย่าง).svg",
+                      content_type: "image/svg+xml",
+                      file_size: 2048,
+                      evidence_type: "supporting",
+                      download_url: SAMPLE_EVIDENCE_URL,
+                    },
+                  ];
           return {
             evidence,
             count: evidence.length,
             hasEvidence: evidence.length > 0,
           };
+        }
+
+        // ลงทะเบียนไฟล์ที่อัปโหลดแล้ว (จำประเภทไว้ให้ทดสอบเงื่อนไข "ต้องมีเอกสารลงนาม")
+        if (method === "POST" && body?.file_name) {
+          devEvidence[claim.id] = [
+            ...(devEvidence[claim.id] || []),
+            {
+              id: `ev-${Date.now()}-${(devEvidence[claim.id] || []).length}`,
+              file_name: body.file_name || "ไฟล์แนบ",
+              content_type: body.content_type || "",
+              file_size: body.file_size || 0,
+              evidence_type: body.evidence_type || "supporting",
+              download_url: SAMPLE_EVIDENCE_URL,
+            },
+          ];
         }
         return { ok: true };
       }

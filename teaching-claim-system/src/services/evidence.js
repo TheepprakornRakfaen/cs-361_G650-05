@@ -75,7 +75,8 @@ async function readJson(
 
 export async function uploadClaimEvidence(
   claimId,
-  file
+  file,
+  category = "supporting"
 ) {
   if (!API_URL) {
     throw new Error(
@@ -144,6 +145,10 @@ export async function uploadClaimEvidence(
 
       fileSize:
         file.size,
+
+      // signed_form = เอกสารลงนาม · supporting = หลักฐานประกอบ
+      evidenceType:
+        category,
     });
 
   console.log(
@@ -246,6 +251,8 @@ export async function uploadClaimEvidence(
     fileSize:
       file.size,
 
+    category,
+
     eTag:
       uploadResponse.headers.get(
         "ETag"
@@ -291,13 +298,16 @@ export async function uploadAndRegisterEvidence(claimId, entries = []) {
   // อัปโหลดทุกไฟล์พร้อมกัน (ไม่รอทีละไฟล์) แล้วเรียงผลตามลำดับเดิม
   const results = await Promise.all(
     entries.map(async (entry) => {
+      // entry: File | { file, category, uploaded? }
       const file = entry instanceof File ? entry : entry?.file;
+      const category =
+        entry instanceof File ? "supporting" : entry?.category || "supporting";
       let uploaded = entry instanceof File ? null : entry?.uploaded || null;
       let stage = "upload";
 
       try {
         if (!uploaded) {
-          uploaded = await uploadClaimEvidence(claimId, file);
+          uploaded = await uploadClaimEvidence(claimId, file, category);
         }
 
         stage = "register";
@@ -310,6 +320,7 @@ export async function uploadAndRegisterEvidence(claimId, entries = []) {
           ok: false,
           failed: {
             file,
+            category,
             fileName: file?.name || uploaded?.fileName || "",
             stage,
             uploaded: stage === "register" ? uploaded : null,

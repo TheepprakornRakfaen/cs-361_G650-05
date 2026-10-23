@@ -171,6 +171,9 @@ export function registerClaimEvidence(claimId, evidence) {
       content_type: evidence.contentType,
 
       file_size: evidence.fileSize,
+
+      // signed_form = เอกสารลงนาม · supporting = หลักฐานประกอบการเบิก
+      evidence_type: evidence.category || "supporting",
     },
   });
 }
@@ -242,6 +245,7 @@ export function getCourses(termId) {
  *   APPROVE     : 2 → 3
  *   REJECT      : 2 → 4
  *   RETURN      : 1 หรือ 2 → 5
+ *   (3 → 7 จ่ายเงินแล้ว: backend เปลี่ยนให้อัตโนมัติหลังอนุมัติครบกำหนดเวลา ไม่มี action จาก UI)
  * backend ต้องตรวจสิทธิ์และสถานะปัจจุบันเอง (ไม่ตรง → 409)
  */
 
