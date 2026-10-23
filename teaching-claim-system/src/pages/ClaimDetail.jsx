@@ -596,6 +596,11 @@ export default function ClaimDetail({
                     courseName: course?.name || "",
                     claimantName:
                       claim.claimantName || (own ? user?.name : "") || "",
+                    // TA ต้องมีอาจารย์เจ้าของวิชาและผู้มีอำนาจเซ็นเพิ่ม
+                    isTA: own
+                      ? user?.roles?.includes("TA") &&
+                        !user?.roles?.includes("TEACHER")
+                      : String(claim.claimantRole || "").toUpperCase() === "TA",
                   })
                 }
                 className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90"

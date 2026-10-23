@@ -34,7 +34,28 @@ function signatureBox(title) {
     </div>`;
 }
 
-export function buildSignatureFormHtml({ claim, courseName = "", claimantName = "" }) {
+/*
+ * ช่องลงนามตามประเภทผู้ยื่น
+ *  - อาจารย์ยื่นเอง: อาจารย์ + เจ้าหน้าที่
+ *  - TA: TA + อาจารย์เจ้าของวิชา (รับรองชั่วโมง) + เจ้าหน้าที่ + ผู้มีอำนาจ
+ */
+const SIGNERS = {
+  TEACHER: ["อาจารย์ผู้ขอเบิก", "เจ้าหน้าที่ผู้ตรวจสอบ"],
+  TA: [
+    "ผู้ช่วยสอน (TA) ผู้ขอเบิก",
+    "อาจารย์ผู้รับผิดชอบรายวิชา",
+    "เจ้าหน้าที่ผู้ตรวจสอบ",
+    "ผู้มีอำนาจอนุมัติ",
+  ],
+};
+
+export function buildSignatureFormHtml({
+  claim,
+  courseName = "",
+  claimantName = "",
+  isTA = false,
+}) {
+  const signers = isTA ? SIGNERS.TA : SIGNERS.TEACHER;
   const sessions = Array.isArray(claim.sessions) ? claim.sessions : [];
 
   // อนุมัติแยกวัน → ใส่เฉพาะวันที่อนุมัติในแบบฟอร์ม
@@ -100,7 +121,7 @@ export function buildSignatureFormHtml({ claim, courseName = "", claimantName = 
 </style>
 </head>
 <body>
-  <h1>แบบคำขอเบิกค่าตอบแทนการสอน</h1>
+  <h1>${isTA ? "แบบคำขอเบิกค่าตอบแทนผู้ช่วยสอน (TA)" : "แบบคำขอเบิกค่าตอบแทนการสอน"}</h1>
   <div class="sub">เอกสารสำหรับลงนามจริง · การอนุมัติในระบบไม่ถือเป็นการลงนาม</div>
 
   <div class="meta">
@@ -128,15 +149,14 @@ export function buildSignatureFormHtml({ claim, courseName = "", claimantName = 
   </table>
 
   <div class="note">
-    ข้าพเจ้าขอรับรองว่าได้ปฏิบัติการสอนตามวันและเวลาข้างต้นจริง
+    ${isTA
+      ? "ข้าพเจ้าขอรับรองว่าได้ปฏิบัติงานช่วยสอนตามวันและเวลาข้างต้นจริง โดยอาจารย์ผู้รับผิดชอบรายวิชาเป็นผู้รับรองชั่วโมง"
+      : "ข้าพเจ้าขอรับรองว่าได้ปฏิบัติการสอนตามวันและเวลาข้างต้นจริง"}
     ${hasDecision ? "<br/>* แสดงเฉพาะวันที่ได้รับอนุมัติในระบบ" : ""}
   </div>
 
   <div class="signs">
-    ${signatureBox("ผู้ขอเบิก")}
-    ${signatureBox("อาจารย์ผู้รับผิดชอบรายวิชา")}
-    ${signatureBox("เจ้าหน้าที่ผู้ตรวจสอบ")}
-    ${signatureBox("ผู้มีอำนาจอนุมัติ")}
+    ${signers.map(signatureBox).join("")}
   </div>
 
   <div class="foot">พิมพ์จากระบบเบิกค่าตอบแทนการสอน · ${escapeHtml(printedAt)}</div>
