@@ -55,7 +55,6 @@ import {
   getAllowedActions,
   isReviewed,
   isOwnClaim,
-  isApprovedOrLater,
 } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -503,9 +502,12 @@ export default function ClaimDetail({
 
   const { actions, blockedReason } = getAllowedActions(claim, user);
 
-  // แบบฟอร์มให้ลงนามจริง: หลังอนุมัติ — เจ้าของคำขอ หรือเจ้าหน้าที่ที่ดูแลเอกสาร
+  /*
+   * แบบฟอร์มให้ลงนามจริง — เจ้าของคำขอ (พิมพ์ซ้ำได้) หรือเจ้าหน้าที่ที่ดูแลเอกสาร
+   * ผู้ยื่นเซ็นแล้วสแกนแนบตั้งแต่ตอนยื่น ส่วนต้นฉบับส่งเจ้าหน้าที่หลังอนุมัติ
+   */
   const canPrintSignForm =
-    isApprovedOrLater(status) && (own || can(user, P.CLAIM_REVIEW));
+    status !== STATUS.UNKNOWN && (own || can(user, P.CLAIM_REVIEW));
 
   const showDecision =
     claim.decisionComment &&
@@ -592,11 +594,20 @@ export default function ClaimDetail({
                 type="button"
                 onClick={() =>
                   printSignatureForm({
-                    claim,
-                    courseName: course?.name || "",
+                    code: claim.code || "",
+                    termLabel: claim.termLabel || claim.semester || "",
+                    round: claim.round || claim.month || "",
+                    courseCode: claim.courseCode,
+                    courseName: course?.name || claim.courseName || "",
                     claimantName:
                       claim.claimantName || (own ? user?.name : "") || "",
-                    // TA ต้องมีอาจารย์เจ้าของวิชาและผู้มีอำนาจเซ็นเพิ่ม
+                    sessions,
+                    teachingDate: claim.teachingDate,
+                    hours: claim.hours,
+                    rate: claim.rate,
+                    amount: claim.amount,
+                    notes: claim.notes,
+                    // TA ต้องมีอาจารย์เจ้าของวิชารับรองชั่วโมงเพิ่ม
                     isTA: own
                       ? user?.roles?.includes("TA") &&
                         !user?.roles?.includes("TEACHER")
