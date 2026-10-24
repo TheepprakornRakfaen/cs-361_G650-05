@@ -2,9 +2,6 @@ import React from "react";
 import {
   GraduationCap,
   Mail,
-  Facebook,
-  Instagram,
-  Youtube,
   ArrowUp,
 } from "lucide-react";
 import { C } from "../theme";
@@ -106,32 +103,11 @@ export default function Footer({ onContactClick }) {
                 </div>
               </div>
 
-              <p className="text-xs opacity-70 leading-relaxed mb-3">
+              <p className="text-xs opacity-70 leading-relaxed">
                 ศูนย์รวมข้อมูลและขั้นตอนการเบิกค่าตอบแทนการสอนและค่าตอบแทนที่เกี่ยวข้อง
                 สำหรับอาจารย์และผู้ช่วยสอนอย่างครบถ้วน สะดวก รวดเร็ว
               </p>
 
-              <div className="flex items-center gap-2.5">
-                {[Facebook, Instagram, Youtube].map((Icon, i) => (
-                  <a
-                    key={i}
-                    href="#"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150"
-                    style={{
-                      background: "rgba(255,255,255,0.08)",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = C.tealDark)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(255,255,255,0.08)")
-                    }
-                  >
-                    <Icon size={16} />
-                  </a>
-                ))}
-              </div>
             </div>
 
             {/* เมนู */}
