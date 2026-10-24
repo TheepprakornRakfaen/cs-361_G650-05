@@ -51,7 +51,7 @@ const STATUS_GROUPS = [
     key: "paid",
     label: "จ่ายเงินแล้ว",
     statuses: [STATUS.PAID],
-    color: "#1D5FB8",
+    color: STATUS_STYLE.Paid.fg,
   },
   {
     key: "stopped",
@@ -372,7 +372,7 @@ function SummaryReport({ claims, canExport }) {
           value={`฿${baht(totals.pendingPay)}`}
           tone="#0F6F7C"
         />
-        <Stat label="จ่ายแล้ว" value={`฿${baht(totals.paid)}`} tone="#1D5FB8" />
+        <Stat label="จ่ายแล้ว" value={`฿${baht(totals.paid)}`} tone={STATUS_STYLE.Paid.fg} />
       </div>
 
       <SectionCard className="p-5" hoverable={false}>
@@ -537,7 +537,7 @@ function SummaryReport({ claims, canExport }) {
                     <td className="px-4 py-3 text-right figure font-semibold">
                       {baht(row.amount)}
                     </td>
-                    <td className="px-4 py-3 text-right figure" style={{ color: "#1D5FB8" }}>
+                    <td className="px-4 py-3 text-right figure" style={{ color: STATUS_STYLE.Paid.fg }}>
                       {baht(row.paid)}
                     </td>
                   </tr>

@@ -29,7 +29,7 @@ import {
   Banknote,
 } from "lucide-react";
 
-import { C } from "../theme";
+import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import StatusPill from "../components/StatusPill";
 import {
@@ -852,7 +852,7 @@ export default function ClaimDetail({
             style={{ background: "#F1F6FE", borderColor: "#C3D7F4" }}
             role="note"
           >
-            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#1D5FB8" }} />
+            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: STATUS_STYLE.Paid.fg }} />
 
             <p className="text-sm leading-6" style={{ color: C.ink }}>
               <b>จ่ายเงินแล้ว</b>
