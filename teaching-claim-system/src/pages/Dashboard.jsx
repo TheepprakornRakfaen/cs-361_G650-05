@@ -14,6 +14,7 @@ import {
   CalendarClock,
   Sparkles,
   XCircle,
+  Banknote,
   ClipboardCheck,
 } from "lucide-react";
 import { C, STATUS_STYLE } from "../theme";
@@ -29,7 +30,7 @@ const STAT_CARDS = [
   { key: "Reviewed", icon: ClipboardCheck, hint: "ตรวจสอบแล้ว รอผู้อนุมัติพิจารณา", bar: "#A5B4FC" },
   { key: "Returned", icon: RotateCcw, hint: "กรุณาแก้ไขและยื่นคำขออีกครั้ง", bar: "#FB923C" },
   { key: "Approved", icon: CheckCircle2, hint: "อนุมัติแล้ว รอจ่ายเงิน", bar: "#4ADE80" },
-  { key: "Paid", icon: CheckCircle2, hint: "จ่ายเงินเรียบร้อยแล้ว", bar: "#22C55E" },
+  { key: "Paid", icon: Banknote, hint: "จ่ายเงินเรียบร้อยแล้ว", bar: "#60A5FA" },
   { key: "Rejected", icon: XCircle, hint: "สิ้นสุดการพิจารณา ดูเหตุผลในรายละเอียด", bar: "#F87171" },
 ];
 
@@ -78,6 +79,8 @@ export default function Dashboard({
   findRoundClaims,
   goDetail,
   goMyClaims,
+  // รายวิชาที่ได้รับมอบหมาย (มี remaining) — ชั่วโมงครบทุกวิชาแล้วสร้างคำขอเพิ่มไม่ได้
+  courses = [],
 }) {
   const counts = useMemo(() => {
     const c = {
@@ -122,6 +125,9 @@ export default function Dashboard({
   // 1 รอบยื่นได้หลายคำขอ จนกว่าชั่วโมงจะครบ → แสดงจำนวนที่ยื่นแล้วควบคู่กับปุ่มสร้าง
   const roundClaims = findRoundClaims?.(openRound) || [];
   const submittedClaim = roundClaims[0] || null;
+  const hoursFull =
+    courses.length > 0 &&
+    courses.every((course) => Number(course.remaining ?? 0) <= 0);
 
   const nextRound = openRound
     ? null
@@ -411,11 +417,17 @@ export default function Dashboard({
               onClick={() =>
                 goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
               }
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm"
+              disabled={hoursFull}
+              title={hoursFull ? "ใช้ชั่วโมงครบตามเกณฑ์ทุกวิชาแล้ว" : undefined}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: gradient }}
             >
               <Plus size={16} />
-              {submittedClaim ? "สร้างคำขอเพิ่มในรอบนี้" : "สร้างคำขอในรอบนี้"}
+              {hoursFull
+                ? "ชั่วโมงครบแล้ว"
+                : submittedClaim
+                  ? "สร้างคำขอเพิ่มในรอบนี้"
+                  : "สร้างคำขอในรอบนี้"}
             </button>
           )}
         </div>
