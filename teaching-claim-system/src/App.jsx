@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { C } from "./theme";
 
@@ -49,11 +49,7 @@ import {
   logoutFromCognito,
 } from "./services/auth";
 
-import {
-  buildNotifications,
-  loadReadIds,
-  saveReadIds,
-} from "./data/notifications";
+import useNotifications from "./hooks/useNotifications";
 
 import {
   syncCurrentUser,
@@ -850,10 +846,50 @@ export default function App() {
   }).map(decorateClaim);
 
   /*
+   * ชั่วโมงที่เบิกไปแล้วต่อ section — รวมจากคำขอที่ยื่นแล้วของผู้ใช้
+   * (ไม่นับแบบร่าง / ส่งกลับ / ไม่อนุมัติ) ใช้คู่กับ class_schedule.hour จาก backend
+   * เอาค่าที่มากกว่า เผื่อ backend ยังไม่ได้บวกชั่วโมงตอนยื่น → 1 รอบยื่นได้หลายคำขอจนกว่าจะครบ
+   */
+  const claimedHoursBySection = claims.reduce((map, claim) => {
+    if (
+      claim.sectionId == null ||
+      ![
+        STATUS.SUBMITTED,
+        STATUS.REVIEWED,
+        STATUS.APPROVED,
+        STATUS.PAID,
+      ].includes(claim.status)
+    ) {
+      return map;
+    }
+
+    const key = String(claim.sectionId);
+    map[key] = (map[key] || 0) + Number(claim.hours || 0);
+    return map;
+  }, {});
+
+  const coursesWithUsage = apiCourses.map((course) => {
+    const sectionId = course.section_id ?? course.sectionId ?? course.id;
+    const quota = Number(course.max_hour ?? course.quota ?? 45);
+    const used = Math.max(
+      Number(course.hour ?? course.used ?? 0),
+      Math.round((claimedHoursBySection[String(sectionId)] || 0) * 100) / 100
+    );
+
+    return {
+      ...course,
+      hour: used,
+      used,
+      remaining_hour: Math.max(quota - used, 0),
+      remaining: Math.max(quota - used, 0),
+    };
+  });
+
+  /*
   * Courses จาก Teaching Assignment API
   */
   const courses =
-    apiCourses.map(
+    coursesWithUsage.map(
       (course) => {
         const role =
           course.role || "";
@@ -930,26 +966,75 @@ export default function App() {
     );
 
   /*
-   * การแจ้งเตือน (สร้างจากสถานะคำขอของผู้ใช้ + ข่าวสาร)
-   * สถานะอ่านแล้วเก็บใน localStorage แยกตามผู้ใช้
+   * การแจ้งเตือนในเว็บ (สร้างจากสถานะคำขอ + คิวงานตามบทบาท + ข่าวสาร)
+   *  - ผู้ยื่น: คำขอของตัวเองถูกตรวจ/ส่งกลับ/อนุมัติ/ไม่อนุมัติ/จ่ายเงิน
+   *  - ผู้ตรวจสอบ: คำขอใหม่รอตรวจ · ผู้อนุมัติ: คำขอที่ตรวจแล้วรออนุมัติ
+   * สถานะอ่านแล้วเก็บใน localStorage แยกตามผู้ใช้ (ดู hooks/useNotifications.js)
    */
-  const [readIds, setReadIds] = useState([]);
+  const queueClaimsForNotif = useMemo(
+    () => reviewClaims.map(decorateClaim),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reviewClaims, terms, periods]
+  );
 
+  const ownClaimsKey = claims
+    .map((claim) => `${claim.id}:${claim.status}:${claim.updatedAt || ""}`)
+    .join("|");
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ownClaimsForNotif = useMemo(() => claims, [ownClaimsKey, terms, periods]);
+
+  const {
+    notifications,
+    unreadCount,
+    markRead,
+    markAllRead,
+    markClaimRead,
+  } = useNotifications({
+    user: currentUser,
+    ownClaims: ownClaimsForNotif,
+    queueClaims: queueClaimsForNotif,
+  });
+
+  // เปิดดูคำขอไหน → แจ้งเตือนของคำขอนั้นถือว่าอ่านแล้ว
   useEffect(() => {
-    setReadIds(currentUser ? loadReadIds(currentUser.username) : []);
+    if (view === "detail" && selectedClaimId) {
+      markClaimRead(selectedClaimId);
+    }
+  }, [view, selectedClaimId, markClaimRead]);
+
+  /*
+   * ดึงสถานะคำขอใหม่เป็นระยะ (ทุก 60 วินาที ตอนเปิดแท็บนี้อยู่ และทันทีที่กลับมาที่แท็บ)
+   * → แจ้งเตือนใหม่ขึ้นที่กระดิ่งเองโดยไม่ต้องรีเฟรชหน้า
+   */
+  useEffect(() => {
+    if (!currentUser) return undefined;
+
+    let last = Date.now();
+
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      last = Date.now();
+
+      if (isClaimant(currentUser)) loadClaims().catch(() => {});
+      if (canAccessQueue(currentUser)) loadReviewClaims().catch(() => {});
+    };
+
+    const timer = setInterval(refresh, 60000);
+
+    // กลับมาที่แท็บหลังหายไปเกิน 15 วินาที → ดึงใหม่ทันที
+    const onVisible = () => {
+      if (Date.now() - last > 15000) refresh();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
-
-  const notifications = buildNotifications(claims);
-  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
-
-  const markRead = (ids) => {
-    const list = Array.isArray(ids) ? ids : [ids];
-    setReadIds((prev) => {
-      const next = Array.from(new Set([...prev, ...list]));
-      if (currentUser) saveReadIds(currentUser.username, next);
-      return next;
-    });
-  };
 
   const mapPeriodToRound = (period) => {
     const formatDate = (
@@ -1790,13 +1875,14 @@ export default function App() {
             findRoundClaims={findRoundClaims}
             goDetail={goDetail}
             goMyClaims={openMyClaims}
+            courses={courses}
           />
         );
 
       case "assignments":
         return (
           <Assignments
-            courses={apiCourses}
+            courses={coursesWithUsage}
             goCreateFor={goCreateFor}
             courseLoading={courseLoading}
             courseError={courseError}
@@ -1900,7 +1986,7 @@ export default function App() {
             presetSectionId={presetSectionId}
             presetRound={presetRound}
             initialClaim={editingClaim}
-            courses={apiCourses}
+            courses={coursesWithUsage}
             rounds={rounds}
             terms={terms}
             periods={periods}
@@ -1977,9 +2063,8 @@ export default function App() {
         return (
           <Notifications
             notifications={notifications}
-            readIds={readIds}
             onRead={markRead}
-            onReadAll={() => markRead(notifications.map((n) => n.id))}
+            onReadAll={markAllRead}
             goDetail={goDetail}
           />
         );

@@ -1,5 +1,5 @@
 import { PERMISSION as P, can } from "./roles";
-import { isReviewed } from "./workflow";
+import { STATUS } from "./workflow";
 
 /*
  * ข้อมูลหน้าแจ้งเตือน
@@ -109,18 +109,16 @@ function ownClaimNotification(claim) {
         title: `คำขอ ${claimLabel(claim)} ถูกส่งกลับให้แก้ไข`,
         description: `${course}เปิดดูสิ่งที่ต้องแก้ไข แล้วยื่นใหม่`,
       };
+    case "Reviewed":
+      return {
+        ...base,
+        date: claim.reviewedAt || when,
+        id: `claim-${claim.id}-Reviewed-${claim.reviewedAt || ""}`,
+        kind: "reviewed",
+        title: `คำขอ ${claimLabel(claim)} ผ่านการตรวจสอบแล้ว`,
+        description: `${course}ส่งต่อผู้อนุมัติ อยู่ระหว่างรอพิจารณา`,
+      };
     case "Submitted":
-      if (isReviewed(claim)) {
-        return {
-          ...base,
-          date: claim.reviewedAt || when,
-          id: `claim-${claim.id}-Reviewed-${claim.reviewedAt || ""}`,
-          kind: "reviewed",
-          title: `คำขอ ${claimLabel(claim)} ผ่านการตรวจสอบแล้ว`,
-          description: `${course}ส่งต่อผู้อนุมัติ อยู่ระหว่างรอพิจารณา`,
-        };
-      }
-
       return {
         ...base,
         // ใช้เวลาที่ยื่นจริงถ้า backend ส่งมา
@@ -140,15 +138,14 @@ function ownClaimNotification(claim) {
 function queueNotification(claim, user) {
   if (claim.ownerSub && claim.ownerSub === user?.cognitoSub) return null;
 
-  if (claim.status !== "Submitted") return null;
-
   const who = claim.claimantName ? `ผู้ยื่น ${claim.claimantName}` : "";
   const course = courseText(claim);
   const detail = `${course}${who}`.replace(/ · $/, "");
   const base = { type: "claim", scope: "queue", claimId: claim.id };
 
+  // ผู้อนุมัติ: เฉพาะคำขอที่ผู้ตรวจสอบส่งต่อมาแล้ว (สถานะ 2)
   if (can(user, P.CLAIM_APPROVE)) {
-    if (!isReviewed(claim)) return null; // ยังไม่ถึงขั้นผู้อนุมัติ
+    if (claim.status !== STATUS.REVIEWED) return null;
 
     return {
       ...base,
@@ -160,7 +157,8 @@ function queueNotification(claim, user) {
     };
   }
 
-  if (can(user, P.CLAIM_REVIEW) && !isReviewed(claim)) {
+  // ผู้ตรวจสอบ: คำขอที่ยื่นมาใหม่ / ยื่นใหม่หลังแก้ไข (สถานะ 1)
+  if (can(user, P.CLAIM_REVIEW) && claim.status === STATUS.SUBMITTED) {
     return {
       ...base,
       date: claim.submittedAt || claim.updatedAt || claim.createdAt,
