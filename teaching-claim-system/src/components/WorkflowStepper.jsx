@@ -48,14 +48,14 @@ export default function WorkflowStepper({ status, reviewed = false }) {
               aria-current={step.state === "current" ? "step" : undefined}
             >
               <span
-                className="w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center"
+                className="w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center"
                 style={{ background: style.bg }}
               >
                 <Icon size={18} style={{ color: style.fg }} />
               </span>
 
               <span
-                className="text-[11px] md:text-xs font-medium text-center w-24"
+                className="text-[10px] sm:text-[11px] md:text-xs font-medium text-center w-14 sm:w-20 md:w-24"
                 style={{ color: style.text }}
               >
                 {step.label}
@@ -65,7 +65,7 @@ export default function WorkflowStepper({ status, reviewed = false }) {
             {!last && (
               <span
                 aria-hidden="true"
-                className="flex-1 h-[3px] mx-1 rounded-full"
+                className="flex-1 h-[3px] mx-0.5 sm:mx-1 rounded-full min-w-[8px]"
                 style={{ background: lineDone ? C.teal : "#E6ECEF" }}
               />
             )}
