@@ -253,7 +253,7 @@ export default function Dashboard({
       </div>
 
       {/* ===== การ์ดสถานะ ===== */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-7 gap-4 mb-6">
         {STAT_CARDS.map(({ key, icon: Icon, hint }) => {
           const style = STATUS_STYLE[key];
           const highlight = key === "Returned" && counts.Returned > 0;

@@ -370,7 +370,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-7 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button
