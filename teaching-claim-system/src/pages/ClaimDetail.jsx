@@ -849,10 +849,10 @@ export default function ClaimDetail({
         {status === STATUS.PAID && (
           <div
             className="flex gap-3 rounded-2xl p-4 mb-8 border"
-            style={{ background: "#F2FBF5", borderColor: "#BFE5CC" }}
+            style={{ background: "#F1F6FE", borderColor: "#C3D7F4" }}
             role="note"
           >
-            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#136B3A" }} />
+            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#1D5FB8" }} />
 
             <p className="text-sm leading-6" style={{ color: C.ink }}>
               <b>จ่ายเงินแล้ว</b>

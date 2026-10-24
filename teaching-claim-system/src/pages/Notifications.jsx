@@ -11,6 +11,7 @@ import {
   RotateCcw,
   ClipboardCheck,
   ShieldCheck,
+  Banknote,
 } from "lucide-react";
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -25,7 +26,7 @@ const KIND_STYLE = {
   reviewed: { icon: ShieldCheck, bg: C.tealSoft, fg: C.tealDark },
   toReview: { icon: ClipboardCheck, bg: "#FEF6D8", fg: "#9A7B06" },
   toApprove: { icon: ClipboardCheck, bg: "#DFF5E6", fg: "#1E8E4F" },
-  paid: { icon: CheckCircle2, bg: "#CFF0DA", fg: "#136B3A" },
+  paid: { icon: Banknote, bg: "#E1ECFB", fg: "#1D5FB8" },
   news: { icon: Megaphone, bg: C.tealSoft, fg: C.tealDark },
 };
 
