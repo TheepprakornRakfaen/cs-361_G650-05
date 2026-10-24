@@ -16,9 +16,6 @@ export const STATUS = {
   // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา ผู้ยื่นแก้ไข/ยื่นซ้ำไม่ได้)
   REJECTED: "Rejected",
   RETURNED: "Returned", // ส่งคืนให้ผู้ยื่นแก้ไข
-  // หลังอนุมัติ: เจ้าหน้าที่ได้รับเอกสารที่ลงนามจริงบนกระดาษแล้ว รอส่งการเงิน
-  SIGNED_DOCS: "SignedDocs",
-  PAID: "Paid", // การเงินจ่ายเงินแล้ว (สิ้นสุด)
   UNKNOWN: "Unknown",
 };
 
@@ -26,7 +23,6 @@ export const STATUS = {
  * รหัสตัวเลขที่ backend ใช้ (migration 010):
  * 0 = แบบร่าง, 1 = รอตรวจ, 2 = ตรวจแล้วรออนุมัติ
  * 3 = อนุมัติ, 4 = ไม่อนุมัติ, 5 = ส่งคืนแก้ไข
- * 6 = ได้รับเอกสารลงนามแล้ว, 7 = จ่ายแล้ว (⚠️ backend ต้องเพิ่มรหัส 6, 7)
  * รหัสที่ไม่รู้จักจะเป็น Unknown
  */
 const NUMERIC_STATUS = {
@@ -36,8 +32,6 @@ const NUMERIC_STATUS = {
   3: STATUS.APPROVED,
   4: STATUS.REJECTED,
   5: STATUS.RETURNED,
-  6: STATUS.SIGNED_DOCS,
-  7: STATUS.PAID,
 };
 
 // ชื่อสถานะแบบข้อความอื่นๆ ที่ backend อาจส่งมา
@@ -50,10 +44,6 @@ const STRING_STATUS = {
   PENDING_APPROVAL: STATUS.REVIEWED,
   REVISION_REQUESTED: STATUS.RETURNED,
   NEEDS_REVISION: STATUS.RETURNED,
-  SIGNED_DOCS_RECEIVED: STATUS.SIGNED_DOCS,
-  SIGNED_DOCS: STATUS.SIGNED_DOCS,
-  SIGNED: STATUS.SIGNED_DOCS,
-  AWAITING_PAYMENT: STATUS.SIGNED_DOCS,
 };
 
 export function normalizeStatus(raw) {
@@ -83,20 +73,8 @@ export const QUEUE_STATUSES = [
   STATUS.REVIEWED,
   STATUS.RETURNED,
   STATUS.APPROVED,
-  STATUS.SIGNED_DOCS,
-  STATUS.PAID,
   STATUS.REJECTED,
 ];
-
-// อนุมัติแล้ว (รวมขั้นหลังอนุมัติ) — ใช้นับยอดอนุมัติ/ยอดเงิน
-export const APPROVED_STATUSES = [
-  STATUS.APPROVED,
-  STATUS.SIGNED_DOCS,
-  STATUS.PAID,
-];
-
-export const isApprovedOrLater = (status) =>
-  APPROVED_STATUSES.includes(status);
 
 // อยู่ระหว่างพิจารณา (รอตรวจ / รออนุมัติ) — ใช้นับวันรอ (SLA) และยอดเงินที่รอ
 export const PENDING_STATUSES = [STATUS.SUBMITTED, STATUS.REVIEWED];
@@ -128,51 +106,24 @@ export const isReviewed = (claim) => claim?.status === STATUS.REVIEWED;
 export function getWorkflowSteps(status) {
   const step = (key, label, state) => ({ key, label, state });
 
-  // ขั้นหลังอนุมัติ: ลงนามเอกสารจริง → จ่ายเงิน
-  const afterApprove = (signed, paid) => [
-    step(
-      "sign",
-      signed === "done" ? "ได้รับเอกสารลงนาม" : "รอเอกสารลงนาม",
-      signed
-    ),
-    step("pay", paid === "done" ? "จ่ายแล้ว" : "จ่ายเงิน", paid),
-  ];
-
   switch (status) {
     case STATUS.SUBMITTED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
         step("review", "รอตรวจสอบ", "current"),
         step("approve", "อนุมัติ", "pending"),
-        ...afterApprove("pending", "pending"),
       ];
     case STATUS.REVIEWED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
         step("review", "ตรวจสอบแล้ว", "done"),
         step("approve", "รออนุมัติ", "current"),
-        ...afterApprove("pending", "pending"),
       ];
     case STATUS.APPROVED:
       return [
         step("submit", "ยื่นคำขอแล้ว", "done"),
         step("review", "ตรวจสอบแล้ว", "done"),
         step("approve", "อนุมัติแล้ว", "done"),
-        ...afterApprove("current", "pending"),
-      ];
-    case STATUS.SIGNED_DOCS:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบแล้ว", "done"),
-        step("approve", "อนุมัติแล้ว", "done"),
-        ...afterApprove("done", "current"),
-      ];
-    case STATUS.PAID:
-      return [
-        step("submit", "ยื่นคำขอแล้ว", "done"),
-        step("review", "ตรวจสอบแล้ว", "done"),
-        step("approve", "อนุมัติแล้ว", "done"),
-        ...afterApprove("done", "done"),
       ];
     case STATUS.REJECTED:
       return [
@@ -185,14 +136,12 @@ export function getWorkflowSteps(status) {
         step("submit", "ส่งกลับแก้ไข", "warning"),
         step("review", "ตรวจสอบ", "pending"),
         step("approve", "อนุมัติ", "pending"),
-        ...afterApprove("pending", "pending"),
       ];
     default:
       return [
         step("submit", "ยื่นคำขอ", "pending"),
         step("review", "ตรวจสอบ", "pending"),
         step("approve", "อนุมัติ", "pending"),
-        ...afterApprove("pending", "pending"),
       ];
   }
 }
@@ -237,30 +186,6 @@ const ACTION = {
     commentLabel: "เหตุผลที่ไม่อนุมัติ",
     confirmButton: "ยืนยันไม่อนุมัติ",
   },
-  // หลังอนุมัติ: เจ้าหน้าที่บันทึกว่าได้รับเอกสารที่ลงนามจริงบนกระดาษแล้ว → สถานะ 6
-  RECORD_SIGNED_DOCS: {
-    key: "RECORD_SIGNED_DOCS",
-    label: "บันทึกรับเอกสารลงนามแล้ว",
-    tone: "teal",
-    requireComment: true,
-    confirmTitle: "บันทึกการรับเอกสารลงนาม",
-    confirmText:
-      "ยืนยันว่าได้รับแบบฟอร์มที่ผู้ยื่นและผู้มีอำนาจลงนามจริงบนกระดาษครบแล้ว (การกดในระบบไม่ถือเป็นการลงนาม)",
-    commentLabel: "เลขที่เอกสาร / วันที่รับ / หมายเหตุ",
-    confirmButton: "ยืนยันรับเอกสาร",
-  },
-  // การเงินจ่ายเงินแล้ว → สถานะ 7
-  MARK_PAID: {
-    key: "MARK_PAID",
-    label: "บันทึกจ่ายเงินแล้ว",
-    tone: "green",
-    requireComment: false,
-    confirmTitle: "บันทึกการจ่ายเงิน",
-    confirmText:
-      "ยืนยันว่าการเงินโอนเงินให้ผู้ยื่นแล้ว เมื่อยืนยันคำขอจะสิ้นสุดและแก้ไขสถานะไม่ได้อีก",
-    commentLabel: "เลขที่อ้างอิงการโอน / หมายเหตุ (ไม่บังคับ)",
-    confirmButton: "ยืนยันจ่ายแล้ว",
-  },
   RETURN: {
     key: "RETURN",
     label: "ส่งกลับแก้ไข",
@@ -284,14 +209,9 @@ const ACTION = {
 export function getAllowedActions(claim, user) {
   const none = { actions: [], blockedReason: "" };
 
-  const afterApproval =
-    claim?.status === STATUS.APPROVED || claim?.status === STATUS.SIGNED_DOCS;
-
   if (
     !claim ||
-    (claim.status !== STATUS.SUBMITTED &&
-      claim.status !== STATUS.REVIEWED &&
-      !afterApproval)
+    (claim.status !== STATUS.SUBMITTED && claim.status !== STATUS.REVIEWED)
   ) {
     return none;
   }
@@ -315,24 +235,6 @@ export function getAllowedActions(claim, user) {
       actions: [],
       blockedReason:
         "คุณเป็นเจ้าของคำขอนี้ จึงไม่สามารถตรวจสอบหรืออนุมัติคำขอของตัวเองได้",
-    };
-  }
-
-  /*
-   * หลังอนุมัติ: เจ้าหน้าที่ (ผู้มีสิทธิ์ตรวจสอบ) ติดตามเอกสารลงนามและการจ่ายเงิน
-   *   3 อนุมัติแล้ว       → บันทึกรับเอกสารลงนาม (→ 6)
-   *   6 ได้รับเอกสารลงนาม → บันทึกจ่ายเงินแล้ว (→ 7)
-   */
-  if (afterApproval) {
-    if (!canReview) return none;
-
-    return {
-      actions: [
-        claim.status === STATUS.APPROVED
-          ? ACTION.RECORD_SIGNED_DOCS
-          : ACTION.MARK_PAID,
-      ],
-      blockedReason: "",
     };
   }
 
@@ -382,8 +284,6 @@ export const AUDIT_ACTION_META = {
   EVIDENCE_UPLOAD: { label: "แนบเอกสารประกอบ", tone: "neutral" },
   EVIDENCE_VIEW: { label: "เปิดดูเอกสารประกอบ", tone: "neutral" },
   CANCEL: { label: "ยกเลิกคำขอ", tone: "neutral" },
-  RECORD_SIGNED_DOCS: { label: "ได้รับเอกสารลงนามแล้ว", tone: "teal" },
-  MARK_PAID: { label: "จ่ายเงินแล้ว", tone: "green" },
 };
 
 // backend อาจส่งชื่อเหตุการณ์เป็นรูปอดีต/ชื่ออื่น → รวมให้เป็นกุญแจเดียว
@@ -405,10 +305,6 @@ const AUDIT_ALIAS = {
   EVIDENCE_VIEWED: "EVIDENCE_VIEW",
   CANCELLED: "CANCEL",
   CANCELED: "CANCEL",
-  SIGNED_DOCS_RECEIVED: "RECORD_SIGNED_DOCS",
-  SIGNED_DOCS: "RECORD_SIGNED_DOCS",
-  PAID: "MARK_PAID",
-  PAY: "MARK_PAID",
 };
 
 export function getAuditMeta(action) {

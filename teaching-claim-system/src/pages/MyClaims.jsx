@@ -128,8 +128,6 @@ export default function MyClaims({
       Reviewed: 0,
       Returned: 0,
       Approved: 0,
-      SignedDocs: 0,
-      Paid: 0,
       Rejected: 0,
     };
 
@@ -205,8 +203,6 @@ export default function MyClaims({
     "Reviewed",
     "Returned",
     "Approved",
-    "SignedDocs",
-    "Paid",
     "Rejected",
   ];
 
@@ -374,7 +370,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button

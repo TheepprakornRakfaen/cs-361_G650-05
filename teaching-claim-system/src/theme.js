@@ -22,7 +22,5 @@ export const STATUS_STYLE = {
   Returned: { bg: "#FDEBDD", fg: "#B4531A", label: "ส่งคืนแก้ไข" },
   Approved: { bg: "#DFF5E6", fg: "#1E8E4F", label: "อนุมัติแล้ว" },
   Rejected: { bg: "#FBE2E2", fg: "#C23B3B", label: "ไม่อนุมัติ" },
-  SignedDocs: { bg: "#E3F1F7", fg: "#1F6E8C", label: "ได้รับเอกสารลงนามแล้ว" },
-  Paid: { bg: "#D4F0DF", fg: "#14703D", label: "จ่ายแล้ว" },
   Unknown: { bg: "#EDF0F2", fg: "#5B6672", label: "ไม่ทราบสถานะ" },
 };

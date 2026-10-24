@@ -12,19 +12,12 @@ import {
   History,
   ClipboardCheck,
   XCircle,
-  FileSignature,
-  Banknote,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import RoleBadge from "../components/RoleBadge";
-import {
-  STATUS,
-  getAuditMeta,
-  isPending,
-  isApprovedOrLater,
-} from "../data/workflow";
+import { STATUS, getAuditMeta, isPending } from "../data/workflow";
 import { PERMISSION as P, ROLE_META, can } from "../data/roles";
 import { getAuditLogs } from "../services/api";
 import {
@@ -109,12 +102,10 @@ export default function AdminOverview({
       reviewed: claims.filter((c) => c.status === STATUS.REVIEWED).length,
       returned: claims.filter((c) => c.status === STATUS.RETURNED).length,
       approved: claims.filter((c) => c.status === STATUS.APPROVED).length,
-      signedDocs: claims.filter((c) => c.status === STATUS.SIGNED_DOCS).length,
-      paid: claims.filter((c) => c.status === STATUS.PAID).length,
       rejected: claims.filter((c) => c.status === STATUS.REJECTED).length,
       overdue: withWait.filter((w) => slaLevel(w.days) === "overdue").length,
       pendingAmount: sum(pending),
-      approvedAmount: sum(claims.filter((c) => isApprovedOrLater(c.status))),
+      approvedAmount: sum(claims.filter((c) => c.status === STATUS.APPROVED)),
       // รอนานสุดก่อน
       urgent: withWait
         .sort((a, b) => (b.days ?? 0) - (a.days ?? 0))
@@ -141,7 +132,7 @@ export default function AdminOverview({
       row.total += 1;
       row.hours += Number(c.hours || 0);
       if (isPending(c.status)) row.pending += 1;
-      if (isApprovedOrLater(c.status)) {
+      if (c.status === STATUS.APPROVED) {
         row.approved += 1;
         row.amount += Number(c.amount || 0);
       }
@@ -157,9 +148,7 @@ export default function AdminOverview({
     { key: STATUS.REVIEWED, label: "รออนุมัติ", value: stats.reviewed, icon: ClipboardCheck, style: STATUS_STYLE.Reviewed, hint: "ตรวจแล้ว รอผู้อนุมัติ" },
     { key: "overdue", label: "เกินกำหนด", value: stats.overdue, icon: AlertTriangle, style: SLA_STYLE.overdue, hint: `รอเกิน ${SLA_BUSINESS_DAYS} วันทำการ` },
     { key: STATUS.RETURNED, label: "ส่งคืนแก้ไข", value: stats.returned, icon: RotateCcw, style: STATUS_STYLE.Returned, hint: "รอผู้ยื่นแก้ไข" },
-    { key: STATUS.APPROVED, label: "อนุมัติแล้ว", value: stats.approved, icon: CheckCircle2, style: STATUS_STYLE.Approved, hint: "รอเอกสารลงนาม" },
-    { key: STATUS.SIGNED_DOCS, label: "ได้รับเอกสารลงนาม", value: stats.signedDocs, icon: FileSignature, style: STATUS_STYLE.SignedDocs, hint: "รอการเงินจ่าย" },
-    { key: STATUS.PAID, label: "จ่ายแล้ว", value: stats.paid, icon: Banknote, style: STATUS_STYLE.Paid, hint: "ดำเนินการเรียบร้อยแล้ว" },
+    { key: STATUS.APPROVED, label: "อนุมัติแล้ว", value: stats.approved, icon: CheckCircle2, style: STATUS_STYLE.Approved, hint: "ดำเนินการเรียบร้อยแล้ว" },
     { key: STATUS.REJECTED, label: "ไม่อนุมัติ", value: stats.rejected, icon: XCircle, style: STATUS_STYLE.Rejected, hint: "สิ้นสุดการพิจารณา" },
   ];
 
@@ -233,7 +222,7 @@ export default function AdminOverview({
       </div>
 
       {/* ===== การ์ดสถานะ ===== */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         {cards.map(({ key, label, value, icon: Icon, style, hint }) => {
           const highlight = key === "overdue" && value > 0;
 

@@ -52,7 +52,7 @@ export default function CreateClaimList({
   error = "",
   onReload,
   goCreateForRound,
-  findRoundClaims,
+  findSubmittedClaim,
   goDetail,
 }) {
   const [query, setQuery] = useState("");
@@ -317,11 +317,7 @@ export default function CreateClaimList({
                       const quota = Number(course?.quota || 45);
                       const used = Number(course?.used || 0);
                       const remaining = Math.max(quota - used, 0);
-                      const roundClaims = findRoundClaims?.(round) || [];
-                      const roundHours = roundClaims.reduce(
-                        (sum, claim) => sum + Number(claim.hours || 0),
-                        0
-                      );
+                      const submitted = findSubmittedClaim?.(round);
 
                       return (
                         <SectionCard key={round.id} className="p-5">
@@ -392,21 +388,18 @@ export default function CreateClaimList({
                               เหลือ {remaining} จาก {quota} ชม.
                             </span>
 
-                            <div className="flex items-center gap-2 flex-wrap justify-end">
-                            {roundClaims.length > 0 && (
+                            {submitted ? (
                               <button
                                 type="button"
-                                onClick={() => goDetail?.(roundClaims[0].id)}
+                                onClick={() => goDetail?.(submitted.id)}
                                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
                                 style={{ background: "#DFF5E6", color: "#1E8E4F" }}
-                                title="ดูคำขอล่าสุดที่ยื่นในรอบนี้"
+                                title="ดูรายละเอียดคำขอที่ยื่นในรอบนี้"
                               >
                                 <CheckCircle2 size={14} />
-                                ยื่นแล้ว {roundClaims.length} คำขอ · {Math.round(roundHours * 100) / 100} ชม.
+                                ยื่นคำขอแล้ว
                               </button>
-                            )}
-
-                            {(open || roundClaims.length === 0) && (
+                            ) : (
                               <button
                                 type="button"
                                 disabled={!open}
@@ -418,11 +411,10 @@ export default function CreateClaimList({
                                     : C.sub,
                                 }}
                               >
-                                {roundClaims.length > 0 ? "ยื่นเพิ่ม" : "สร้างคำขอ"}
+                                สร้างคำขอ
                                 <Plus size={14} />
                               </button>
                             )}
-                            </div>
                           </div>
                         </SectionCard>
                       );

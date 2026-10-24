@@ -13,10 +13,7 @@ import {
   Save,
   Plus,
   Loader2,
-  FileSignature,
-  Download,
 } from "lucide-react";
-import { printSignatureForm } from "../utils/signatureForm";
 
 import { C } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -159,37 +156,8 @@ export default function CreateClaim({
   onSaveDraft,
   user,
   onCancel,
-  // คำขออื่นของผู้ใช้ — กันเบิกวันสอนเดียวกันซ้ำ (รอบเดียวยื่นได้หลายคำขอจนครบชั่วโมง)
-  existingClaims = [],
 }) {
   const isEditing = Boolean(initialClaim);
-
-  /*
-   * วันสอนที่ถูกเบิกไปแล้วในคำขออื่น (ไม่นับแบบร่าง / ไม่อนุมัติ / วันที่ถูกตัดตอนอนุมัติแยกวัน)
-   * key = "<section หรือ รหัสวิชา>|<วันที่>" → รหัสคำขอที่ใช้วันนั้นไปแล้ว
-   */
-  const claimedDayKey = (sectionId, courseCode, date) =>
-    `${sectionId ? `s${sectionId}` : `c${courseCode || ""}`}|${date}`;
-
-  const claimedDays = new Map();
-
-  existingClaims.forEach((claim) => {
-    if (
-      String(claim.id) === String(initialClaim?.id ?? "") ||
-      ["Draft", "Rejected", "Unknown"].includes(claim.status)
-    ) {
-      return;
-    }
-
-    (claim.sessions || []).forEach((session) => {
-      if (!session.date || session.decision === "rejected") return;
-
-      claimedDays.set(
-        claimedDayKey(claim.sectionId, claim.courseCode, session.date),
-        claim.code || claim.id
-      );
-    });
-  });
 
   const normalizeCourse = (course) => {
     if (!course) return null;
@@ -426,32 +394,6 @@ export default function CreateClaim({
   };
 
   /*
-   * แบบฟอร์มลงนาม (แบบ B): ผู้ยื่นพิมพ์จากข้อมูลที่กรอก → เซ็นจริง → สแกนแนบในขั้นนี้
-   * TA ต้องให้อาจารย์เจ้าของวิชาเซ็นรับรองชั่วโมงด้วย
-   */
-  const isTACourse =
-    course?.role === "TA" ||
-    (!course?.role &&
-      user?.roles?.includes("TA") &&
-      !user?.roles?.includes("TEACHER"));
-
-  const openSignatureForm = () =>
-    printSignatureForm({
-      code: initialClaim?.code || "",
-      termLabel: form.semester,
-      round: form.round,
-      courseCode: form.courseCode,
-      courseName: form.courseName,
-      claimantName: user?.name || "",
-      positionLabel: course?.positionLabel || "",
-      sessions: filledSessions,
-      rate,
-      amount,
-      notes: form.notes,
-      isTA: isTACourse,
-    });
-
-  /*
    * ข้อมูลที่ส่งออกไปบันทึก
    * เก็บ teachingDate (วันแรก) + hours (ชั่วโมงรวมแบบทศนิยม) ไว้ด้วย
    * เพื่อให้หน้าอื่นและ backend ที่ยังใช้รูปแบบเดิมอ่านได้
@@ -558,16 +500,6 @@ export default function CreateClaim({
 
       if (!dateError && isDuplicate) {
         dateError = "วันที่ซ้ำกับแถวด้านบน";
-      }
-
-      const claimedBy =
-        session.date &&
-        claimedDays.get(
-          claimedDayKey(form.sectionId, form.courseCode, session.date)
-        );
-
-      if (!dateError && claimedBy) {
-        dateError = `วันนี้เบิกไปแล้วในคำขอ #${claimedBy}`;
       }
 
       const timeError = validateSessionTime(session);
@@ -1266,49 +1198,6 @@ export default function CreateClaim({
           {/* STEP 3 */}
           {step === 3 && (
             <div>
-              {/* ขั้นตอนเอกสารลงนาม — ต้องแนบฉบับที่เซ็นแล้วเป็นหลักฐาน */}
-              <div
-                className="rounded-2xl border p-5 mb-6 flex flex-col md:flex-row md:items-center gap-4"
-                style={{ borderColor: "#C9DCEC", background: "#F2F8FD" }}
-              >
-                <span
-                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-white"
-                  style={{ background: C.tealDark }}
-                >
-                  <FileSignature size={20} />
-                </span>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: C.ink }}>
-                    แบบฟอร์มลงนาม{isTACourse ? " (TA)" : ""}
-                  </p>
-                  <ol
-                    className="text-xs mt-1 leading-5 list-decimal pl-4"
-                    style={{ color: C.sub }}
-                  >
-                    <li>ดาวน์โหลดแบบฟอร์ม (ข้อมูลกรอกให้จากขั้นก่อนหน้าแล้ว) แล้วพิมพ์</li>
-                    <li>
-                      {isTACourse
-                        ? "ลงนามผู้ขอเบิก และให้อาจารย์ผู้รับผิดชอบรายวิชาลงนามรับรองชั่วโมง"
-                        : "ลงนามในช่อง “อาจารย์ผู้ขอเบิก”"}
-                    </li>
-                    <li>สแกนหรือถ่ายรูปแบบฟอร์มที่ลงนามแล้ว แนบด้านล่างพร้อมหลักฐานการสอน</li>
-                    <li>ส่งต้นฉบับกระดาษให้เจ้าหน้าที่ (เจ้าหน้าที่และผู้มีอำนาจจะลงนามต่อ)</li>
-                  </ol>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={openSignatureForm}
-                  disabled={filledSessions.length === 0}
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90 disabled:opacity-50"
-                  style={{ background: C.tealDark }}
-                >
-                  <Download size={15} />
-                  ดาวน์โหลดแบบฟอร์ม
-                </button>
-              </div>
-
               <p
                 className="text-sm font-semibold mb-3"
                 style={{

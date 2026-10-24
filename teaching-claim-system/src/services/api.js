@@ -242,28 +242,13 @@ export function getCourses(termId) {
  *   APPROVE     : 2 → 3
  *   REJECT      : 2 → 4
  *   RETURN      : 1 หรือ 2 → 5
- *   RECORD_SIGNED_DOCS : 3 → 6  (เจ้าหน้าที่ได้รับเอกสารลงนามจริง)
- *   MARK_PAID          : 6 → 7  (จ่ายเงินแล้ว)
  * backend ต้องตรวจสิทธิ์และสถานะปัจจุบันเอง (ไม่ตรง → 409)
  */
 
-const VALID_ACTIONS = new Set([
-  "REVIEW_PASS",
-  "APPROVE",
-  "REJECT",
-  "RETURN",
-  // ⚠️ ใหม่ — backend ต้องรองรับ: 3 → 6 และ 6 → 7
-  "RECORD_SIGNED_DOCS",
-  "MARK_PAID",
-]);
+const VALID_ACTIONS = new Set(["REVIEW_PASS", "APPROVE", "REJECT", "RETURN"]);
 
-/*
- * comment: เหตุผล (บังคับเมื่อ REJECT / RETURN / RECORD_SIGNED_DOCS)
- * extra: ข้อมูลเพิ่มของ action นั้น เช่น อนุมัติแยกวัน
- *   APPROVE → { approved_date_ids: [claim_date.id], rejected_date_ids: [...] }
- *   (⚠️ backend ต้องรองรับ — ไม่ส่ง = อนุมัติทุกวันเหมือนเดิม)
- */
-export function submitClaimAction(claimId, action, comment, extra = {}) {
+// comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
+export function submitClaimAction(claimId, action, comment) {
   if (!VALID_ACTIONS.has(action)) {
     throw new Error(`ไม่รู้จัก action: ${action}`);
   }
@@ -273,7 +258,6 @@ export function submitClaimAction(claimId, action, comment, extra = {}) {
     body: {
       action,
       comment: comment?.trim() || null,
-      ...extra,
     },
   });
 }

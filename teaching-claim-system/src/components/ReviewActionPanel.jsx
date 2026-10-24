@@ -9,11 +9,6 @@ import {
   Info,
 } from "lucide-react";
 import { C } from "../theme";
-import {
-  formatThaiDate,
-  formatDuration,
-  sessionMinutes,
-} from "../utils/time";
 
 const TONE = {
   teal: { bg: C.teal, icon: ClipboardCheck },
@@ -22,48 +17,13 @@ const TONE = {
   amber: { bg: "#D9772B", icon: RotateCcw },
 };
 
-function ConfirmDialog({
-  action,
-  busy,
-  error,
-  warning,
-  sessions = [],
-  onCancel,
-  onConfirm,
-}) {
+function ConfirmDialog({ action, busy, error, warning, onCancel, onConfirm }) {
   const [comment, setComment] = useState("");
   const [touched, setTouched] = useState(false);
   const textareaRef = useRef(null);
 
-  /*
-   * อนุมัติแยกวัน: คำขอหลายวัน ผู้อนุมัติเลือกได้ว่าอนุมัติวันไหน
-   * (ต้องมี claim_date.id จาก backend ถึงจะเลือกรายวันได้)
-   */
-  const daySessions =
-    action.key === "APPROVE"
-      ? sessions.filter((session) => session.dateId != null)
-      : [];
-  const perDay = daySessions.length > 1;
-
-  const [selected, setSelected] = useState(
-    () => new Set(daySessions.map((session) => String(session.dateId)))
-  );
-
-  const toggleDay = (id) =>
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  const partial = perDay && selected.size < daySessions.length;
-  const noneSelected = perDay && selected.size === 0;
-
   const tone = TONE[action.tone] || TONE.teal;
-  // อนุมัติไม่ครบทุกวัน → ต้องระบุเหตุผลของวันที่ไม่อนุมัติ
-  const missing =
-    (action.requireComment || partial) && comment.trim().length === 0;
+  const missing = action.requireComment && comment.trim().length === 0;
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -80,20 +40,8 @@ function ConfirmDialog({
 
   const submit = () => {
     setTouched(true);
-    if (missing || busy || noneSelected) return;
-
-    const extra = partial
-      ? {
-          approved_date_ids: daySessions
-            .filter((s) => selected.has(String(s.dateId)))
-            .map((s) => s.dateId),
-          rejected_date_ids: daySessions
-            .filter((s) => !selected.has(String(s.dateId)))
-            .map((s) => s.dateId),
-        }
-      : {};
-
-    onConfirm(comment.trim(), extra);
+    if (missing || busy) return;
+    onConfirm(comment.trim());
   };
 
   const Icon = tone.icon;
@@ -141,62 +89,13 @@ function ConfirmDialog({
           </button>
         </div>
 
-        {perDay && (
-          <div className="mt-5">
-            <p className="text-sm font-semibold mb-1.5" style={{ color: C.ink }}>
-              เลือกวันที่อนุมัติ ({selected.size}/{daySessions.length} วัน)
-            </p>
-
-            <div
-              className="rounded-xl border divide-y max-h-48 overflow-y-auto"
-              style={{ borderColor: C.border }}
-            >
-              {daySessions.map((session) => {
-                const id = String(session.dateId);
-                const checked = selected.has(id);
-
-                return (
-                  <label
-                    key={id}
-                    className="flex items-center gap-3 px-3.5 py-2.5 text-sm cursor-pointer hover:bg-[#F4F8FB]"
-                    style={{ borderColor: C.border }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={busy}
-                      onChange={() => toggleDay(id)}
-                      className="w-4 h-4 accent-[#1E8E4F]"
-                    />
-                    <span
-                      className="flex-1 font-semibold"
-                      style={{ color: checked ? C.ink : C.sub }}
-                    >
-                      {formatThaiDate(session.date)}
-                    </span>
-                    <span style={{ color: C.sub }}>
-                      {formatDuration(sessionMinutes(session))}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-
-            {noneSelected && (
-              <p className="text-xs mt-1" style={{ color: C.rose }}>
-                ต้องเลือกอย่างน้อย 1 วัน ถ้าไม่อนุมัติทุกวันให้ใช้ “ไม่อนุมัติ” หรือ “ส่งกลับแก้ไข”
-              </p>
-            )}
-          </div>
-        )}
-
         <label
           htmlFor="review-comment"
           className="block text-sm font-semibold mt-5 mb-1.5"
           style={{ color: C.ink }}
         >
-          {partial ? "เหตุผลของวันที่ไม่อนุมัติ" : action.commentLabel}
-          {(action.requireComment || partial) && (
+          {action.commentLabel}
+          {action.requireComment && (
             <span style={{ color: C.rose }}> *</span>
           )}
         </label>
@@ -262,14 +161,12 @@ function ConfirmDialog({
           <button
             type="button"
             onClick={submit}
-            disabled={busy || noneSelected}
+            disabled={busy}
             className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
             style={{ background: tone.bg }}
           >
             {busy && <Loader2 size={15} className="animate-spin" />}
-            {partial
-              ? `อนุมัติ ${selected.size} วัน`
-              : action.confirmButton}
+            {action.confirmButton}
           </button>
         </div>
       </div>
@@ -292,8 +189,6 @@ export default function ReviewActionPanel({
   // ผ่านการตรวจสอบ (ส่งต่อผู้อนุมัติ) แล้วหรือยัง — ใช้เตือนผู้อนุมัติ/แสดงข้อความ
   reviewed = false,
   reviewedBy = "",
-  // วันสอนของคำขอ — ใช้เลือกอนุมัติแยกวัน
-  sessions = [],
 }) {
   const [active, setActive] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -306,12 +201,12 @@ export default function ReviewActionPanel({
     setError("");
   };
 
-  const confirm = async (comment, extra) => {
+  const confirm = async (comment) => {
     setBusy(true);
     setError("");
 
     try {
-      await onAction(active.key, comment, extra);
+      await onAction(active.key, comment);
       setActive(null);
     } catch (err) {
       setError(
@@ -424,7 +319,6 @@ export default function ReviewActionPanel({
           busy={busy}
           error={error}
           warning={approveWarning}
-          sessions={sessions}
           onCancel={close}
           onConfirm={confirm}
         />
