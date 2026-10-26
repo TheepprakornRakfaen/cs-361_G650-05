@@ -267,6 +267,20 @@ export function submitClaimAction(claimId, action, comment) {
 }
 
 /*
+ * [V4] ส่งต่อคำขอที่ถูกต้องเป็นกลุ่มให้ผู้อนุมัติ (Batch Pass Review - TC2)
+ */
+export function batchReviewPass(claimIds = [], comment = "") {
+  return apiRequest(`/api/claims/batch-actions`, {
+    method: "POST",
+    body: {
+      action: "REVIEW_PASS",
+      claimIds,
+      comment: comment?.trim() || "ผ่านการตรวจสอบ (ส่งต่อผู้อนุมัติ)",
+    },
+  });
+}
+
+/*
  * ผู้ยื่นแก้ไขคำขอที่ถูกส่งคืน (สถานะ 5) แล้วส่งอีกครั้งบนคำขอเดิม
  * Body เหมือน POST /api/claims (academic_term, period_id, section_id, status, date, note)
  */

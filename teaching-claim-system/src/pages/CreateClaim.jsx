@@ -36,6 +36,10 @@ import { downloadSignForm, printSignForm } from "../utils/signForm";
 import { getClaimEvidence } from "../services/api";
 import { getCompType } from "../services/claimMapper";
 import { STATUS } from "../data/workflow";
+import {
+  getCompTypesForRole,
+  getCompTypeMeta,
+} from "../data/compensationTypes";
 
 const STEP_TITLES = [
   "ข้อมูล",
@@ -313,6 +317,10 @@ export default function CreateClaim({
 
       rate: Number(firstCourse?.rate || 0),
 
+      compTypeId:
+        initialClaim?.compTypeId ||
+        (user?.role?.includes("TA") || user?.roleKey === "TA" ? "TA_LAB" : "TEACHER_LECTURE"),
+
       sessions: [emptySession()],
 
       notes: "",
@@ -392,8 +400,12 @@ export default function CreateClaim({
         form.courseCode
     );
 
-  // อัตราคงที่ต่อชั่วโมง (ดู HOURLY_RATE ใน rates.js)
-  const rate = HOURLY_RATE;
+  const userRoleKey = user?.roleKey || (user?.role?.includes("TA") ? "TA" : "TEACHER");
+  const availableCompTypes = getCompTypesForRole(userRoleKey);
+  const currentCompType = getCompTypeMeta(form.compTypeId);
+
+  // อัตราตามประเภทค่าตอบแทนที่เลือก หรือตามการมอบหมายรายวิชา (FR2 & FR4)
+  const rate = currentCompType?.defaultRate || Number(course?.rate) || HOURLY_RATE;
 
   const quota = Number(course?.quota) || 45;
 
@@ -463,6 +475,8 @@ export default function CreateClaim({
     return {
       ...form,
       rate,
+      compTypeId: form.compTypeId,
+      compTypeName: currentCompType?.name || "",
       sessions: form.sessions
         .filter((session) => session.date || session.hours || session.minutes)
         .map(({ date, hours, minutes }) => ({
@@ -1095,6 +1109,33 @@ export default function CreateClaim({
                       ยังไม่มีรายวิชาที่ได้รับมอบหมาย จึงยื่นคำขอเบิกไม่ได้
                       หากข้อมูลไม่ถูกต้อง กรุณาติดต่อเจ้าหน้าที่
                     </span>
+                  </div>
+                )}
+              </Field>
+
+              {/* [V4] ประเภทค่าตอบแทน (Compensation Types - FR2) */}
+              <Field label="ประเภทค่าตอบแทน" required>
+                <Select
+                  className="fld"
+                  value={form.compTypeId || ""}
+                  onChange={(e) => set("compTypeId", e.target.value)}
+                >
+                  {availableCompTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} (฿{t.defaultRate}/ชม.)
+                    </option>
+                  ))}
+                </Select>
+                {currentCompType && (
+                  <div className="mt-2 text-xs space-y-1 p-3 rounded-xl bg-slate-50 border border-slate-200" style={{ color: C.sub }}>
+                    <p>
+                      <span className="font-semibold text-slate-700">หลักฐานที่กำหนดสำหรับประเภทนี้:</span>{" "}
+                      {currentCompType.requiredEvidence?.join(", ")}
+                    </p>
+                    <p>
+                      <span className="font-semibold text-slate-700">เพดานชั่วโมง:</span> ไม่เกิน{" "}
+                      {currentCompType.maxHoursPerMonth || 40} ชม./เดือน
+                    </p>
                   </div>
                 )}
               </Field>

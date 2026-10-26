@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+import { LogOut } from "lucide-react";
+
 import { C } from "./theme";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import { scrollToSection } from "./utils/scroll";
 import Footer from "./components/Footer";
+import Toast from "./components/Toast";
+import ConfirmDialog from "./components/ConfirmDialog";
 
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -23,6 +27,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
 import AccessControl from "./pages/AccessControl";
+import AdminManagement from "./pages/AdminManagement";
 import Report from "./pages/Report";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
@@ -87,7 +92,7 @@ const SUBTITLE_MAP = {
   admin: "ภาพรวมระบบ",
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
-  settings: "บทบาทและสิทธิ์",
+  settings: "จัดการระบบและสิทธิ์",
   report: "รายงานสรุปยอดเบิก",
 };
 
@@ -122,6 +127,39 @@ export default function App() {
 
   // ตัวกรองสถานะตอนเปิดคิวตรวจสอบจากหน้าภาพรวมระบบ (null = ค่าเริ่มต้นของหน้า)
   const [reviewFilter, setReviewFilter] = useState(null);
+
+  // กล่องยืนยันก่อนออกจากระบบ
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // แจ้งเตือนแบบ Toast (แทน alert ของเบราว์เซอร์)
+  // { message, type }  — type: "success" | "error" | "info"
+  const [toast, setToast] = useState(null);
+  const notify = (message, type = "info") => setToast({ message, type });
+
+  /*
+   * กล่องยืนยันทั่วไป (แทน window.confirm)
+   * เก็บ callback ไว้ยิงเมื่อผู้ใช้กดยืนยัน
+   */
+  const [confirmState, setConfirmState] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // เปิดกล่องยืนยัน: ask({ title, message, confirmText, tone, onConfirm })
+  const ask = (options) => setConfirmState(options);
+
+  const handleConfirmAccept = async () => {
+    if (!confirmState?.onConfirm) {
+      setConfirmState(null);
+      return;
+    }
+    try {
+      setConfirmBusy(true);
+      await confirmState.onConfirm();
+    } finally {
+      setConfirmBusy(false);
+      setConfirmState(null);
+    }
+  };
 
   const openReview = (status = null) => {
     setReviewFilter(status);
@@ -1306,14 +1344,21 @@ export default function App() {
   };
 
   /*
-   * ออกจากระบบ
+   * ออกจากระบบ — กดปุ่มแล้วถามยืนยันก่อน (ออกจริงที่ confirmLogout)
    */
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = async () => {
+    setLoggingOut(true);
     try {
       await logoutFromCognito();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      setLoggingOut(false);
+      setLogoutConfirmOpen(false);
       setCurrentUser(null);
       setView("home");
     }
@@ -1327,7 +1372,7 @@ export default function App() {
       await logoutFromCognito({ global: true });
     } catch (error) {
       console.error("Global logout error:", error);
-      alert("ออกจากระบบทุกอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่");
+      notify("ออกจากระบบทุกอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่", "error");
       return;
     }
 
@@ -1674,9 +1719,10 @@ export default function App() {
 
       // บางไฟล์ไม่สำเร็จ → หน้ารายละเอียดแสดงแถบแจ้งพร้อมปุ่ม "ลองอีกครั้ง"
       if (uploadResult.failed.length > 0) {
-        alert(
+        notify(
           `ยื่นคำขอเรียบร้อยแล้ว แต่แนบไฟล์ไม่สำเร็จ ${uploadResult.failed.length} ไฟล์\n` +
-            "กดปุ่ม “ลองอีกครั้ง” ในหน้ารายละเอียดคำขอได้เลย"
+            "กดปุ่ม “ลองอีกครั้ง” ในหน้ารายละเอียดคำขอได้เลย",
+          "info"
         );
       }
     } catch (error) {
@@ -1685,10 +1731,11 @@ export default function App() {
         error
       );
 
-      alert(
+      notify(
         error?.data?.message ||
-        error?.message ||
-        "ไม่สามารถยื่นคำขอได้"
+          error?.message ||
+          "ไม่สามารถยื่นคำขอได้",
+        "error"
       );
     }
   };
@@ -1698,64 +1745,49 @@ export default function App() {
    * - ร่างใน localStorage → ลบในเครื่อง
    * - คำขอจาก backend → DELETE /api/claims (body: claim_id, cognito_sub)
    */
-  const handleDeleteClaim = async (claim) => {
+  const handleDeleteClaim = (claim) => {
     // ลบได้เฉพาะแบบร่าง (คำขอที่ยื่นแล้วต้องเก็บไว้เพื่อตรวจสอบย้อนหลัง)
     if (claim.status !== STATUS.DRAFT) {
-      alert("ลบได้เฉพาะแบบร่างเท่านั้น");
+      notify("ลบได้เฉพาะแบบร่างเท่านั้น", "error");
       return;
     }
 
-    if (
-      !window.confirm(
-        `ต้องการลบคำขอ #${claim.id} ใช่หรือไม่?`
-      )
-    ) {
-      return;
-    }
+    ask({
+      title: "ลบแบบร่างคำขอ",
+      message: `ต้องการลบคำขอ #${claim.code || claim.id} ใช่หรือไม่? การลบแบบร่างไม่สามารถกู้คืนได้`,
+      confirmText: "ลบแบบร่าง",
+      tone: "danger",
+      onConfirm: () => performDeleteClaim(claim),
+    });
+  };
 
-    const isLocalDraft =
-      localDrafts.some(
-        (draft) =>
-          String(draft.id) ===
-          String(claim.id)
-      );
+  const performDeleteClaim = async (claim) => {
+    const isLocalDraft = localDrafts.some(
+      (draft) => String(draft.id) === String(claim.id)
+    );
 
     try {
       if (isLocalDraft) {
-        setState(
-          deleteLocalClaim(claim.id)
-        );
+        setState(deleteLocalClaim(claim.id));
       } else {
-        await deleteClaim(
-          claim.id,
-          currentUser?.cognitoSub
-        );
+        await deleteClaim(claim.id, currentUser?.cognitoSub);
 
         setApiClaims((current) =>
-          current.filter(
-            (item) =>
-              String(item.id) !==
-              String(claim.id)
-          )
+          current.filter((item) => String(item.id) !== String(claim.id))
         );
       }
 
-      if (
-        String(selectedClaimId) ===
-        String(claim.id)
-      ) {
+      if (String(selectedClaimId) === String(claim.id)) {
         setSelectedClaimId(null);
       }
-    } catch (error) {
-      console.error(
-        "Delete claim failed:",
-        error
-      );
 
-      alert(
-        error?.data?.message ||
-        error?.message ||
-        "ไม่สามารถลบคำขอได้"
+      notify("ลบแบบร่างเรียบร้อยแล้ว", "success");
+    } catch (error) {
+      console.error("Delete claim failed:", error);
+
+      notify(
+        error?.data?.message || error?.message || "ไม่สามารถลบคำขอได้",
+        "error"
       );
     }
   };
@@ -1802,16 +1834,15 @@ export default function App() {
           );
 
     if (!savedClaim) {
-      alert(
-        "ไม่สามารถบันทึกแบบร่างได้"
-      );
+      notify("ไม่สามารถบันทึกแบบร่างได้", "error");
 
       return;
     }
 
     if (evidenceFiles.length > 0) {
-      alert(
-        "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข"
+      notify(
+        "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข",
+        "info"
       );
     }
 
@@ -1934,6 +1965,7 @@ export default function App() {
             error={reviewError}
             onReload={loadReviewClaims}
             goDetail={goReviewDetail}
+            goReport={() => setView("report")}
           />
         );
 
@@ -1946,7 +1978,13 @@ export default function App() {
         );
 
       case "settings":
-        return <AccessControl user={currentUser} />;
+        return (
+          <AdminManagement
+            user={currentUser}
+            claims={reviewClaims.map(decorateClaim)}
+            onReload={loadReviewClaims}
+          />
+        );
 
       case "report":
         return (
@@ -2012,6 +2050,7 @@ export default function App() {
         return (
           <ClaimDetail
             claim={selectedClaim}
+            claims={reviewClaims.map(decorateClaim)}
             course={
               courses.find(
                 (course) =>
@@ -2208,6 +2247,42 @@ export default function App() {
           </main>
         </div>
       </div>
+
+      {/* ยืนยันก่อนออกจากระบบ */}
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        title="ออกจากระบบ"
+        message="ต้องการออกจากระบบใช่หรือไม่?"
+        confirmText="ออกจากระบบ"
+        cancelText="อยู่ต่อ"
+        tone="danger"
+        icon={LogOut}
+        loading={loggingOut}
+        onConfirm={confirmLogout}
+        onClose={() => !loggingOut && setLogoutConfirmOpen(false)}
+      />
+
+      {/* กล่องยืนยันทั่วไป (ลบแบบร่าง ฯลฯ) */}
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmText={confirmState?.confirmText}
+        cancelText={confirmState?.cancelText}
+        tone={confirmState?.tone || "danger"}
+        loading={confirmBusy}
+        onConfirm={handleConfirmAccept}
+        onClose={() => !confirmBusy && setConfirmState(null)}
+      />
+
+      {/* แจ้งเตือนแบบ Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

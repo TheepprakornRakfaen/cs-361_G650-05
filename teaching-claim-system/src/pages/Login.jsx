@@ -505,7 +505,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
                 {DEV_TEST_ACCOUNT_OPTIONS.length > 0 && (
                   <>
                 <p className="text-[11px] mt-3 mb-2 font-semibold" style={{ color: "#B4531A" }}>
-                  บัญชีทดสอบ Project 6 (Cognito sub ชั่วคราว)
+                  ผู้ใช้จริงตามสถานการณ์ทดสอบ V4
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">

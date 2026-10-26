@@ -64,8 +64,17 @@ const PERIODS = [
 const COURSES = [
   {
     section_id: 1,
-    course_code: "CS341",
-    course_name_th: "วิศวกรรมซอฟต์แวร์",
+    course_code: "CS101",
+    course_name_th: "การเขียนโปรแกรมคอมพิวเตอร์พื้นฐาน",
+    section_no: "650001",
+    role: "INSTRUCTOR",
+    hour: 18,
+    max_hour: 45,
+  },
+  {
+    section_id: 2,
+    course_code: "CS213",
+    course_name_th: "โครงสร้างข้อมูล",
     section_no: "650001",
     role: "INSTRUCTOR",
     hour: 12,
@@ -73,8 +82,8 @@ const COURSES = [
   },
   {
     section_id: 3,
-    course_code: "CS361",
-    course_name_th: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์",
+    course_code: "CS341",
+    course_name_th: "วิศวกรรมซอฟต์แวร์",
     section_no: "650001",
     role: "INSTRUCTOR",
     hour: 15,
@@ -82,41 +91,72 @@ const COURSES = [
   },
   {
     section_id: 4,
-    course_code: "CS213",
-    course_name_th: "โครงสร้างข้อมูล",
+    course_code: "CS361",
+    course_name_th: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์",
     section_no: "650001",
     role: "INSTRUCTOR",
-    hour: 6,
+    hour: 20,
     max_hour: 45,
   },
 ];
 
 const PEOPLE = [
   {
+    sub: "dev-wirat",
+    name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
+    email: "wirat@tu.ac.th",
+    role: "TEACHER",
+    bank_name: "ธนาคารกรุงไทย",
+    bank_account_no: "1234567890",
+  },
+  {
+    sub: "dev-few",
+    name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    email: "few@tu.ac.th",
+    role: "TA",
+    bank_name: "ธนาคารไทยพาณิชย์",
+    bank_account_no: "4051122334",
+  },
+  {
+    sub: "dev-june",
+    name: "พี่จูน (ผู้ช่วยสอน TA)",
+    email: "june@tu.ac.th",
+    role: "TA",
+    bank_name: "ธนาคารกสิกรไทย",
+    bank_account_no: "7889900112",
+  },
+  {
     sub: "dev-teacher",
     name: "อ.ทดลอง ระบบ",
     email: "teacher@dev.local",
     role: "TEACHER",
-  },
-  {
-    sub: "t-02",
-    name: "อ.สมหญิง ตั้งใจสอน",
-    email: "somying@dev.local",
-    role: "TEACHER",
-  },
-  {
-    sub: "t-03",
-    name: "อ.วิชัย รักเรียน",
-    email: "wichai@dev.local",
-    role: "TEACHER",
+    bank_name: "ธนาคารกรุงเทพ",
+    bank_account_no: "1472583690",
   },
   {
     sub: "ta-01",
     name: "นายภูมิ ช่วยสอน",
     email: "phum@dev.local",
     role: "TA",
+    bank_name: "ธนาคารออมสิน",
+    bank_account_no: "0203040506",
   },
 ];
+
+/*
+ * บัญชีรับเงินของเจ้าของคำขอ (ปลายทางการจ่ายเงิน)
+ * จริง ๆ backend จะดึงจากโปรไฟล์ผู้ใช้ (ตาราง app_user) ของเจ้าของคำขอ
+ * ที่นี่จำลองด้วยการ map จาก owner_sub → PEOPLE
+ * ถ้าไม่พบ ใช้บัญชีเริ่มต้นเพื่อให้ยังสาธิตการจ่ายเงินได้
+ */
+function resolvePayoutAccount(claim) {
+  const person = PEOPLE.find((p) => p.sub === claim.owner_sub);
+
+  return {
+    bank_name: person?.bank_name || "ธนาคารกรุงไทย",
+    account_no: person?.bank_account_no || "1234567890",
+  };
+}
 
 const STATUSES = [
   "SUBMITTED",
@@ -137,47 +177,302 @@ const uuid = () =>
         Math.floor(Math.random() * 16).toString(16),
       );
 
-let claims = Array.from({ length: 18 }, (_, i) => {
-  const person = PEOPLE[i % PEOPLE.length];
-  const course = COURSES[i % COURSES.length];
-  const status = STATUSES[i % STATUSES.length];
-  const hour = 2 + (i % 4);
+// รายการคำขอจำลองสำหรับทดสอบครอบคลุมทุกสถานการณ์ (TC1, TC2, FR1-FR10)
+const duplicateDate = dateOnly(-12);
 
-  return {
-    id: uuid(),
-    status,
+let claims = [
+  // 1. TC2 Anomaly: คำขอซ้ำ (Duplicate claim 1 & 2)
+  {
+    id: "claim-tc2-dup-1",
+    status: "SUBMITTED",
+    type_id: "TEACHER_LECTURE",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
-    section_id: course.section_id,
-    course_code: course.course_code,
-    course_name: course.course_name_th,
-    date: [{ id: i + 1, date: dateOnly(-10 - (i % 6)), hour }],
-    hour,
-    note: i % 3 === 0 ? "สอนชดเชยวันหยุดราชการ" : null,
-    owner_sub: person.sub,
-    claimant_name: person.name,
-    claimant_email: person.email,
-    claimant_role: person.role,
-    // REVIEWED = ผู้ตรวจสอบส่งต่อแล้ว (ให้ผู้อนุมัติมีงานให้ทดลอง)
-    reviewed_at: status === "REVIEWED" ? iso(-18 + i) : null,
-    reviewed_by_name: status === "REVIEWED" ? "เจ้าหน้าที่ตรวจสอบ (ทดลอง)" : "",
-    decision_comment:
-      status === "RETURNED"
-        ? "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาแนบใหม่"
-        : status === "REJECTED"
-          ? "ชั่วโมงสอนที่เบิกเกินสิทธิ์ตามเงื่อนไขของรายวิชา"
-          : null,
-    paid_at: status === "PAID" ? iso(-4) : null,
-    // ข้อมูลทดลอง: ส่งเลขเต็มมาเพื่อทดสอบว่าหน้าเว็บปิดบังให้
-    payment_bank_name: status === "PAID" ? "ธนาคารกรุงไทย" : "",
-    payment_account_no: status === "PAID" ? "1234567890" : "",
-    // ยื่นห่างกันวันละรายการ (ย้อนหลัง ~3 สัปดาห์) → มีทั้งที่ยังทันและเกินกำหนด 10 วันทำการ
-    created_at: iso(-22 + i),
-    submitted_at: status === "DRAFT" ? null : iso(-21 + i),
-    updated_at: iso(-21 + i),
-  };
-});
+    section_id: 3,
+    course_code: "CS341",
+    course_name: "วิศวกรรมซอฟต์แวร์",
+    date: [{ id: 101, date: duplicateDate, hour: 3 }],
+    hour: 3,
+    note: "สอนบรรยายบทที่ 4 การออกแบบสถาปัตยกรรม",
+    owner_sub: "dev-wirat",
+    claimant_name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
+    claimant_email: "wirat@tu.ac.th",
+    claimant_role: "TEACHER",
+    evidence_count: 1,
+    has_evidence: true,
+    created_at: iso(-11),
+    submitted_at: iso(-11),
+    updated_at: iso(-11),
+  },
+  {
+    id: "claim-tc2-dup-2",
+    status: "SUBMITTED",
+    type_id: "TEACHER_LECTURE",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 3,
+    course_code: "CS341",
+    course_name: "วิศวกรรมซอฟต์แวร์",
+    date: [{ id: 102, date: duplicateDate, hour: 3 }],
+    hour: 3,
+    note: "สอนบรรยายชดเชย (ยื่นซ้ำวันเดียวกันกับคำขอด้านบน)",
+    owner_sub: "dev-wirat",
+    claimant_name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
+    claimant_email: "wirat@tu.ac.th",
+    claimant_role: "TEACHER",
+    evidence_count: 1,
+    has_evidence: true,
+    created_at: iso(-10),
+    submitted_at: iso(-10),
+    updated_at: iso(-10),
+  },
+  // 2. TC2 Anomaly: เอกสารหลักฐานไม่ครบ (Missing evidence)
+  {
+    id: "claim-tc2-missing-ev",
+    status: "SUBMITTED",
+    type_id: "TA_GRADING",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 2,
+    course_code: "CS213",
+    course_name: "โครงสร้างข้อมูล",
+    date: [{ id: 103, date: dateOnly(-14), hour: 4 }],
+    hour: 4,
+    note: "ช่วยตรวจงานโครงสร้างข้อมูล (ยังไม่ได้แนบใบลงเวลาปฏิบัติงาน)",
+    owner_sub: "dev-june",
+    claimant_name: "พี่จูน (ผู้ช่วยสอน TA)",
+    claimant_email: "june@tu.ac.th",
+    claimant_role: "TA",
+    missingEvidence: true,
+    evidence_count: 0,
+    has_evidence: false,
+    created_at: iso(-13),
+    submitted_at: iso(-13),
+    updated_at: iso(-13),
+  },
+  // 3. TC2 Anomaly: เกินโควตารายวิชา (Exceeds remaining quota)
+  {
+    id: "claim-tc2-over-quota",
+    status: "SUBMITTED",
+    type_id: "TA_LAB",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 4,
+    course_code: "CS361",
+    course_name: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์",
+    date: [{ id: 104, date: dateOnly(-9), hour: 18 }],
+    hour: 18,
+    isOverQuota: true,
+    note: "ขอเบิกเกินชั่วโมงคงเหลือของวิชา",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 1,
+    has_evidence: true,
+    created_at: iso(-8),
+    submitted_at: iso(-8),
+    updated_at: iso(-8),
+  },
+  // 4. TC1 & TC2 Valid Clean Claims (ข้อมูลครบถ้วนพร้อมส่งต่อ)
+  {
+    id: "claim-tc2-clean-1",
+    status: "SUBMITTED",
+    type_id: "TA_LAB",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 1,
+    course_code: "CS101",
+    course_name: "การเขียนโปรแกรมคอมพิวเตอร์พื้นฐาน",
+    date: [{ id: 105, date: dateOnly(-7), hour: 3 }],
+    hour: 3,
+    note: "ช่วยสอนปฏิบัติการเขียนโปรแกรมแล็บ 3 (ข้อมูลถูกต้อง)",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 2,
+    has_evidence: true,
+    created_at: iso(-6),
+    submitted_at: iso(-6),
+    updated_at: iso(-6),
+  },
+  {
+    id: "claim-tc2-clean-2",
+    status: "SUBMITTED",
+    type_id: "TA_GRADING",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 3,
+    course_code: "CS341",
+    course_name: "วิศวกรรมซอฟต์แวร์",
+    date: [{ id: 106, date: dateOnly(-5), hour: 3 }],
+    hour: 3,
+    note: "ช่วยสอนแล็บ Git & Agile (ข้อมูลครบถ้วน)",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 1,
+    has_evidence: true,
+    created_at: iso(-4),
+    submitted_at: iso(-4),
+    updated_at: iso(-4),
+  },
+  {
+    id: "claim-tc2-clean-3",
+    status: "SUBMITTED",
+    type_id: "SPECIAL_LECTURER",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 4,
+    course_code: "CS361",
+    course_name: "การออกแบบสถาปัตยกรรมซอฟต์แวร์บนคลาวด์",
+    date: [{ id: 107, date: dateOnly(-4), hour: 3 }],
+    hour: 3,
+    note: "สอนบรรยายสถาปัตยกรรมคลาวด์ (ข้อมูลถูกต้อง)",
+    owner_sub: "dev-wirat",
+    claimant_name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
+    claimant_email: "wirat@tu.ac.th",
+    claimant_role: "TEACHER",
+    evidence_count: 2,
+    has_evidence: true,
+    created_at: iso(-3),
+    submitted_at: iso(-3),
+    updated_at: iso(-3),
+  },
+  // 5. รายการสถานะอื่นๆ (Reviewed, Approved, Paid, Returned, Rejected)
+  {
+    id: "claim-tc2-reviewed-1",
+    status: "REVIEWED",
+    type_id: "TA_LAB",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 1,
+    course_code: "CS101",
+    course_name: "การเขียนโปรแกรมคอมพิวเตอร์พื้นฐาน",
+    date: [{ id: 108, date: dateOnly(-18), hour: 3 }],
+    hour: 3,
+    note: "ผ่านการตรวจสอบแล้ว รอผู้อนุมัติพิจารณา",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 1,
+    has_evidence: true,
+    reviewed_at: iso(-4),
+    reviewed_by_name: "เจ้าหน้าที่ตรวจสอบ",
+    created_at: iso(-17),
+    submitted_at: iso(-17),
+    updated_at: iso(-4),
+  },
+  {
+    id: "claim-tc2-approved-1",
+    status: "APPROVED",
+    type_id: "TEACHER_LECTURE",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 3,
+    course_code: "CS341",
+    course_name: "วิศวกรรมซอฟต์แวร์",
+    date: [{ id: 109, date: dateOnly(-22), hour: 4 }],
+    hour: 4,
+    note: "อนุมัติแล้ว รอการเงินเบิกจ่าย",
+    owner_sub: "dev-wirat",
+    claimant_name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
+    claimant_email: "wirat@tu.ac.th",
+    claimant_role: "TEACHER",
+    evidence_count: 2,
+    has_evidence: true,
+    reviewed_at: iso(-15),
+    reviewed_by_name: "เจ้าหน้าที่ตรวจสอบ",
+    approved_at: iso(-10),
+    payment_bank_name: "ธนาคารกรุงไทย",
+    payment_account_no: "1234567890",
+    created_at: iso(-21),
+    submitted_at: iso(-21),
+    updated_at: iso(-10),
+  },
+  {
+    id: "claim-tc2-paid-1",
+    status: "PAID",
+    type_id: "TA_LAB",
+    academic_term: 3,
+    period_id: 1,
+    period_month: 9,
+    section_id: 1,
+    course_code: "CS101",
+    course_name: "การเขียนโปรแกรมคอมพิวเตอร์พื้นฐาน",
+    date: [{ id: 110, date: dateOnly(-35), hour: 3 }],
+    hour: 3,
+    note: "จ่ายเงินเข้าบัญชีเรียบร้อยแล้ว",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 1,
+    has_evidence: true,
+    paid_at: iso(-20),
+    payment_bank_name: "ธนาคารไทยพาณิชย์",
+    payment_account_no: "4051122334",
+    created_at: iso(-34),
+    submitted_at: iso(-34),
+    updated_at: iso(-20),
+  },
+  {
+    id: "claim-tc2-returned-1",
+    status: "RETURNED",
+    type_id: "TA_GRADING",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 2,
+    course_code: "CS213",
+    course_name: "โครงสร้างข้อมูล",
+    date: [{ id: 111, date: dateOnly(-15), hour: 2 }],
+    hour: 2,
+    note: "ส่งกลับให้ผู้ยื่นแก้ไขลายเซ็น",
+    owner_sub: "dev-june",
+    claimant_name: "พี่จูน (ผู้ช่วยสอน TA)",
+    claimant_email: "june@tu.ac.th",
+    claimant_role: "TA",
+    decision_comment: "ลายเซ็นในใบลงเวลาไม่ครบ กรุณาให้อาจารย์ผู้สอนลงนามรับรองแล้วแนบใหม่",
+    created_at: iso(-14),
+    submitted_at: iso(-14),
+    updated_at: iso(-6),
+  },
+  {
+    id: "claim-tc2-draft-1",
+    status: "DRAFT",
+    type_id: "TA_LAB",
+    academic_term: 3,
+    period_id: 2,
+    period_month: 10,
+    section_id: 1,
+    course_code: "CS101",
+    course_name: "การเขียนโปรแกรมคอมพิวเตอร์พื้นฐาน",
+    date: [{ id: 112, date: dateOnly(-2), hour: 3 }],
+    hour: 3,
+    note: "บันทึกแบบร่างเตรียมยื่น",
+    owner_sub: "dev-few",
+    claimant_name: "พี่ฟิว (ผู้ช่วยสอน TA)",
+    claimant_email: "few@tu.ac.th",
+    claimant_role: "TA",
+    evidence_count: 0,
+    created_at: iso(-2),
+    submitted_at: null,
+    updated_at: iso(-2),
+  },
+];
 
 // เวลาที่เจ้าหน้าที่ดำเนินการ = หลังวันยื่น n วัน
 const afterSubmit = (claim, days) =>
@@ -205,6 +500,30 @@ let logs = claims
         actor_role: "REVIEWER",
         created_at: afterSubmit(c, 2),
       });
+    }
+    if (c.status === "PAID") {
+      const last4 = String(c.payment_account_no || "").slice(-4);
+      entries.push(
+        {
+          action: "APPROVE",
+          from_status: "Reviewed",
+          to_status: "Approved",
+          actor_name: "ผู้อนุมัติ (ทดลอง)",
+          actor_role: "APPROVER",
+          created_at: afterSubmit(c, 2),
+        },
+        {
+          action: "AUTO_PAY",
+          from_status: "Approved",
+          to_status: "Paid",
+          actor_name: "ระบบ (อัตโนมัติ)",
+          actor_role: "SYSTEM",
+          comment: `ระบบจ่ายเงินอัตโนมัติเข้าบัญชี ${
+            c.payment_bank_name || ""
+          } เลขที่ ${last4 ? "xxxxxx" + last4 : ""} (โหมดทดลอง)`,
+          created_at: afterSubmit(c, 4),
+        },
+      );
     }
     if (c.status === "REJECTED") {
       entries.push({
@@ -355,7 +674,15 @@ function redactClaim(user, claim) {
   return { ...claim, claimant_email: maskEmail(claim.claimant_email) };
 }
 
-const DEV_AUTO_PAY_MS = 30 * 1000;
+// หลังผู้อนุมัติกดอนุมัติ ผ่านไป 2 นาที ระบบจะเปลี่ยนสถานะเป็น "จ่ายเงินแล้ว"
+const DEV_AUTO_PAY_MS = 2 * 60 * 1000;
+
+// ปิดบังเลขบัญชีเหลือ 4 ตัวท้าย (ใช้บันทึกในประวัติ ไม่เก็บเลขเต็ม)
+const maskAccountNo = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 4) return "";
+  return `${"x".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
+};
 
 // อนุมัติแล้วเกินเวลาที่กำหนด → จ่ายเงินแล้ว (จำลองงานตั้งเวลาของ backend)
 function autoPayApproved() {
@@ -367,11 +694,22 @@ function autoPayApproved() {
       claim.approved_at &&
       now - new Date(claim.approved_at).getTime() >= DEV_AUTO_PAY_MS
     ) {
-      addLog(claim, "AUTO_PAY", "APPROVED", "PAID", "ระบบจ่ายเงินอัตโนมัติ (โหมดทดลอง)");
+      // ปลายทางการจ่าย = บัญชีของเจ้าของคำขอ (ต้องตรงกับที่แสดงในโปรไฟล์/ฐานข้อมูล)
+      const payout = resolvePayoutAccount(claim);
+
+      addLog(
+        claim,
+        "AUTO_PAY",
+        "APPROVED",
+        "PAID",
+        `ระบบจ่ายเงินอัตโนมัติเข้าบัญชี ${payout.bank_name} เลขที่ ${maskAccountNo(
+          payout.account_no,
+        )} (โหมดทดลอง)`,
+      );
       claim.status = "PAID";
       claim.paid_at = new Date().toISOString();
-      claim.payment_bank_name = "ธนาคารกรุงไทย";
-      claim.payment_account_no = "1234567890";
+      claim.payment_bank_name = payout.bank_name;
+      claim.payment_account_no = payout.account_no;
       claim.updated_at = claim.paid_at;
     }
   });
@@ -496,6 +834,27 @@ export async function devMockRequest(path, options = {}) {
         }
       }
 
+      if (id === "batch-actions" && method === "POST") {
+        requirePermission(user, P.CLAIM_REVIEW);
+        const { action, claimIds, comment } = body;
+        const targetClaims = claims.filter((c) => (claimIds || []).includes(c.id));
+        const now = new Date().toISOString();
+        let updatedCount = 0;
+
+        targetClaims.forEach((c) => {
+          if (action === "REVIEW_PASS" && c.status === "SUBMITTED") {
+            addLog(c, "REVIEW_PASS", c.status, "REVIEWED", comment || "ผ่านการตรวจสอบ (ส่งต่อผู้อนุมัติ)");
+            c.status = "REVIEWED";
+            c.reviewed_at = now;
+            c.reviewed_by_name = user?.name || "";
+            c.updated_at = now;
+            updatedCount += 1;
+          }
+        });
+
+        return { ok: true, updatedCount };
+      }
+
       const claim = claims.find((c) => c.id === id);
       if (!claim) throw error(404, "ไม่พบคำขอ (ข้อมูลจำลอง)");
 
@@ -550,10 +909,14 @@ export async function devMockRequest(path, options = {}) {
           claim.decision_by = user?.name || "";
         }
 
-        // จำลองระบบจ่ายเงินอัตโนมัติ: อนุมัติแล้วรอสักพัก (โหมดทดลอง 30 วินาที) สถานะเปลี่ยนเป็น "จ่ายเงินแล้ว"
+        // จำลองระบบจ่ายเงินอัตโนมัติ: อนุมัติแล้วรอ 2 นาที สถานะเปลี่ยนเป็น "จ่ายเงินแล้ว"
         // ของจริง backend ต้องมีงานตั้งเวลา (เช่น EventBridge + Lambda) ทำแทนส่วนนี้
         if (route.action === "APPROVE") {
           claim.approved_at = now;
+          // ผูกบัญชีปลายทาง (ของเจ้าของคำขอ) ไว้ตั้งแต่อนุมัติ เพื่อให้ตรงกับตอนจ่ายจริง
+          const payout = resolvePayoutAccount(claim);
+          claim.payment_bank_name = payout.bank_name;
+          claim.payment_account_no = payout.account_no;
         }
 
         return { claim: clone(claim) };

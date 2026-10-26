@@ -5,6 +5,45 @@
  */
 export const MOCK_USERS = [
   {
+    username: "wirat",
+    email: "wirat@tu.ac.th",
+    name: "อาจารย์วิรัตน์ ยิ่งมงคลเจริญ",
+    firstName: "วิรัตน์",
+    role: "อาจารย์ผู้สอน",
+    staffId: "T6500999",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "02-564-4440 ต่อ 2100",
+    bankName: "ธนาคารกรุงไทย",
+    bankAccount: "1234567890",
+  },
+  {
+    username: "few",
+    email: "few@tu.ac.th",
+    name: "นายภูริชญ์ ใจดี (พี่ฟิว)",
+    firstName: "พี่ฟิว",
+    role: "ผู้ช่วยสอน (TA)",
+    staffId: "6509610088",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "081-111-2222",
+    bankName: "ธนาคารไทยพาณิชย์",
+    bankAccount: "4051122334",
+  },
+  {
+    username: "june",
+    email: "june@tu.ac.th",
+    name: "นางสาวจิราพร ยิ้มแย้ม (พี่จูน)",
+    firstName: "พี่จูน",
+    role: "ผู้ช่วยสอน (TA)",
+    staffId: "6509610099",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "082-333-4444",
+    bankName: "ธนาคารกสิกรไทย",
+    bankAccount: "7889900112",
+  },
+  {
     username: "nitcha",
     email: "nitcha@tu.ac.th",
     name: "นางสาวนิชชา วรเมธาพงศ์",
@@ -14,6 +53,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "02-564-4440 ต่อ 2001",
+    bankName: "ธนาคารกรุงเทพ",
+    bankAccount: "1472583690",
   },
   {
     username: "ta01",
@@ -25,6 +66,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "08x-xxx-xxxx",
+    bankName: "ธนาคารออมสิน",
+    bankAccount: "0203040506",
   },
 ];
 
@@ -40,6 +83,20 @@ export const MOCK_USERS = [
  * TODO: รอ backend ส่งข้อมูลจริง (เจ้าหน้าที่เป็นคนบันทึก)
  */
 export const MOCK_ASSIGNMENTS = {
+  wirat: [
+    { courseCode: "CS101", position: "lecturer", program: "thai", students: 150 },
+    { courseCode: "CS341", position: "lecturer", program: "english", students: 220 },
+    { courseCode: "CS361", position: "lecturer", program: "thai", students: 80 },
+  ],
+  few: [
+    { courseCode: "CS101", position: "lecturerAssistant" },
+    { courseCode: "CS341", position: "activityAssistant" },
+    { courseCode: "CS361", position: "lecturerAssistant" },
+  ],
+  june: [
+    { courseCode: "CS213", position: "lecturerAssistant" },
+    { courseCode: "CS341", position: "activityAssistant" },
+  ],
   nitcha: [
     { courseCode: "CS101", position: "lecturer", program: "thai", students: 150 },
     { courseCode: "CS341", position: "lecturer", program: "english", students: 220 },
