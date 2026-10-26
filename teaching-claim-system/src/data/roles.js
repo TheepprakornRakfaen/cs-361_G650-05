@@ -254,6 +254,22 @@ export function maskAccount(value) {
 }
 
 /*
+ * ซ่อนเลขบัญชีแบบธนาคาร เหลือ 4 ตัวท้าย และคั่นเป็นกลุ่มอ่านง่าย
+ * เช่น 1234567890 → xxx-x-x7890-x (กรณีทั่วไปคืน xxxxxx7890)
+ * ใช้สำหรับ "ข้อมูลส่วนตัว" ของเจ้าของบัญชีเอง (ยังคงปิดบังเพื่อกันการแอบมอง)
+ */
+export function maskBankAccount(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+
+  if (digits.length < 4) return "";
+
+  const last4 = digits.slice(-4);
+  const hidden = "x".repeat(Math.max(digits.length - 4, 3));
+
+  return `${hidden}${last4}`;
+}
+
+/*
  * ซ่อนอีเมลบางส่วน: nitcha@tu.ac.th → n•••••@tu.ac.th
  * ใช้เมื่อผู้ดูไม่มีสิทธิ์ pii.view
  */

@@ -14,6 +14,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "02-564-4440 ต่อ 2100",
+    bankName: "ธนาคารกรุงไทย",
+    bankAccount: "1234567890",
   },
   {
     username: "few",
@@ -25,6 +27,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "081-111-2222",
+    bankName: "ธนาคารไทยพาณิชย์",
+    bankAccount: "4051122334",
   },
   {
     username: "june",
@@ -36,6 +40,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "082-333-4444",
+    bankName: "ธนาคารกสิกรไทย",
+    bankAccount: "7889900112",
   },
   {
     username: "nitcha",
@@ -47,6 +53,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "02-564-4440 ต่อ 2001",
+    bankName: "ธนาคารกรุงเทพ",
+    bankAccount: "1472583690",
   },
   {
     username: "ta01",
@@ -58,6 +66,8 @@ export const MOCK_USERS = [
     faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
     department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
     phone: "08x-xxx-xxxx",
+    bankName: "ธนาคารออมสิน",
+    bankAccount: "0203040506",
   },
 ];
 

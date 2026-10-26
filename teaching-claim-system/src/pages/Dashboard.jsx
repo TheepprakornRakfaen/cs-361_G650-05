@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Plus,
   ArrowRight,
@@ -16,11 +16,15 @@ import {
   XCircle,
   Banknote,
   ClipboardCheck,
+  BookOpen,
+  TrendingUp,
+  Layers,
 } from "lucide-react";
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import StatusPill from "../components/StatusPill";
 import { formatDuration } from "../utils/time";
+import { getInitial } from "../data/users";
 
 // การ์ดสรุปสถานะ — กดแล้วไปหน้าคำขอของฉันที่กรองสถานะนั้นไว้
 // bar = สีในแถบสัดส่วนบนพื้นน้ำเงิน (สีพาสเทลของ STATUS_STYLE จางเกินไปบนพื้นเข้ม)
@@ -35,6 +39,8 @@ const STAT_CARDS = [
 ];
 
 const DAY = 86400000;
+
+const baht = (n) => `฿${Number(n || 0).toLocaleString()}`;
 
 const thaiShortDate = (value) => {
   const date = new Date(value);
@@ -82,10 +88,30 @@ export default function Dashboard({
   // รายวิชาที่ได้รับมอบหมาย (มี remaining) — ชั่วโมงครบทุกวิชาแล้วสร้างคำขอเพิ่มไม่ได้
   courses = [],
 }) {
+  // รูปโปรไฟล์ที่ผู้ใช้อัปโหลดไว้ (เก็บใน localStorage เหมือนหน้า Profile)
+  const [profileImage, setProfileImage] = useState(null);
+
+  useEffect(() => {
+    if (!user?.username) {
+      setProfileImage(null);
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(
+        `teaching-claim:profile-image:${user.username}`
+      );
+      setProfileImage(saved || null);
+    } catch {
+      setProfileImage(null);
+    }
+  }, [user?.username]);
+
   const counts = useMemo(() => {
     const c = {
       Draft: 0,
       Submitted: 0,
+      Reviewed: 0,
       Returned: 0,
       Approved: 0,
       Paid: 0,
@@ -99,14 +125,75 @@ export default function Dashboard({
     return c;
   }, [claims]);
 
-  const approvedAmount = claims
-    .filter((cl) => ["Approved", "Paid"].includes(cl.status))
-    .reduce((sum, cl) => sum + Number(cl.amount || 0), 0);
+  // ===== สรุปยอดเงิน =====
+  const money = useMemo(() => {
+    let paid = 0;
+    let approvedWaiting = 0;
+    let pending = 0;
 
-  // ยังพิจารณาไม่เสร็จ (รอตรวจ + รออนุมัติ)
-  const pendingAmount = claims
-    .filter((cl) => cl.status === "Submitted" || cl.status === "Reviewed")
-    .reduce((sum, cl) => sum + Number(cl.amount || 0), 0);
+    claims.forEach((cl) => {
+      const amount = Number(cl.amount || 0);
+      if (cl.status === "Paid") paid += amount;
+      else if (cl.status === "Approved") approvedWaiting += amount;
+      else if (cl.status === "Submitted" || cl.status === "Reviewed")
+        pending += amount;
+    });
+
+    return {
+      paid,
+      approvedWaiting,
+      pending,
+      // ยอดที่ "อนุมัติแล้ว" = จ่ายแล้ว + รอจ่าย (ใช้แสดงใน hero)
+      approvedTotal: paid + approvedWaiting,
+    };
+  }, [claims]);
+
+  // ===== ชั่วโมงสอนรวม (จากคำขอที่ยังมีผล) =====
+  const totalHours = useMemo(
+    () =>
+      claims
+        .filter((cl) => cl.status !== "Rejected" && cl.status !== "Draft")
+        .reduce((sum, cl) => sum + Number(cl.hours || 0), 0),
+    [claims]
+  );
+
+  // ===== โควตาชั่วโมงสอนต่อวิชา =====
+  const quotaCourses = useMemo(
+    () =>
+      courses
+        .map((course) => {
+          const quota = Number(course.quota ?? course.max_hour ?? 45);
+          const used = Number(course.used ?? 0);
+          const remaining = Number(
+            course.remaining ?? Math.max(quota - used, 0)
+          );
+          const percent =
+            quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+
+          return {
+            code: course.code || course.courseCode || "-",
+            name: course.name || course.courseName || "",
+            positionLabel: course.positionLabel || "",
+            quota,
+            used,
+            remaining,
+            percent,
+          };
+        })
+        .sort((a, b) => b.percent - a.percent),
+    [courses]
+  );
+
+  const quotaSummary = useMemo(() => {
+    const quota = quotaCourses.reduce((s, c) => s + c.quota, 0);
+    const used = quotaCourses.reduce((s, c) => s + c.used, 0);
+    return {
+      quota,
+      used,
+      remaining: Math.max(quota - used, 0),
+      percent: quota > 0 ? Math.round((used / quota) * 100) : 0,
+    };
+  }, [quotaCourses]);
 
   // นับเฉพาะสถานะหลักใน STAT_CARDS ใช้ทำแถบสัดส่วน
   const trackedTotal = STAT_CARDS.reduce(
@@ -166,9 +253,30 @@ export default function Dashboard({
               <Sparkles size={14} />
               {greeting()}
             </p>
-            <p className="text-2xl md:text-3xl font-extrabold mt-1 truncate">
-              {user ? user.name : "ภาพรวมคำขอเบิกค่าสอน"}
-            </p>
+
+            <div className="flex items-center gap-3 mt-1.5">
+              {user && (
+                <span
+                  className="w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center text-xl font-extrabold ring-2 ring-white/40 shrink-0"
+                  style={{
+                    background: profileImage ? "#fff" : "rgba(255,255,255,0.18)",
+                  }}
+                >
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt="รูปโปรไฟล์"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    getInitial(user)
+                  )}
+                </span>
+              )}
+              <p className="text-2xl md:text-3xl font-extrabold truncate">
+                {user ? user.name : "ภาพรวมคำขอเบิกค่าสอน"}
+              </p>
+            </div>
 
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {user?.role && (
@@ -189,6 +297,24 @@ export default function Dashboard({
                 </span>
               )}
             </div>
+
+            {/* ชิปสรุปเร็ว */}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                style={{ background: "rgba(255,255,255,0.14)" }}
+              >
+                <Layers size={13} />
+                ทั้งหมด {claims.length} คำขอ
+              </span>
+              <span
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                style={{ background: "rgba(255,255,255,0.14)" }}
+              >
+                <Clock3 size={13} />
+                สอนรวม {formatDuration(totalHours * 60)}
+              </span>
+            </div>
           </div>
 
           {/* ขวา: ยอดเงิน */}
@@ -204,13 +330,16 @@ export default function Dashboard({
               ยอดที่อนุมัติแล้ว
             </p>
             <p className="text-3xl font-extrabold figure mt-1 leading-none">
-              ฿{approvedAmount.toLocaleString()}
+              {baht(money.approvedTotal)}
             </p>
-            <p className="text-xs opacity-75 mt-2">
-              รอตรวจสอบอีก{" "}
-              <span className="font-bold figure">
-                ฿{pendingAmount.toLocaleString()}
-              </span>
+            <p className="flex items-center gap-1.5 text-xs opacity-75 mt-2">
+              <TrendingUp size={12} />
+              จ่ายแล้ว{" "}
+              <span className="font-bold figure">{baht(money.paid)}</span>
+            </p>
+            <p className="text-xs opacity-75 mt-1">
+              รอพิจารณาอีก{" "}
+              <span className="font-bold figure">{baht(money.pending)}</span>
             </p>
           </div>
         </div>
@@ -246,7 +375,6 @@ export default function Dashboard({
                   {STATUS_STYLE[key].label} {counts[key] || 0}
                 </span>
               ))}
-              <span className="opacity-80">· ทั้งหมด {claims.length} คำขอ</span>
             </div>
           </div>
         )}
@@ -355,120 +483,238 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* ===== รอบการยื่น ===== */}
-      <h3 className="font-bold mb-3" style={{ color: C.ink }}>
-        รอบการยื่นปัจจุบัน
-      </h3>
+      {/* ===== 2 คอลัมน์: รอบการยื่น + โควตาชั่วโมง ===== */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 items-start">
+        {/* รอบการยื่น */}
+        <div className="lg:col-span-3">
+          <h3 className="font-bold mb-3" style={{ color: C.ink }}>
+            รอบการยื่นปัจจุบัน
+          </h3>
 
-      <SectionCard className="p-5 md:p-6 mb-8">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-start gap-4 min-w-0">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{
-                background: openRound ? "#DFF5E6" : "#EEF2F5",
-                color: openRound ? "#1E8E4F" : C.sub,
-              }}
-            >
-              <CalendarClock size={22} />
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-bold text-lg" style={{ color: C.ink }}>
-                  {openRound ? openRound.label : "ยังไม่มีรอบที่เปิดรับ"}
-                </p>
-                <span
-                  className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                  style={
-                    openRound
-                      ? { background: "#DFF5E6", color: "#1E8E4F" }
-                      : { background: "#EDF0F2", color: "#5B6672" }
-                  }
+          <SectionCard className="p-5 md:p-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-start gap-4 min-w-0">
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: openRound ? "#DFF5E6" : "#EEF2F5",
+                    color: openRound ? "#1E8E4F" : C.sub,
+                  }}
                 >
-                  {openRound ? "เปิดรับ" : "ปิดรับ"}
-                </span>
+                  <CalendarClock size={22} />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-bold text-lg" style={{ color: C.ink }}>
+                      {openRound ? openRound.label : "ยังไม่มีรอบที่เปิดรับ"}
+                    </p>
+                    <span
+                      className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                      style={
+                        openRound
+                          ? { background: "#DFF5E6", color: "#1E8E4F" }
+                          : { background: "#EDF0F2", color: "#5B6672" }
+                      }
+                    >
+                      {openRound ? "เปิดรับ" : "ปิดรับ"}
+                    </span>
+                  </div>
+
+                  <p className="text-sm mt-0.5" style={{ color: C.sub }}>
+                    {openRound
+                      ? `${openRound.termLabel ? `ภาค ${openRound.termLabel} · ` : ""}${openRound.period}`
+                      : nextRound
+                        ? `รอบถัดไป: ${nextRound.label} เปิด ${thaiShortDate(nextRound.openAt)}`
+                        : "รอเจ้าหน้าที่ประกาศรอบการยื่นถัดไป"}
+                  </p>
+                </div>
               </div>
 
-              <p className="text-sm mt-0.5" style={{ color: C.sub }}>
-                {openRound
-                  ? `${openRound.termLabel ? `ภาค ${openRound.termLabel} · ` : ""}${openRound.period}`
-                  : nextRound
-                    ? `รอบถัดไป: ${nextRound.label} เปิด ${thaiShortDate(nextRound.openAt)}`
-                    : "รอเจ้าหน้าที่ประกาศรอบการยื่นถัดไป"}
-              </p>
+              {openRound && submittedClaim && (
+                <button
+                  onClick={() => goDetail?.(submittedClaim.id)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
+                  style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                  title="ดูรายละเอียดคำขอล่าสุดที่ยื่นในรอบนี้"
+                >
+                  <CheckCircle2 size={16} />
+                  ยื่นแล้ว {roundClaims.length} คำขอ
+                </button>
+              )}
+
+              {openRound && (
+                <button
+                  onClick={() =>
+                    goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
+                  }
+                  disabled={hoursFull}
+                  title={hoursFull ? "ใช้ชั่วโมงครบตามเกณฑ์ทุกวิชาแล้ว" : undefined}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: gradient }}
+                >
+                  <Plus size={16} />
+                  {hoursFull
+                    ? "ชั่วโมงครบแล้ว"
+                    : submittedClaim
+                      ? "สร้างคำขอเพิ่มในรอบนี้"
+                      : "สร้างคำขอในรอบนี้"}
+                </button>
+              )}
             </div>
-          </div>
 
-          {openRound && submittedClaim && (
-            <button
-              onClick={() => goDetail?.(submittedClaim.id)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
-              style={{ background: "#DFF5E6", color: "#1E8E4F" }}
-              title="ดูรายละเอียดคำขอล่าสุดที่ยื่นในรอบนี้"
-            >
-              <CheckCircle2 size={16} />
-              ยื่นแล้ว {roundClaims.length} คำขอ
-            </button>
-          )}
-
-          {openRound && (
-            <button
-              onClick={() =>
-                goCreateForRound ? goCreateForRound(openRound) : goCreate?.()
-              }
-              disabled={hoursFull}
-              title={hoursFull ? "ใช้ชั่วโมงครบตามเกณฑ์ทุกวิชาแล้ว" : undefined}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: gradient }}
-            >
-              <Plus size={16} />
-              {hoursFull
-                ? "ชั่วโมงครบแล้ว"
-                : submittedClaim
-                  ? "สร้างคำขอเพิ่มในรอบนี้"
-                  : "สร้างคำขอในรอบนี้"}
-            </button>
-          )}
+            {/* แถบเวลาของรอบ: ผ่านไปแล้วกี่ % / เหลือกี่วัน */}
+            {progress && progress.daysLeft !== null && (
+              <div className="mt-5">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span style={{ color: C.sub }}>
+                    เปิด {thaiShortDate(openRound.openAt)}
+                  </span>
+                  <span
+                    className="font-semibold"
+                    style={{ color: progress.daysLeft <= 3 ? "#B4531A" : C.tealDark }}
+                  >
+                    {progress.daysLeft === 0
+                      ? "ปิดรับวันนี้"
+                      : `เหลืออีก ${progress.daysLeft} วัน`}
+                  </span>
+                  <span style={{ color: C.sub }}>
+                    ปิด {thaiShortDate(openRound.closeAt)}
+                  </span>
+                </div>
+                <div
+                  className="h-2 rounded-full overflow-hidden"
+                  style={{ background: "#EEF2F5" }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max(progress.percent, 3)}%`,
+                      background:
+                        progress.daysLeft <= 3
+                          ? "linear-gradient(90deg, #F0A060, #B4531A)"
+                          : gradient,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </SectionCard>
         </div>
 
-        {/* แถบเวลาของรอบ: ผ่านไปแล้วกี่ % / เหลือกี่วัน */}
-        {progress && progress.daysLeft !== null && (
-          <div className="mt-5">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span style={{ color: C.sub }}>
-                เปิด {thaiShortDate(openRound.openAt)}
-              </span>
-              <span
-                className="font-semibold"
-                style={{ color: progress.daysLeft <= 3 ? "#B4531A" : C.tealDark }}
-              >
-                {progress.daysLeft === 0
-                  ? "ปิดรับวันนี้"
-                  : `เหลืออีก ${progress.daysLeft} วัน`}
-              </span>
-              <span style={{ color: C.sub }}>
-                ปิด {thaiShortDate(openRound.closeAt)}
-              </span>
-            </div>
-            <div
-              className="h-2 rounded-full overflow-hidden"
-              style={{ background: "#EEF2F5" }}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.max(progress.percent, 3)}%`,
-                  background:
-                    progress.daysLeft <= 3
-                      ? "linear-gradient(90deg, #F0A060, #B4531A)"
-                      : gradient,
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </SectionCard>
+        {/* โควตาชั่วโมงสอน */}
+        <div className="lg:col-span-2">
+          <h3 className="font-bold mb-3" style={{ color: C.ink }}>
+            โควตาชั่วโมงสอน
+          </h3>
+
+          <SectionCard className="p-5 md:p-6" hoverable={false}>
+            {quotaCourses.length > 0 ? (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span
+                    className="flex items-center gap-2 text-sm font-semibold"
+                    style={{ color: C.ink }}
+                  >
+                    <span
+                      className="w-8 h-8 rounded-xl flex items-center justify-center"
+                      style={{ background: C.tealSoft, color: C.tealDark }}
+                    >
+                      <BookOpen size={16} />
+                    </span>
+                    รวมทุกวิชา
+                  </span>
+                  <span className="text-sm font-bold figure" style={{ color: C.tealDark }}>
+                    {quotaSummary.used}/{quotaSummary.quota} ชม.
+                  </span>
+                </div>
+
+                <div
+                  className="h-2 rounded-full overflow-hidden mb-4"
+                  style={{ background: "#EEF2F5" }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max(quotaSummary.percent, 2)}%`,
+                      background: quotaSummary.percent > 85 ? C.rose : gradient,
+                    }}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3.5">
+                  {quotaCourses.map((course) => (
+                    <div key={course.code}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="min-w-0">
+                          <span
+                            className="text-sm font-bold"
+                            style={{ color: C.ink }}
+                          >
+                            {course.code}
+                          </span>
+                          {course.positionLabel && (
+                            <span
+                              className="text-xs ml-1.5"
+                              style={{ color: C.sub }}
+                            >
+                              · {course.positionLabel}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className="text-xs font-semibold shrink-0 figure"
+                          style={{
+                            color:
+                              course.percent >= 100
+                                ? C.rose
+                                : course.percent > 85
+                                  ? "#B4531A"
+                                  : C.sub,
+                          }}
+                        >
+                          {course.used}/{course.quota} ชม.
+                        </span>
+                      </div>
+                      <div
+                        className="h-1.5 rounded-full overflow-hidden"
+                        style={{ background: "#EEF2F5" }}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.max(course.percent, 2)}%`,
+                            background: course.percent > 85 ? C.rose : C.teal,
+                          }}
+                        />
+                      </div>
+                      <p className="text-[11px] mt-1" style={{ color: C.sub }}>
+                        เหลือเบิกได้อีก{" "}
+                        <span className="font-semibold figure">
+                          {course.remaining}
+                        </span>{" "}
+                        ชม.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="py-6 text-center">
+                <div
+                  className="mx-auto mb-3 w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: C.tealSoft }}
+                >
+                  <BookOpen size={20} style={{ color: C.tealDark }} />
+                </div>
+                <p className="text-sm" style={{ color: C.sub }}>
+                  ยังไม่มีรายวิชาที่ได้รับมอบหมาย
+                </p>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      </div>
 
       {/* ===== คำขอล่าสุด ===== */}
       <div className="flex items-end justify-between mb-3">

@@ -106,32 +106,57 @@ const PEOPLE = [
     name: "อ.วิรัตน์ ยิ่งมงคลเจริญ",
     email: "wirat@tu.ac.th",
     role: "TEACHER",
+    bank_name: "ธนาคารกรุงไทย",
+    bank_account_no: "1234567890",
   },
   {
     sub: "dev-few",
     name: "พี่ฟิว (ผู้ช่วยสอน TA)",
     email: "few@tu.ac.th",
     role: "TA",
+    bank_name: "ธนาคารไทยพาณิชย์",
+    bank_account_no: "4051122334",
   },
   {
     sub: "dev-june",
     name: "พี่จูน (ผู้ช่วยสอน TA)",
     email: "june@tu.ac.th",
     role: "TA",
+    bank_name: "ธนาคารกสิกรไทย",
+    bank_account_no: "7889900112",
   },
   {
     sub: "dev-teacher",
     name: "อ.ทดลอง ระบบ",
     email: "teacher@dev.local",
     role: "TEACHER",
+    bank_name: "ธนาคารกรุงเทพ",
+    bank_account_no: "1472583690",
   },
   {
     sub: "ta-01",
     name: "นายภูมิ ช่วยสอน",
     email: "phum@dev.local",
     role: "TA",
+    bank_name: "ธนาคารออมสิน",
+    bank_account_no: "0203040506",
   },
 ];
+
+/*
+ * บัญชีรับเงินของเจ้าของคำขอ (ปลายทางการจ่ายเงิน)
+ * จริง ๆ backend จะดึงจากโปรไฟล์ผู้ใช้ (ตาราง app_user) ของเจ้าของคำขอ
+ * ที่นี่จำลองด้วยการ map จาก owner_sub → PEOPLE
+ * ถ้าไม่พบ ใช้บัญชีเริ่มต้นเพื่อให้ยังสาธิตการจ่ายเงินได้
+ */
+function resolvePayoutAccount(claim) {
+  const person = PEOPLE.find((p) => p.sub === claim.owner_sub);
+
+  return {
+    bank_name: person?.bank_name || "ธนาคารกรุงไทย",
+    account_no: person?.bank_account_no || "1234567890",
+  };
+}
 
 const STATUSES = [
   "SUBMITTED",
@@ -387,8 +412,8 @@ let claims = [
     evidence_count: 1,
     has_evidence: true,
     paid_at: iso(-20),
-    payment_bank_name: "ธนาคารกรุงไทย",
-    payment_account_no: "1234567890",
+    payment_bank_name: "ธนาคารไทยพาณิชย์",
+    payment_account_no: "4051122334",
     created_at: iso(-34),
     submitted_at: iso(-34),
     updated_at: iso(-20),
@@ -463,6 +488,30 @@ let logs = claims
         actor_role: "REVIEWER",
         created_at: afterSubmit(c, 2),
       });
+    }
+    if (c.status === "PAID") {
+      const last4 = String(c.payment_account_no || "").slice(-4);
+      entries.push(
+        {
+          action: "APPROVE",
+          from_status: "Reviewed",
+          to_status: "Approved",
+          actor_name: "ผู้อนุมัติ (ทดลอง)",
+          actor_role: "APPROVER",
+          created_at: afterSubmit(c, 2),
+        },
+        {
+          action: "AUTO_PAY",
+          from_status: "Approved",
+          to_status: "Paid",
+          actor_name: "ระบบ (อัตโนมัติ)",
+          actor_role: "SYSTEM",
+          comment: `ระบบจ่ายเงินอัตโนมัติเข้าบัญชี ${
+            c.payment_bank_name || ""
+          } เลขที่ ${last4 ? "xxxxxx" + last4 : ""} (โหมดทดลอง)`,
+          created_at: afterSubmit(c, 4),
+        },
+      );
     }
     if (c.status === "REJECTED") {
       entries.push({
@@ -613,7 +662,15 @@ function redactClaim(user, claim) {
   return { ...claim, claimant_email: maskEmail(claim.claimant_email) };
 }
 
-const DEV_AUTO_PAY_MS = 30 * 1000;
+// หลังผู้อนุมัติกดอนุมัติ ผ่านไป 2 นาที ระบบจะเปลี่ยนสถานะเป็น "จ่ายเงินแล้ว"
+const DEV_AUTO_PAY_MS = 2 * 60 * 1000;
+
+// ปิดบังเลขบัญชีเหลือ 4 ตัวท้าย (ใช้บันทึกในประวัติ ไม่เก็บเลขเต็ม)
+const maskAccountNo = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 4) return "";
+  return `${"x".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
+};
 
 // อนุมัติแล้วเกินเวลาที่กำหนด → จ่ายเงินแล้ว (จำลองงานตั้งเวลาของ backend)
 function autoPayApproved() {
@@ -625,11 +682,22 @@ function autoPayApproved() {
       claim.approved_at &&
       now - new Date(claim.approved_at).getTime() >= DEV_AUTO_PAY_MS
     ) {
-      addLog(claim, "AUTO_PAY", "APPROVED", "PAID", "ระบบจ่ายเงินอัตโนมัติ (โหมดทดลอง)");
+      // ปลายทางการจ่าย = บัญชีของเจ้าของคำขอ (ต้องตรงกับที่แสดงในโปรไฟล์/ฐานข้อมูล)
+      const payout = resolvePayoutAccount(claim);
+
+      addLog(
+        claim,
+        "AUTO_PAY",
+        "APPROVED",
+        "PAID",
+        `ระบบจ่ายเงินอัตโนมัติเข้าบัญชี ${payout.bank_name} เลขที่ ${maskAccountNo(
+          payout.account_no,
+        )} (โหมดทดลอง)`,
+      );
       claim.status = "PAID";
       claim.paid_at = new Date().toISOString();
-      claim.payment_bank_name = "ธนาคารกรุงไทย";
-      claim.payment_account_no = "1234567890";
+      claim.payment_bank_name = payout.bank_name;
+      claim.payment_account_no = payout.account_no;
       claim.updated_at = claim.paid_at;
     }
   });
@@ -829,10 +897,14 @@ export async function devMockRequest(path, options = {}) {
           claim.decision_by = user?.name || "";
         }
 
-        // จำลองระบบจ่ายเงินอัตโนมัติ: อนุมัติแล้วรอสักพัก (โหมดทดลอง 30 วินาที) สถานะเปลี่ยนเป็น "จ่ายเงินแล้ว"
+        // จำลองระบบจ่ายเงินอัตโนมัติ: อนุมัติแล้วรอ 2 นาที สถานะเปลี่ยนเป็น "จ่ายเงินแล้ว"
         // ของจริง backend ต้องมีงานตั้งเวลา (เช่น EventBridge + Lambda) ทำแทนส่วนนี้
         if (route.action === "APPROVE") {
           claim.approved_at = now;
+          // ผูกบัญชีปลายทาง (ของเจ้าของคำขอ) ไว้ตั้งแต่อนุมัติ เพื่อให้ตรงกับตอนจ่ายจริง
+          const payout = resolvePayoutAccount(claim);
+          claim.payment_bank_name = payout.bank_name;
+          claim.payment_account_no = payout.account_no;
         }
 
         return { claim: clone(claim) };

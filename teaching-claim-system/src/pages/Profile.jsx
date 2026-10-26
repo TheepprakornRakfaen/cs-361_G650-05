@@ -16,9 +16,12 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  Landmark,
+  CreditCard,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
+import { maskBankAccount } from "../data/roles";
 import SectionCard from "../components/SectionCard";
 import AccountSecurity from "../components/AccountSecurity";
 import RoleAccessSummary from "../components/RoleAccessSummary";
@@ -38,6 +41,14 @@ const PROFILE_FIELDS = [
   { key: "phone", label: "เบอร์โทรศัพท์", icon: Phone, inputMode: "tel", placeholder: "เช่น 0812345678" },
   { key: "faculty", label: "คณะ", icon: Building2, select: true },
   { key: "department", label: "สาขาวิชา", icon: GraduationCap, select: true },
+  { key: "bankName", label: "ธนาคาร", icon: Landmark, placeholder: "เช่น ธนาคารกรุงไทย" },
+  {
+    key: "bankAccount",
+    label: "เลขบัญชีธนาคาร",
+    icon: CreditCard,
+    inputMode: "numeric",
+    placeholder: "เลขบัญชี 10–15 หลัก",
+  },
 ];
 
 function toForm(user) {
@@ -592,7 +603,9 @@ export default function Profile({
                       }
                       inputMode={inputMode}
                       placeholder={placeholder}
-                      maxLength={key === "phone" ? 12 : 100}
+                      maxLength={
+                        key === "phone" ? 12 : key === "bankAccount" ? 15 : 100
+                      }
                       aria-invalid={Boolean(formErrors[key])}
                       className="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3E7FC1]/30"
                       style={{
@@ -610,6 +623,15 @@ export default function Profile({
                         style={{ color: C.rose }}
                       >
                         {formErrors[key]}
+                      </span>
+                    )}
+
+                    {key === "bankAccount" && !formErrors[key] && (
+                      <span
+                        className="block text-[11px] mt-1"
+                        style={{ color: C.sub }}
+                      >
+                        ระบบจะแสดงเลขบัญชีแบบปกปิดบางส่วน (เห็นเฉพาะ 4 ตัวท้าย)
                       </span>
                     )}
                   </Wrapper>
@@ -702,6 +724,18 @@ export default function Profile({
                 icon={GraduationCap}
                 label="สาขาวิชา"
                 value={user.department}
+              />
+
+              <InfoRow
+                icon={Landmark}
+                label="ธนาคาร"
+                value={user.bankName}
+              />
+
+              <InfoRow
+                icon={CreditCard}
+                label="เลขบัญชีธนาคาร"
+                value={maskBankAccount(user.bankAccount)}
               />
             </>
           )}
