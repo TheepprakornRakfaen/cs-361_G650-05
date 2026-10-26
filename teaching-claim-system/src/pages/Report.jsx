@@ -398,7 +398,7 @@ function SummaryReport({ claims, canExport }) {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
           <div>
             <h4 className="text-sm font-bold text-slate-900">
-              การบริหารและติดตามงบประมาณ (Budget Management & Tracking - FR9)
+              การบริหารและติดตามงบประมาณ
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
               ติดตามสัดส่วนการใช้งบประมาณจริงเทียบกับเพดานจัดสรรประจำปี

@@ -373,8 +373,8 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     <div className="space-y-6 pb-12">
       <PageHeader
         icon={ShieldCheck}
-        title="ศูนย์จัดการระบบสำหรับผู้ดูแลระบบ (Admin Portal)"
-        description="จัดการข้อมูลพื้นฐาน, ประเภทค่าตอบแทน, กฎและเงื่อนไข, สิทธิ์ผู้ใช้งาน, การเงินและงบประมาณ, และการแลกเปลี่ยนข้อมูลภายนอก (ตามมาตรฐาน V4 & FR1-FR10)"
+        title="ศูนย์จัดการระบบสำหรับผู้ดูแลระบบ"
+        description="จัดการข้อมูลพื้นฐาน, ประเภทค่าตอบแทน, กฎและเงื่อนไข, สิทธิ์ผู้ใช้งาน, การเงินและงบประมาณ, และการแลกเปลี่ยนข้อมูลภายนอก"
       />
 
       {/* Main Tabs Navigation */}
@@ -398,13 +398,6 @@ export default function AdminManagement({ user, claims = [], onReload }) {
             >
               <Icon size={16} />
               <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                  active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
-                }`}
-              >
-                {tab.fr}
-              </span>
             </button>
           );
         })}
@@ -530,7 +523,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 จัดการประเภทค่าตอบแทน
                 <ArrowRight size={15} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
               </h4>
-              <p className="text-xs text-slate-500 mt-1">กำหนดอัตราต่อชั่วโมง เอกสารหลักฐานบังคับ และบทบาทผู้มีสิทธิ์ (FR2)</p>
+              <p className="text-xs text-slate-500 mt-1">กำหนดอัตราต่อชั่วโมง เอกสารหลักฐานบังคับ และบทบาทผู้มีสิทธิ์</p>
             </button>
 
             <button
@@ -545,7 +538,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 จัดการข้อมูลรายวิชา & รอบ
                 <ArrowRight size={15} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
               </h4>
-              <p className="text-xs text-slate-500 mt-1">กำหนดโควตาชั่วโมง ผู้สอน ผู้ช่วยสอน TA และวันเปิด-ปิดรอบการยื่น (FR3)</p>
+              <p className="text-xs text-slate-500 mt-1">กำหนดโควตาชั่วโมง ผู้สอน ผู้ช่วยสอน TA และวันเปิด-ปิดรอบการยื่น</p>
             </button>
 
             <button
@@ -560,7 +553,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 แลกเปลี่ยน & นำเข้าข้อมูล
                 <ArrowRight size={15} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
               </h4>
-              <p className="text-xs text-slate-500 mt-1">ซิงก์ข้อมูลจากระบบทะเบียน TU Registrar หรือนำเข้าผ่าน CSV (FR10)</p>
+              <p className="text-xs text-slate-500 mt-1">ซิงก์ข้อมูลจากระบบทะเบียน TU Registrar หรือนำเข้าผ่าน CSV</p>
             </button>
           </div>
         </div>
@@ -574,10 +567,10 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                ประเภทค่าตอบแทนในระบบ (Compensation Types)
+                ประเภทค่าตอบแทนในระบบ
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                รองรับการกำหนดประเภทค่าตอบแทน อัตราต่อชั่วโมง เอกสารหลักฐานที่ต้องแนบ และรองรับประเภทใหม่ในอนาคต (FR2)
+                รองรับการกำหนดประเภทค่าตอบแทน อัตราต่อชั่วโมง เอกสารหลักฐานที่ต้องแนบ และรองรับประเภทใหม่ในอนาคต
               </p>
             </div>
             <button
@@ -1136,7 +1129,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           <SectionCard hoverable={false} className="p-6">
             <h4 className="font-extrabold text-base text-slate-900 mb-4 flex items-center gap-2">
               <Clock size={18} style={{ color: C.teal }} />
-              <span>เพดานและข้อจำกัดด้านเวลา (Time & Hours Limit - FR4)</span>
+              <span>เพดานและข้อจำกัดด้านเวลา</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1179,7 +1172,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           <SectionCard hoverable={false} className="p-6">
             <h4 className="font-extrabold text-base text-slate-900 mb-4 flex items-center gap-2">
               <AlertTriangle size={18} className="text-amber-500" />
-              <span>นโยบายการตรวจสอบความผิดปกติอัตโนมัติ (Verification & Anomalies - FR7)</span>
+              <span>นโยบายการตรวจสอบความผิดปกติอัตโนมัติ</span>
             </h4>
 
             <div className="space-y-3">
@@ -1204,7 +1197,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                   className="w-4 h-4 text-teal-600 rounded"
                 />
                 <div>
-                  <p className="text-sm font-bold text-slate-800">บังคับแนบเอกสารหลักฐาน (Mandatory Evidence Verification)</p>
+                  <p className="text-sm font-bold text-slate-800">บังคับแนบเอกสารหลักฐาน</p>
                   <p className="text-xs text-slate-500">แจ้งเตือนเจ้าหน้าที่เมื่อคำขอไม่มีการแนบไฟล์หลักฐานการสอนหรือใบลงเวลาที่ลงนาม</p>
                 </div>
               </label>
@@ -1227,7 +1220,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           <SectionCard hoverable={false} className="p-6">
             <h4 className="font-extrabold text-base text-slate-900 mb-4 flex items-center gap-2">
               <Wallet size={18} style={{ color: C.teal }} />
-              <span>การบริหารงบประมาณ (Budget Settings - FR9)</span>
+              <span>การบริหารงบประมาณ</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1277,7 +1270,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                รายชื่อผู้ใช้งานและบทบาทในระบบ (Users & Roles - FR5)
+                รายชื่อผู้ใช้งานและบทบาทในระบบ
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 กำหนดสิทธิ์ตามบทบาท ป้องกันการเข้าถึงข้อมูลส่วนบุคคล และควบคุมสิทธิ์ตามหน้าที่
@@ -1599,7 +1592,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           {/* Import Audit Trail (FR10) */}
           <SectionCard hoverable={false} className="p-6">
             <h4 className="font-bold text-base text-slate-900 mb-3 flex items-center justify-between">
-              <span>ประวัติการนำเข้าและแลกเปลี่ยนข้อมูลย้อนหลัง (Exchange Audit Log)</span>
+              <span>ประวัติการนำเข้าและแลกเปลี่ยนข้อมูลย้อนหลัง</span>
               <span className="text-xs text-slate-500 font-normal">บันทึกเพื่อความโปร่งใสและตรวจสอบย้อนหลัง</span>
             </h4>
 

@@ -376,7 +376,7 @@ export default function ReviewQueue({
     <div className="space-y-6">
       <PageHeader
         icon={ClipboardCheck}
-        title={readOnly ? "คำขอทั้งหมด" : "คิวตรวจสอบและอนุมัติ (Verification Queue)"}
+        title={readOnly ? "คำขอทั้งหมด" : "คิวตรวจสอบและอนุมัติ"}
         description={
           readOnly
             ? "ดูสถานะและประวัติการดำเนินการของคำขอ (อ่านอย่างเดียว)"
@@ -452,7 +452,7 @@ export default function ReviewQueue({
           <div>
             <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
               <ShieldAlert size={17} style={{ color: C.teal }} />
-              <span>การคัดกรองความผิดปกติของคำขอ (Verification & Anomaly Filter - FR7)</span>
+              <span>การคัดกรองความผิดปกติของคำขอ</span>
             </h4>
             <p className="text-xs text-slate-500 mt-1">
               ระบบตรวจสอบคำขอซ้ำซ้อน รายการทับซ้อน เอกสารไม่ครบถ้วน และการเบิกเกินโควตาอัตโนมัติ
@@ -513,7 +513,7 @@ export default function ReviewQueue({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหา รหัสคำขอ / รายวิชา / ผู้ยื่น (อ.วิรัตน์, พี่ฟิว...)"
+            placeholder="ค้นหา รหัสคำขอ / รายวิชา / ผู้ยื่น"
             className="outline-none text-sm w-full bg-transparent"
             style={{ color: C.ink }}
             aria-label="ค้นหาคำขอ"
@@ -719,7 +719,7 @@ export default function ReviewQueue({
                 <th className="px-5 py-4 font-semibold text-left">รหัสคำขอ</th>
                 <th className="px-5 py-4 font-semibold text-left">ผู้ยื่น & บทบาท</th>
                 <th className="px-5 py-4 font-semibold text-left">รายวิชา</th>
-                <th className="px-5 py-4 font-semibold text-left">ผลตรวจสอบความถูกต้อง (FR7)</th>
+                <th className="px-5 py-4 font-semibold text-left">ผลตรวจสอบความถูกต้อง</th>
                 <th className="px-5 py-4 font-semibold text-left">ยื่นเมื่อ / รอมาแล้ว</th>
                 <th className="px-5 py-4 font-semibold text-right">จำนวนเงิน</th>
                 <th className="px-5 py-4 font-semibold text-left">สถานะ</th>

@@ -212,11 +212,20 @@ export const VIEW_PERMISSION = {
   create: P.CLAIM_CREATE,
   rounds: P.CLAIM_CREATE,
   "claim-create": P.CLAIM_CREATE,
-  admin: P.CLAIM_VIEW_ALL,
+  // คิวตรวจสอบ/อนุมัติ: ผู้ตรวจสอบ + ผู้อนุมัติ (ผู้ดูแลระบบดูภาพรวมแทน)
   review: P.CLAIM_VIEW_ALL,
-  report: P.CLAIM_VIEW_ALL, // รายงานสรุปยอดเบิก
-  auditlog: P.AUDIT_VIEW_ALL,
-  settings: P.SETTINGS_MANAGE,
+  /*
+   * ภาพรวมระบบ: ผู้ตรวจสอบ + ผู้อนุมัติ + ผู้บริหาร เห็นได้ (ทุกคนที่ทำงานในคิวคำขอ)
+   * ส่วนในหน้าที่เกินสิทธิ์ (กิจกรรม audit, ปุ่มจัดการระบบ) ซ่อนเองตามสิทธิ์ย่อยอยู่แล้ว
+   */
+  admin: P.CLAIM_VIEW_ALL, // ภาพรวมระบบ
+  /*
+   * รายงาน/ประวัติทั้งระบบ — ตามตารางบทบาท: ผู้ตรวจสอบไม่เห็น
+   * ผู้อนุมัติ + ผู้บริหาร เท่านั้น (ทั้งคู่มี DATA_EXPORT / AUDIT_VIEW_ALL)
+   */
+  report: P.DATA_EXPORT, // รายงานสรุปยอดเบิก + ส่งออก
+  auditlog: P.AUDIT_VIEW_ALL, // ประวัติการดำเนินการทั้งระบบ
+  settings: P.SETTINGS_MANAGE, // จัดการระบบและสิทธิ์
 };
 
 export function canAccessView(user, view) {
@@ -227,8 +236,10 @@ export function canAccessView(user, view) {
 
 // หน้าแรกหลังล็อกอิน ตามบทบาท
 export function getLandingView(user) {
+  // ผู้ที่ทำงานในคิวคำขอของผู้อื่น (ไม่ใช่ผู้ยื่น)
   if (canAccessQueue(user) && !isClaimant(user)) {
-    return "admin";
+    // ผู้บริหาร/ผู้อนุมัติเห็นภาพรวมระบบ ส่วนผู้ตรวจสอบเริ่มที่คิวตรวจสอบ
+    return canAccessView(user, "admin") ? "admin" : "review";
   }
 
   return "home";
