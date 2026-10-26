@@ -10,6 +10,8 @@ import { PERMISSION as P, can } from "../data/roles";
 import { COMP_TYPES, getCompType } from "../services/claimMapper";
 import { downloadCsv } from "../utils/csv";
 import { formatDuration } from "../utils/time";
+import { getCompensationTypes } from "../data/compensationTypes";
+import { getSystemRules } from "../data/rulesConfig";
 
 /*
  * รายงานสรุปยอดเบิก (ผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ)
@@ -103,6 +105,9 @@ function SummaryReport({ claims, canExport }) {
   const [term, setTerm] = useState("All");
   const [compType, setCompType] = useState("All");
   const [group, setGroup] = useState("All");
+
+  const rules = getSystemRules();
+  const annualBudget = Number(rules.annualBudget || 2500000);
 
   const terms = useMemo(
     () =>
@@ -357,6 +362,44 @@ function SummaryReport({ claims, canExport }) {
               ล้างเงื่อนไข
             </button>
           )}
+        </div>
+      </SectionCard>
+
+      {/* [V4] งบประมาณจัดสรรและการบริหารจัดการ (Budget Tracking - FR9) */}
+      <SectionCard className="p-5" hoverable={false}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900">
+              การบริหารและติดตามงบประมาณ (Budget Management & Tracking - FR9)
+            </h4>
+            <p className="text-xs text-slate-500 mt-0.5">
+              ติดตามสัดส่วนการใช้งบประมาณจริงเทียบกับเพดานจัดสรรประจำปี
+            </p>
+          </div>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800">
+            งบประมาณจัดสรร {baht(annualBudget)} บาท
+          </span>
+        </div>
+
+        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${Math.min(100, (totals.paid / annualBudget) * 100)}%` }}
+            title={`จ่ายแล้ว: ${baht(totals.paid)}`}
+          />
+          <div
+            className="h-full bg-purple-500 transition-all duration-500"
+            style={{ width: `${Math.min(100, (totals.pendingPay / annualBudget) * 100)}%` }}
+            title={`อนุมัติรอจ่าย: ${baht(totals.pendingPay)}`}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between text-xs text-slate-500">
+          <span>ใช้ไปแล้ว {Math.min(100, Math.round(((totals.paid + totals.pendingPay) / annualBudget) * 100))}%</span>
+          <span>
+            งบประมาณคงเหลือสุทธิ:{" "}
+            <b className="text-slate-800">฿{baht(Math.max(0, annualBudget - totals.paid - totals.pendingPay))}</b>
+          </span>
         </div>
       </SectionCard>
 

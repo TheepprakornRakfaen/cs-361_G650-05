@@ -32,10 +32,18 @@ export const DEV_ROLE_OPTIONS = Object.keys(DEV_PROFILES).map((role) => ({
   label: getRoleLabel(role),
 }));
 
-// บัญชีทดสอบ Project 6 เคยมาจาก financeMock.js ซึ่งถูกลบแล้ว — เก็บ export ไว้ให้ Login.jsx ใช้ต่อได้ (ว่างเปล่า)
-const TEST_PROFILES = {};
+// บัญชีทดสอบจริงตามสถานการณ์ทดสอบ TC1 และ TC2 (พี่ฟิว, พี่จูน, อ.วิรัตน์)
+const TEST_PROFILES = {
+  TEST_WIRAT: { group: "TEACHER", name: "อ.วิรัตน์ ยิ่งมงคลเจริญ", email: "wirat@tu.ac.th", sub: "dev-wirat" },
+  TEST_FEW: { group: "TA", name: "พี่ฟิว (ผู้ช่วยสอน TA)", email: "few@tu.ac.th", sub: "dev-few" },
+  TEST_JUNE: { group: "TA", name: "พี่จูน (ผู้ช่วยสอน TA)", email: "june@tu.ac.th", sub: "dev-june" },
+};
 
-export const DEV_TEST_ACCOUNT_OPTIONS = [];
+export const DEV_TEST_ACCOUNT_OPTIONS = [
+  { role: "TEST_WIRAT", label: "อ.วิรัตน์ (อาจารย์ผู้สอน)" },
+  { role: "TEST_FEW", label: "พี่ฟิว (ผู้ช่วยสอน TA)" },
+  { role: "TEST_JUNE", label: "พี่จูน (ผู้ช่วยสอน TA)" },
+];
 
 export function buildDevUser(role) {
   const profile = DEV_PROFILES[role] || TEST_PROFILES[role];

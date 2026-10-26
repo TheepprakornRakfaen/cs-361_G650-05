@@ -23,6 +23,7 @@ import ReviewQueue from "./pages/ReviewQueue";
 import AdminOverview from "./pages/AdminOverview";
 import AuditLog from "./pages/AuditLog";
 import AccessControl from "./pages/AccessControl";
+import AdminManagement from "./pages/AdminManagement";
 import Report from "./pages/Report";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
@@ -87,7 +88,7 @@ const SUBTITLE_MAP = {
   admin: "ภาพรวมระบบ",
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
-  settings: "บทบาทและสิทธิ์",
+  settings: "จัดการระบบและสิทธิ์",
   report: "รายงานสรุปยอดเบิก",
 };
 
@@ -1934,6 +1935,7 @@ export default function App() {
             error={reviewError}
             onReload={loadReviewClaims}
             goDetail={goReviewDetail}
+            goReport={() => setView("report")}
           />
         );
 
@@ -1946,7 +1948,13 @@ export default function App() {
         );
 
       case "settings":
-        return <AccessControl user={currentUser} />;
+        return (
+          <AdminManagement
+            user={currentUser}
+            claims={reviewClaims.map(decorateClaim)}
+            onReload={loadReviewClaims}
+          />
+        );
 
       case "report":
         return (
@@ -2012,6 +2020,7 @@ export default function App() {
         return (
           <ClaimDetail
             claim={selectedClaim}
+            claims={reviewClaims.map(decorateClaim)}
             course={
               courses.find(
                 (course) =>

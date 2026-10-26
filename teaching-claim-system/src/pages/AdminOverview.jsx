@@ -61,9 +61,11 @@ export default function AdminOverview({
   goReview,
   goDetail,
   goAuditLog,
+  goSettings,
 }) {
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeeAudit = can(user, P.AUDIT_VIEW_ALL);
+  const canManageSettings = can(user, P.SETTINGS_MANAGE);
 
   const [activity, setActivity] = useState([]);
 
@@ -224,6 +226,41 @@ export default function AdminOverview({
           )}
         </div>
       </div>
+
+      {/* [V4] ทางลัดศูนย์จัดการระบบสำหรับผู้ดูแลระบบ (Admin Management Quick Link) */}
+      {canManageSettings && (
+        <div
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 mb-8 rounded-3xl border bg-white shadow-sm"
+          style={{ borderColor: C.border }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: C.tealSoft, color: C.tealDark }}
+            >
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-900">
+                ศูนย์จัดการระบบสำหรับผู้ดูแลระบบ (Admin Portal - V4)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                จัดการประเภทค่าตอบแทน (FR2), ข้อมูลรายวิชา (FR3), กฎและเงื่อนไข (FR4), ผู้ใช้งานและสิทธิ์ (FR5), งบประมาณ (FR9), นำเข้าข้อมูล (FR10)
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => goSettings?.()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold text-white shadow-sm shrink-0 hover:opacity-90 transition-opacity"
+            style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
+          >
+            <span>เปิดหน้าจัดการระบบ</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ===== การ์ดสถานะ ===== */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">

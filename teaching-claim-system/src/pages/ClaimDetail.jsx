@@ -39,6 +39,7 @@ import {
 } from "../utils/time";
 import { downloadSignForm } from "../utils/signForm";
 import { getCompType } from "../services/claimMapper";
+import { detectClaimAnomalies } from "../utils/anomalyDetector";
 
 import {
   getClaimEvidence,
@@ -237,6 +238,7 @@ function EvidencePreview({ item, onClose }) {
 
 export default function ClaimDetail({
   claim,
+  claims = [],
   course,
   user,
   goBack,
@@ -253,6 +255,11 @@ export default function ClaimDetail({
   const canViewFinance = can(user, P.FINANCE_VIEW);
   const canViewPii = can(user, P.PII_VIEW);
   const canViewAudit = can(user, P.AUDIT_VIEW);
+
+  const anomalyCheck = React.useMemo(
+    () => detectClaimAnomalies(claim, claims, course ? [course] : []),
+    [claim, claims, course]
+  );
 
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState([]);
@@ -868,6 +875,52 @@ export default function ClaimDetail({
               )}
             </p>
           </div>
+        )}
+
+        {/* [V4] การตรวจพบข้อผิดปกติและความถูกต้อง (Verification & Anomaly Alert - FR7) */}
+        {anomalyCheck?.hasIssues ? (
+          <div
+            className="rounded-2xl p-5 mb-8 border"
+            style={{
+              background: anomalyCheck.hasErrors ? "#FFF5F5" : "#FFFBF0",
+              borderColor: anomalyCheck.hasErrors ? "#FBC4C4" : "#FDE68A",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                size={20}
+                className={`shrink-0 mt-0.5 ${anomalyCheck.hasErrors ? "text-rose-600" : "text-amber-600"}`}
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-extrabold text-slate-900">
+                  ระบบตรวจพบข้อผิดปกติหรือข้อมูลที่ต้องตรวจสอบ ({anomalyCheck.anomalies.length} รายการ)
+                </h4>
+                <ul className="mt-2 space-y-1.5 text-xs text-slate-700">
+                  {anomalyCheck.anomalies.map((a, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "error" ? "bg-rose-500" : "bg-amber-500"}`} />
+                      <div>
+                        <span className="font-bold">{a.title}: </span>
+                        <span>{a.message}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {can(user, P.CLAIM_REVIEW) && (
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    คำแนะนำสำหรับเจ้าหน้าที่: หากข้อมูลไม่ถูกต้อง สามารถกด “ส่งกลับให้แก้ไข” ด้านล่าง เพื่อให้ผู้ยื่นดำเนินการแก้ไข
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          !own && (
+            <div className="rounded-2xl p-4 mb-8 border bg-emerald-50/60 border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>✓ ผ่านการตรวจสอบความถูกต้องเบื้องต้น (ไม่พบคำขอซ้ำ ข้อมูลครบถ้วน และอยู่ในโควตา)</span>
+            </div>
+          )
         )}
 
         {/* [V3] ปุ่มพิจารณา (แสดงเฉพาะผู้มีสิทธิ์ในสถานะนั้น) */}

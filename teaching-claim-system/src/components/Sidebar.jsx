@@ -31,7 +31,7 @@ export const NAV_ITEMS = [
   { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true, staffOnly: true },
   { id: "report", label: "รายงานสรุปยอดเบิก", icon: Wallet, requiresLogin: true, staffOnly: true },
   { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true, staffOnly: true },
-  { id: "settings", label: "บทบาทและสิทธิ์", icon: ShieldCheck, requiresLogin: true, staffOnly: true },
+  { id: "settings", label: "จัดการระบบและสิทธิ์", icon: ShieldCheck, requiresLogin: true, staffOnly: true },
 ];
 
 export default function Sidebar({
