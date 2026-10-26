@@ -31,66 +31,130 @@ function extractDates(claim) {
   return [];
 }
 
-export function detectClaimAnomalies(claim, allClaims = [], courses = [], customRules = null) {
+// เจ้าของคำขอแบบ normalize สำหรับใช้เป็นคีย์ (sub > email > name)
+function ownerKey(claim) {
+  if (claim.ownerSub) return `sub:${claim.ownerSub}`;
+  if (claim.claimantEmail) return `email:${String(claim.claimantEmail).toLowerCase()}`;
+  if (claim.claimantName) return `name:${String(claim.claimantName).trim()}`;
+  return "";
+}
+
+// รายวิชาแบบ normalize (section ก่อน course code)
+function courseKey(claim) {
+  if (claim.sectionId) return `sec:${claim.sectionId}`;
+  if (claim.courseCode) return `course:${claim.courseCode}`;
+  return "";
+}
+
+/*
+ * [V4 scaling] สร้างดัชนีคำขอที่ยังมีผล เพื่อให้เช็ค "คำขอซ้ำ" เป็น O(1) ต่อคำขอ
+ * แทนการวนทั้งลิสต์ (เดิมเป็น O(n²) เมื่อตรวจทั้งคิว)
+ *
+ * คีย์: ownerKey|courseKey|date → รายการ { id, code } ของคำขอที่ตรงกัน
+ * ส่ง index นี้เข้า detectClaimAnomalies ผ่าน options.duplicateIndex
+ */
+export function buildDuplicateIndex(allClaims = []) {
+  const index = new Map();
+
+  allClaims.forEach((other) => {
+    if (!ACTIVE_STATUSES.includes(other.status)) return;
+
+    const owner = ownerKey(other);
+    const course = courseKey(other);
+    if (!owner || !course) return;
+
+    extractDates(other).forEach((date) => {
+      const key = `${owner}|${course}|${date}`;
+      if (!index.has(key)) index.set(key, []);
+      index.get(key).push({ id: other.id, code: other.code });
+    });
+  });
+
+  return index;
+}
+
+export function detectClaimAnomalies(claim, allClaims = [], courses = [], customRules = null, options = {}) {
   if (!claim) {
     return { hasIssues: false, hasErrors: false, hasWarnings: false, anomalies: [], clean: true, summary: "" };
   }
 
   const rules = customRules || getSystemRules();
   const anomalies = [];
+  const duplicateIndex = options.duplicateIndex || null;
 
   const claimDates = extractDates(claim);
   const claimHours = Number(claim.hours || claim.hour || 0);
 
   // 1. ตรวจสอบคำขอซ้ำ (Duplicate Claim Check)
   if (rules.checkDuplicateClaims && claimDates.length > 0) {
-    const isSameOwner = (other) => {
-      if (claim.ownerSub && other.ownerSub) {
-        return claim.ownerSub === other.ownerSub;
+    let duplicateHit = null;
+
+    if (duplicateIndex) {
+      // เร็ว: ใช้ดัชนีที่สร้างไว้ล่วงหน้า (O(จำนวนวันของคำขอนี้))
+      const owner = ownerKey(claim);
+      const course = courseKey(claim);
+
+      if (owner && course) {
+        for (const date of claimDates) {
+          const matches = duplicateIndex.get(`${owner}|${course}|${date}`) || [];
+          const other = matches.find((m) => String(m.id) !== String(claim.id));
+          if (other) {
+            duplicateHit = { ...other, date };
+            break;
+          }
+        }
       }
-      if (claim.claimantEmail && other.claimantEmail) {
-        return claim.claimantEmail.toLowerCase() === other.claimantEmail.toLowerCase();
+    } else {
+      // สำรอง: วนทั้งลิสต์ (พฤติกรรมเดิม เมื่อไม่ได้ส่งดัชนีมา)
+      const isSameOwner = (other) => {
+        if (claim.ownerSub && other.ownerSub) {
+          return claim.ownerSub === other.ownerSub;
+        }
+        if (claim.claimantEmail && other.claimantEmail) {
+          return claim.claimantEmail.toLowerCase() === other.claimantEmail.toLowerCase();
+        }
+        if (claim.claimantName && other.claimantName) {
+          return claim.claimantName.trim() === other.claimantName.trim();
+        }
+        return false;
+      };
+
+      const duplicateClaim = allClaims.find((other) => {
+        if (String(other.id) === String(claim.id)) return false;
+        if (!ACTIVE_STATUSES.includes(other.status)) return false;
+        if (!isSameOwner(other)) return false;
+
+        const sameCourse =
+          (claim.sectionId && other.sectionId && String(claim.sectionId) === String(other.sectionId)) ||
+          (claim.courseCode && other.courseCode && claim.courseCode === other.courseCode);
+        if (!sameCourse) return false;
+
+        const otherDates = extractDates(other);
+        return claimDates.some((d) => otherDates.includes(d));
+      });
+
+      if (duplicateClaim) {
+        const otherDates = extractDates(duplicateClaim);
+        const overlap = claimDates.filter((d) => otherDates.includes(d));
+        duplicateHit = {
+          id: duplicateClaim.id,
+          code: duplicateClaim.code,
+          date: overlap.join(", "),
+        };
       }
-      if (claim.claimantName && other.claimantName) {
-        return claim.claimantName.trim() === other.claimantName.trim();
-      }
-      return false;
-    };
+    }
 
-    const duplicateClaim = allClaims.find((other) => {
-      if (String(other.id) === String(claim.id)) return false;
-      if (!ACTIVE_STATUSES.includes(other.status)) return false;
-
-      // ต้องเป็นผู้ยื่นคนเดียวกัน
-      if (!isSameOwner(other)) return false;
-
-      // ต้องเป็นรายวิชาเดียวกัน
-      const sameCourse =
-        (claim.sectionId && other.sectionId && String(claim.sectionId) === String(other.sectionId)) ||
-        (claim.courseCode && other.courseCode && claim.courseCode === other.courseCode);
-
-      if (!sameCourse) return false;
-
-      // ตรวจสอบวันที่สอนซ้ำกัน
-      const otherDates = extractDates(other);
-      const overlapDates = claimDates.filter((d) => otherDates.includes(d));
-
-      return overlapDates.length > 0;
-    });
-
-    if (duplicateClaim) {
-      const otherDates = extractDates(duplicateClaim);
-      const overlapDates = claimDates.filter((d) => otherDates.includes(d));
-      const targetLabel = duplicateClaim.code || duplicateClaim.id;
+    if (duplicateHit) {
+      const targetLabel = duplicateHit.code || duplicateHit.id;
 
       anomalies.push({
         id: "DUPLICATE_CLAIM",
         type: "DUPLICATE",
         severity: "error",
         title: "ตรวจพบคำขอซ้ำซ้อน",
-        message: `มีวันที่สอน (${overlapDates.join(", ")}) ซ้ำกับคำขอเลขที่ ${targetLabel} ที่ยื่นไว้ก่อนหน้า`,
-        targetId: duplicateClaim.id,
-        targetCode: duplicateClaim.code || duplicateClaim.id,
+        message: `มีวันที่สอน (${duplicateHit.date}) ซ้ำกับคำขอเลขที่ ${targetLabel} ที่ยื่นไว้ก่อนหน้า`,
+        targetId: duplicateHit.id,
+        targetCode: duplicateHit.code || duplicateHit.id,
       });
     }
   }

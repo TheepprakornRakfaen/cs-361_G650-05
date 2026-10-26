@@ -2,6 +2,7 @@ import { HOURLY_RATE } from "../data/rates";
 import { maskAccount } from "../data/roles";
 import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
 import { normalizeStatus } from "../data/workflow";
+import { resolveClaimCompType } from "../data/compensationTypes";
 
 function sessionToHour(
   session
@@ -301,8 +302,7 @@ export function normalizeClaim(
       ),
 
     /*
-     * ประเภทค่าตอบแทน (ใช้จัดกลุ่มรายงานสรุป)
-     * มาจากตำแหน่งของผู้ยื่นในคำขอ: อาจารย์ผู้สอน / ผู้ช่วยสอน (TA)
+     * ประเภทค่าตอบแทนแบบหยาบ (อาจารย์ / TA) — ใช้กับตัวกรองบทบาทเดิม
      */
     compType:
       getCompType(
@@ -311,6 +311,28 @@ export function normalizeClaim(
         raw.position ||
         raw.role
       ),
+
+    /*
+     * [V4] ประเภทค่าตอบแทนแบบละเอียด (4 แบบใน data/compensationTypes.js)
+     * ใช้ระบุ type_id จาก backend ถ้ามี ไม่งั้นเดาจากบทบาท/ตำแหน่ง
+     * เก็บทั้ง id และชื่อเพื่อให้รายงาน/ตัวกรองใช้ได้โดยไม่ต้อง lookup ซ้ำ
+     */
+    ...(() => {
+      const detail = resolveClaimCompType({
+        type_id: raw.type_id,
+        type_code: raw.type_code,
+        compensation_type: raw.compensation_type,
+        claimantRole: raw.claimant_role || raw.owner_role,
+        position: raw.position,
+        role: raw.role,
+      });
+
+      return {
+        compTypeDetail: detail,
+        compTypeId: detail.id,
+        compTypeName: detail.name,
+      };
+    })(),
 
     periodMonth:
       raw.period_month ?? null,

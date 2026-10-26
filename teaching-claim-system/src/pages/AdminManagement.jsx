@@ -33,6 +33,7 @@ import PageHeader from "../components/PageHeader";
 import RoleBadge from "../components/RoleBadge";
 import Field from "../components/Field";
 import Select from "../components/Select";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 import {
   getCompensationTypes,
@@ -78,6 +79,10 @@ const baht = (n) => `฿${Number(n || 0).toLocaleString("th-TH")}`;
 export default function AdminManagement({ user, claims = [], onReload }) {
   const [activeTab, setActiveTab] = useState("overview"); // overview | compTypes | masterData | rules | users | dataExchange
   const [masterSubTab, setMasterSubTab] = useState("courses"); // courses | terms
+
+  // กล่องยืนยันทั่วไป (แทน window.confirm) — { title, message, confirmText, onConfirm }
+  const [confirmState, setConfirmState] = useState(null);
+  const askConfirm = (options) => setConfirmState(options);
 
   // Rules state
   const [rules, setRules] = useState(getSystemRules);
@@ -215,10 +220,15 @@ export default function AdminManagement({ user, claims = [], onReload }) {
   };
 
   const handleDeleteComp = (id) => {
-    if (window.confirm("ยืนยันที่จะปิดใช้งาน/ลบประเภทค่าตอบแทนนี้?")) {
-      const updated = deleteCompensationType(id);
-      setCompTypes(updated);
-    }
+    askConfirm({
+      title: "ลบ/ปิดใช้งานประเภทค่าตอบแทน",
+      message: "ยืนยันที่จะปิดใช้งานหรือลบประเภทค่าตอบแทนนี้ใช่หรือไม่?",
+      confirmText: "ยืนยันลบ",
+      onConfirm: () => {
+        const updated = deleteCompensationType(id);
+        setCompTypes(updated);
+      },
+    });
   };
 
   // Handlers for Courses
@@ -261,10 +271,15 @@ export default function AdminManagement({ user, claims = [], onReload }) {
   };
 
   const handleDeleteCourse = (sectionId) => {
-    if (window.confirm("ยืนยันที่จะลบรายวิชานี้?")) {
-      const updated = deleteMasterCourse(sectionId);
-      setCourses(updated);
-    }
+    askConfirm({
+      title: "ลบรายวิชา",
+      message: "ยืนยันที่จะลบรายวิชานี้ใช่หรือไม่?",
+      confirmText: "ยืนยันลบ",
+      onConfirm: () => {
+        const updated = deleteMasterCourse(sectionId);
+        setCourses(updated);
+      },
+    });
   };
 
   // Handlers for External Sync (FR10)
@@ -1610,6 +1625,19 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           </SectionCard>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmState)}
+        title={confirmState?.title}
+        message={confirmState?.message}
+        confirmText={confirmState?.confirmText || "ยืนยัน"}
+        tone="danger"
+        onConfirm={() => {
+          confirmState?.onConfirm?.();
+          setConfirmState(null);
+        }}
+        onClose={() => setConfirmState(null)}
+      />
     </div>
   );
 }

@@ -7,11 +7,17 @@ import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import { STATUS } from "../data/workflow";
 import { PERMISSION as P, can } from "../data/roles";
-import { COMP_TYPES, getCompType } from "../services/claimMapper";
 import { downloadCsv } from "../utils/csv";
 import { formatDuration } from "../utils/time";
-import { getCompensationTypes } from "../data/compensationTypes";
+import { getCompensationTypes, resolveClaimCompType } from "../data/compensationTypes";
 import { getSystemRules } from "../data/rulesConfig";
+
+// ประเภทค่าตอบแทนของคำขอ (ใช้ค่าที่ normalizeClaim ใส่ไว้ ถ้าไม่มีค่อยคำนวณสด)
+const claimTypeId = (claim) =>
+  claim.compTypeId || resolveClaimCompType(claim).id;
+
+const claimTypeName = (claim) =>
+  claim.compTypeName || resolveClaimCompType(claim).name;
 
 /*
  * รายงานสรุปยอดเบิก (ผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ)
@@ -109,6 +115,12 @@ function SummaryReport({ claims, canExport }) {
   const rules = getSystemRules();
   const annualBudget = Number(rules.annualBudget || 2500000);
 
+  // ประเภทค่าตอบแทนที่ยังเปิดใช้งาน (ละเอียด 4 แบบ หรือมากกว่าถ้าแอดมินเพิ่ม)
+  const compTypeList = useMemo(
+    () => getCompensationTypes().filter((t) => t.status !== "INACTIVE"),
+    []
+  );
+
   const terms = useMemo(
     () =>
       [...new Set(claims.map((c) => c.termLabel).filter(Boolean))]
@@ -122,7 +134,7 @@ function SummaryReport({ claims, canExport }) {
       claims.filter((c) => {
         if (c.status === STATUS.DRAFT || c.status === STATUS.UNKNOWN) return false;
         if (term !== "All" && c.termLabel !== term) return false;
-        if (compType !== "All" && getCompType(c.claimantRole) !== compType) return false;
+        if (compType !== "All" && claimTypeId(c) !== compType) return false;
         if (group !== "All" && groupOf(c.status) !== group) return false;
 
         const day = claimDate(c);
@@ -135,33 +147,51 @@ function SummaryReport({ claims, canExport }) {
     [claims, from, to, term, compType, group]
   );
 
-  // ตาราง: แถว = ประเภทค่าตอบแทน, คอลัมน์ = กลุ่มสถานะ
-  const byType = useMemo(
-    () =>
-      Object.keys(COMP_TYPES)
-        .map((type) => {
-          const list = filtered.filter((c) => getCompType(c.claimantRole) === type);
+  // ตาราง: แถว = ประเภทค่าตอบแทนละเอียด, คอลัมน์ = กลุ่มสถานะ
+  const byType = useMemo(() => {
+    // จัดกลุ่มคำขอตาม compTypeId ครั้งเดียว (เร็วกว่า filter ซ้ำทุกประเภท)
+    const buckets = new Map();
+    filtered.forEach((c) => {
+      const id = claimTypeId(c);
+      if (!buckets.has(id)) buckets.set(id, []);
+      buckets.get(id).push(c);
+    });
 
-          return {
-            type,
-            label: COMP_TYPES[type],
-            count: list.length,
-            hours: sumBy(list, (c) => c.hours),
-            amount: sumBy(list, (c) => c.amount),
-            cells: Object.fromEntries(
-              STATUS_GROUPS.map((g) => {
-                const inGroup = list.filter((c) => groupOf(c.status) === g.key);
-                return [
-                  g.key,
-                  { count: inGroup.length, amount: sumBy(inGroup, (c) => c.amount) },
-                ];
-              })
-            ),
-          };
-        })
-        .filter((row) => row.count > 0),
-    [filtered]
-  );
+    // เรียงตามลำดับประเภทที่ตั้งไว้ แล้วตามด้วยประเภทอื่น ๆ ที่ไม่อยู่ในลิสต์
+    const orderedIds = [
+      ...compTypeList.map((t) => t.id),
+      ...[...buckets.keys()].filter(
+        (id) => !compTypeList.some((t) => t.id === id)
+      ),
+    ];
+
+    const nameOf = (id) =>
+      compTypeList.find((t) => t.id === id)?.name ||
+      buckets.get(id)?.[0]?.compTypeName ||
+      "ไม่ระบุประเภท";
+
+    return orderedIds
+      .filter((id) => buckets.has(id))
+      .map((id) => {
+        const list = buckets.get(id);
+        return {
+          type: id,
+          label: nameOf(id),
+          count: list.length,
+          hours: sumBy(list, (c) => c.hours),
+          amount: sumBy(list, (c) => c.amount),
+          cells: Object.fromEntries(
+            STATUS_GROUPS.map((g) => {
+              const inGroup = list.filter((c) => groupOf(c.status) === g.key);
+              return [
+                g.key,
+                { count: inGroup.length, amount: sumBy(inGroup, (c) => c.amount) },
+              ];
+            })
+          ),
+        };
+      });
+  }, [filtered, compTypeList]);
 
   // ตาราง: แถว = ภาค + เดือนของรอบการยื่น
   const byPeriod = useMemo(() => {
@@ -259,7 +289,7 @@ function SummaryReport({ claims, canExport }) {
       ],
       filtered.map((c) => [
         c.code || c.id,
-        COMP_TYPES[getCompType(c.claimantRole)],
+        claimTypeName(c),
         c.claimantName,
         c.courseCode,
         c.termLabel,
@@ -328,13 +358,11 @@ function SummaryReport({ claims, canExport }) {
             aria-label="ประเภทค่าตอบแทน"
           >
             <option value="All">ทุกประเภทค่าตอบแทน</option>
-            {Object.entries(COMP_TYPES)
-              .filter(([key]) => key !== "OTHER")
-              .map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
+            {compTypeList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
           </Select>
 
           <Select

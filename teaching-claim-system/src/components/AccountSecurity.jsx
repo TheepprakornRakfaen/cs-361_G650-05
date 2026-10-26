@@ -9,6 +9,7 @@ import {
 import { C } from "../theme";
 import SectionCard from "./SectionCard";
 import PasswordInput from "./PasswordInput";
+import ConfirmDialog from "./ConfirmDialog";
 import {
   changePassword,
   passwordErrorMessage,
@@ -29,6 +30,7 @@ export default function AccountSecurity({ onLogoutAll }) {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -70,18 +72,14 @@ export default function AccountSecurity({ onLogoutAll }) {
     }
   };
 
-  const logoutAll = async () => {
-    if (
-      !window.confirm(
-        "ออกจากระบบทุกอุปกรณ์ รวมถึงเครื่องนี้ ใช่หรือไม่?"
-      )
-    ) {
-      return;
-    }
-
+  const confirmLogoutAll = async () => {
     setSigningOut(true);
-    await onLogoutAll?.();
-    setSigningOut(false);
+    try {
+      await onLogoutAll?.();
+    } finally {
+      setSigningOut(false);
+      setConfirmOpen(false);
+    }
   };
 
   return (
@@ -187,7 +185,7 @@ export default function AccountSecurity({ onLogoutAll }) {
 
         <button
           type="button"
-          onClick={logoutAll}
+          onClick={() => setConfirmOpen(true)}
           disabled={signingOut}
           className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors hover:bg-[#FCE9EA] disabled:opacity-60"
           style={{ borderColor: "#F3C9C9", color: "#C23B3B" }}
@@ -200,6 +198,19 @@ export default function AccountSecurity({ onLogoutAll }) {
           ออกจากระบบทุกอุปกรณ์
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="ออกจากระบบทุกอุปกรณ์"
+        message="จะออกจากระบบทุกอุปกรณ์ รวมถึงเครื่องนี้ด้วย ใช่หรือไม่?"
+        confirmText="ออกจากระบบทุกอุปกรณ์"
+        cancelText="ยกเลิก"
+        tone="danger"
+        icon={LogOut}
+        loading={signingOut}
+        onConfirm={confirmLogoutAll}
+        onClose={() => !signingOut && setConfirmOpen(false)}
+      />
     </SectionCard>
   );
 }

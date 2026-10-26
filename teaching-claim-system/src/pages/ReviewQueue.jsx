@@ -23,6 +23,7 @@ import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
 import Restricted from "../components/Restricted";
 import Pagination from "../components/Pagination";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { STATUS, QUEUE_STATUSES, isPending } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -36,7 +37,7 @@ import {
   businessDaysSince,
   slaLevel,
 } from "../utils/sla";
-import { detectClaimAnomalies } from "../utils/anomalyDetector";
+import { detectClaimAnomalies, buildDuplicateIndex } from "../utils/anomalyDetector";
 import { batchReviewPass } from "../services/api";
 
 const SUMMARY = [
@@ -106,6 +107,8 @@ export default function ReviewQueue({
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchNotice, setBatchNotice] = useState("");
+  const [batchError, setBatchError] = useState("");
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
 
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
@@ -145,10 +148,13 @@ export default function ReviewQueue({
   );
 
   // Compute anomaly check for each claim in queue
+  // [V4 scaling] สร้างดัชนีคำขอซ้ำครั้งเดียว แล้วส่งให้ทุกคำขอใช้ร่วมกัน
+  // เปลี่ยนการตรวจทั้งคิวจาก O(n²) เป็น O(n) รองรับคำขอจำนวนมากได้ลื่นขึ้น
   const anomalyMap = useMemo(() => {
+    const duplicateIndex = buildDuplicateIndex(queue);
     const map = new Map();
     queue.forEach((c) => {
-      map.set(c.id, detectClaimAnomalies(c, queue));
+      map.set(c.id, detectClaimAnomalies(c, queue, [], null, { duplicateIndex }));
     });
     return map;
   }, [queue]);
@@ -294,16 +300,18 @@ export default function ReviewQueue({
   };
 
   // Batch Pass Review Action (TC2: ส่งคำขอที่พร้อมดำเนินการต่อให้ผู้อนุมัติ)
-  const handleBatchPass = async () => {
+  // กดปุ่มแล้วเปิดกล่องยืนยันก่อน (ทำจริงที่ performBatchPass)
+  const handleBatchPass = () => {
     if (selectedIds.size === 0 || batchLoading) return;
+    setBatchConfirmOpen(true);
+  };
 
+  const performBatchPass = async () => {
     const count = selectedIds.size;
-    if (!window.confirm(`ยืนยันการตรวจสอบและส่งต่อคำขอที่เลือก ${count} รายการ ให้ผู้อนุมัติ?`)) {
-      return;
-    }
 
     setBatchLoading(true);
     setBatchNotice("");
+    setBatchError("");
 
     try {
       await batchReviewPass(Array.from(selectedIds), "ผ่านการตรวจสอบความถูกต้องเรียบร้อยแล้ว (ส่งต่อผู้อนุมัติ)");
@@ -313,9 +321,11 @@ export default function ReviewQueue({
       setTimeout(() => setBatchNotice(""), 4000);
     } catch (err) {
       console.error(err);
-      alert(err?.message || "ไม่สามารถดำเนินการแบบกลุ่มได้");
+      setBatchError(err?.message || "ไม่สามารถดำเนินการแบบกลุ่มได้");
+      setTimeout(() => setBatchError(""), 5000);
     } finally {
       setBatchLoading(false);
+      setBatchConfirmOpen(false);
     }
   };
 
@@ -406,13 +416,35 @@ export default function ReviewQueue({
         }
       />
 
-      {/* Batch Notice Toast */}
+      {/* Batch Notice (success) */}
       {batchNotice && (
         <div className="flex items-center gap-2 p-4 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm font-semibold animate-fade-in">
           <CheckCircle2 size={18} />
           <span>{batchNotice}</span>
         </div>
       )}
+
+      {/* Batch Notice (error) */}
+      {batchError && (
+        <div className="flex items-center gap-2 p-4 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 text-sm font-semibold animate-fade-in">
+          <AlertTriangle size={18} />
+          <span>{batchError}</span>
+        </div>
+      )}
+
+      {/* ยืนยันก่อนส่งต่อแบบกลุ่ม */}
+      <ConfirmDialog
+        open={batchConfirmOpen}
+        title="ส่งต่อคำขอให้ผู้อนุมัติ"
+        message={`ยืนยันการตรวจสอบและส่งต่อคำขอที่เลือก ${selectedIds.size} รายการ ให้ผู้อนุมัติ?`}
+        confirmText="ยืนยันส่งต่อ"
+        tone="primary"
+        icon={Send}
+        loading={batchLoading}
+        onConfirm={performBatchPass}
+        onClose={() => !batchLoading && setBatchConfirmOpen(false)}
+      />
+
 
       {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) */}
       <SectionCard hoverable={false} className="p-5">

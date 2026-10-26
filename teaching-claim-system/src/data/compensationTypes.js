@@ -161,6 +161,62 @@ export function getCompTypeMeta(typeIdOrRole) {
   return types.find((t) => t.id === "TEACHER_LECTURE") || DEFAULT_COMPENSATION_TYPES[0];
 }
 
+/*
+ * [V4] หา "ประเภทค่าตอบแทนละเอียด" ของคำขอหนึ่ง ๆ เพื่อใช้จัดกลุ่มในรายงาน
+ *
+ * ลำดับการพิจารณา (backend-ready):
+ *   1) คำขอระบุ type_id / type_code / compensation_type มาตรง ๆ → ใช้ค่านั้น
+ *   2) ไม่ระบุ → เดาจากบทบาท/ตำแหน่งของผู้ยื่น:
+ *        INSTRUCTOR/TEACHER/LECTURER → ค่าสอนบรรยาย (TEACHER_LECTURE)
+ *        GUEST/SPECIAL               → อาจารย์พิเศษ (SPECIAL_LECTURER)
+ *        GRADE/ตรวจงาน               → ผู้ช่วยตรวจงาน (TA_GRADING)
+ *        TA/ASSISTANT อื่น ๆ          → ผู้ช่วยสอนภาคปฏิบัติ (TA_LAB)
+ * คืน { id, name, code } เสมอ (ไม่เป็น null)
+ */
+export function resolveClaimCompType(claim = {}) {
+  const types = getCompensationTypes();
+
+  const pick = (t) => ({ id: t.id, name: t.name, code: t.code });
+
+  // 1) ระบุประเภทมาตรง ๆ
+  const explicit =
+    claim.compTypeId ||
+    claim.type_id ||
+    claim.type_code ||
+    claim.compensation_type ||
+    claim.compensationType;
+
+  if (explicit != null && explicit !== "") {
+    const key = String(explicit).toUpperCase();
+    const direct = types.find(
+      (t) =>
+        String(t.id).toUpperCase() === key ||
+        String(t.code).toUpperCase() === key
+    );
+    if (direct) return pick(direct);
+  }
+
+  // 2) เดาจากบทบาท/ตำแหน่ง
+  const role = String(
+    claim.claimantRole || claim.owner_role || claim.position || claim.role || ""
+  ).toUpperCase();
+
+  const byId = (id) => types.find((t) => t.id === id);
+
+  if (/GUEST|SPECIAL|พิเศษ|ภายนอก/.test(role)) {
+    return pick(byId("SPECIAL_LECTURER") || byId("TEACHER_LECTURE") || types[0]);
+  }
+  if (/GRADE|GRADING|ตรวจ/.test(role)) {
+    return pick(byId("TA_GRADING") || byId("TA_LAB") || types[0]);
+  }
+  if (/TA|ASSISTANT|ช่วยสอน|ผู้ช่วย/.test(role)) {
+    return pick(byId("TA_LAB") || types[0]);
+  }
+
+  // อาจารย์ผู้สอน / ไม่ระบุ → ค่าสอนบรรยาย
+  return pick(byId("TEACHER_LECTURE") || types[0]);
+}
+
 export function resetCompensationTypesToDefault() {
   saveCompensationTypes(DEFAULT_COMPENSATION_TYPES);
   return DEFAULT_COMPENSATION_TYPES;

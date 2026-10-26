@@ -185,6 +185,7 @@ let claims = [
   {
     id: "claim-tc2-dup-1",
     status: "SUBMITTED",
+    type_id: "TEACHER_LECTURE",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -207,6 +208,7 @@ let claims = [
   {
     id: "claim-tc2-dup-2",
     status: "SUBMITTED",
+    type_id: "TEACHER_LECTURE",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -230,6 +232,7 @@ let claims = [
   {
     id: "claim-tc2-missing-ev",
     status: "SUBMITTED",
+    type_id: "TA_GRADING",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -254,6 +257,7 @@ let claims = [
   {
     id: "claim-tc2-over-quota",
     status: "SUBMITTED",
+    type_id: "TA_LAB",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -278,6 +282,7 @@ let claims = [
   {
     id: "claim-tc2-clean-1",
     status: "SUBMITTED",
+    type_id: "TA_LAB",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -300,6 +305,7 @@ let claims = [
   {
     id: "claim-tc2-clean-2",
     status: "SUBMITTED",
+    type_id: "TA_GRADING",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -322,6 +328,7 @@ let claims = [
   {
     id: "claim-tc2-clean-3",
     status: "SUBMITTED",
+    type_id: "SPECIAL_LECTURER",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -345,6 +352,7 @@ let claims = [
   {
     id: "claim-tc2-reviewed-1",
     status: "REVIEWED",
+    type_id: "TA_LAB",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -369,6 +377,7 @@ let claims = [
   {
     id: "claim-tc2-approved-1",
     status: "APPROVED",
+    type_id: "TEACHER_LECTURE",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -396,6 +405,7 @@ let claims = [
   {
     id: "claim-tc2-paid-1",
     status: "PAID",
+    type_id: "TA_LAB",
     academic_term: 3,
     period_id: 1,
     period_month: 9,
@@ -421,6 +431,7 @@ let claims = [
   {
     id: "claim-tc2-returned-1",
     status: "RETURNED",
+    type_id: "TA_GRADING",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
@@ -442,6 +453,7 @@ let claims = [
   {
     id: "claim-tc2-draft-1",
     status: "DRAFT",
+    type_id: "TA_LAB",
     academic_term: 3,
     period_id: 2,
     period_month: 10,
