@@ -83,6 +83,11 @@ export function getDevUser() {
   return role ? buildDevUser(role) : null;
 }
 
+// บทบาททดลองที่เลือกอยู่ (รวมบัญชีตามสถานการณ์ทดสอบ)
+export function getDevRole() {
+  return DEV_AUTH_BYPASS ? readRole() : null;
+}
+
 export function startDevSession(role) {
   if (!DEV_AUTH_BYPASS) return null;
 

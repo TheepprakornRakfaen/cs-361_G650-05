@@ -8,6 +8,7 @@ import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import { scrollToSection } from "./utils/scroll";
 import Footer from "./components/Footer";
+import DevRoleSwitcher from "./components/DevRoleSwitcher";
 import Toast from "./components/Toast";
 import ConfirmDialog from "./components/ConfirmDialog";
 
@@ -37,6 +38,7 @@ import {
   canAccessView,
   getLandingView,
   isClaimant,
+  getQueueLabel,
 } from "./data/roles";
 
 import { STATUS, normalizeStatus } from "./data/workflow";
@@ -1951,6 +1953,7 @@ export default function App() {
             goReview={openReview}
             goDetail={goReviewDetail}
             goAuditLog={() => setView("auditlog")}
+            goSettings={() => setView("settings")}
           />
         );
 
@@ -2189,7 +2192,11 @@ export default function App() {
           ========================= */}
       <Topbar
         onMenuClick={handleMenuClick}
-        subtitle={SUBTITLE_MAP[view] || "ระบบเบิกค่าสอน"}
+        subtitle={
+          view === "review"
+            ? getQueueLabel(currentUser)
+            : SUBTITLE_MAP[view] || "ระบบเบิกค่าสอน"
+        }
         searchQuery={search}
         onSearchChange={setSearch}
         onSearchSelect={handleSearchSelect}
@@ -2273,6 +2280,16 @@ export default function App() {
         loading={confirmBusy}
         onConfirm={handleConfirmAccept}
         onClose={() => !confirmBusy && setConfirmState(null)}
+      />
+
+      {/* สลับบทบาทในโหมดทดลอง (ไม่แสดงกับผู้ใช้จริง) */}
+      <DevRoleSwitcher
+        user={currentUser}
+        onSwitch={(user) => {
+          const nextUser = applyProfileEdits(user);
+          setCurrentUser(nextUser);
+          setView(getLandingView(nextUser));
+        }}
       />
 
       {/* แจ้งเตือนแบบ Toast */}
