@@ -120,7 +120,10 @@ export default function ReviewQueue({
         ? STATUS.SUBMITTED
         : "All";
 
-  const [statusFilter, setStatusFilter] = useState(initialStatus || defaultStatus);
+  // กดการ์ดจากหน้าภาพรวมมาด้วยสถานะที่ไม่อยู่ในหน้าของบทบาทนี้ → ใช้ค่าเริ่มต้นแทน
+  const [statusFilter, setStatusFilter] = useState(
+    initialStatus && SUMMARY.includes(initialStatus) ? initialStatus : defaultStatus
+  );
   const [termFilter, setTermFilter] = useState("All");
   const [courseFilter, setCourseFilter] = useState("All");
   const [roleFilter, setRoleFilter] = useState("All"); // All | TEACHER | TA
