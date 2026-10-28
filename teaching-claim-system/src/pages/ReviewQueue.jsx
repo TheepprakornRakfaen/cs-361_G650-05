@@ -29,6 +29,7 @@ import {
   PERMISSION as P,
   can,
   maskEmail,
+  getQueueLabel,
 } from "../data/roles";
 import { downloadCsv } from "../utils/csv";
 import {
@@ -376,11 +377,13 @@ export default function ReviewQueue({
     <div className="space-y-6">
       <PageHeader
         icon={ClipboardCheck}
-        title={readOnly ? "คำขอทั้งหมด" : "คิวตรวจสอบและอนุมัติ"}
+        title={readOnly ? "คำขอทั้งหมด" : `คิว${getQueueLabel(user)}`}
         description={
           readOnly
             ? "ดูสถานะและประวัติการดำเนินการของคำขอ (อ่านอย่างเดียว)"
-            : `ตรวจสอบความถูกต้องของคำขอ คัดแยกรายการที่ผิดปกติ ส่งต่อผู้อนุมัติ · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
+            : can(user, P.CLAIM_APPROVE)
+              ? `พิจารณาอนุมัติคำขอที่ผ่านการตรวจสอบแล้ว หรือส่งกลับให้ผู้ยื่นแก้ไข · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
+              : `ตรวจสอบความถูกต้องของคำขอ คัดแยกรายการที่ผิดปกติ ส่งต่อผู้อนุมัติ · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
         }
         action={
           <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { C } from "../theme";
-import { canAccessView, canDecideClaims } from "../data/roles";
+import { canAccessView, getQueueLabel } from "../data/roles";
 
 export const NAV_ITEMS = [
   { id: "home", label: "หน้าแรก", icon: Home },
@@ -204,9 +204,9 @@ export default function Sidebar({
                     }
                   >
                     {
-                      // ผู้ที่ดูคิวได้แต่ตัดสินไม่ได้ (ผู้ดูแลระบบ) → ป้ายเมนูไม่ควรบอกว่า "ตรวจสอบ/อนุมัติ"
-                      item.id === "review" && !canDecideClaims(user)
-                        ? "คำขอทั้งหมด"
+                      // ผู้ตรวจสอบเห็น "ตรวจสอบ" ผู้อนุมัติเห็น "อนุมัติ" ผู้ดูแลระบบเห็น "คำขอทั้งหมด"
+                      item.id === "review" && isLoggedIn
+                        ? getQueueLabel(user)
                         : item.label
                     }
                   </span>

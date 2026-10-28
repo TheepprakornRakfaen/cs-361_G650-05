@@ -195,6 +195,14 @@ export function hasAnyRole(user, ...roles) {
 export const canDecideClaims = (user) =>
   can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE);
 
+// ชื่อเมนู/หัวข้อหน้าคิวคำขอ ตามสิ่งที่ผู้ใช้ทำได้จริง
+export function getQueueLabel(user) {
+  // ผู้อนุมัติมีสิทธิ์ส่งกลับ (CLAIM_REVIEW) ด้วย จึงเช็กสิทธิ์อนุมัติก่อน
+  if (can(user, P.CLAIM_APPROVE)) return "อนุมัติ";
+  if (can(user, P.CLAIM_REVIEW)) return "ตรวจสอบ";
+  return "คำขอทั้งหมด";
+}
+
 // เป็นผู้ยื่นคำขอ (อาจารย์ / TA)
 export const isClaimant = (user) => can(user, P.CLAIM_CREATE);
 

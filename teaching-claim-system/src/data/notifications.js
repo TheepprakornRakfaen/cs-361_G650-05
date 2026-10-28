@@ -157,8 +157,12 @@ function queueNotification(claim, user) {
     };
   }
 
-  // ผู้ตรวจสอบ: คำขอที่ยื่นมาใหม่ / ยื่นใหม่หลังแก้ไข (สถานะ 1)
-  if (can(user, P.CLAIM_REVIEW) && claim.status === STATUS.SUBMITTED) {
+  // ผู้ตรวจสอบ: คำขอที่ยื่นมาใหม่ / ยื่นใหม่หลังแก้ไข (สถานะ 1) — ผู้อนุมัติไม่ต้องได้รับ
+  if (
+    can(user, P.CLAIM_REVIEW) &&
+    !can(user, P.CLAIM_APPROVE) &&
+    claim.status === STATUS.SUBMITTED
+  ) {
     return {
       ...base,
       date: claim.submittedAt || claim.updatedAt || claim.createdAt,
