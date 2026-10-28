@@ -41,14 +41,30 @@ import {
 import { detectClaimAnomalies, buildDuplicateIndex } from "../utils/anomalyDetector";
 import { batchReviewPass } from "../services/api";
 
-const SUMMARY = [
-  STATUS.SUBMITTED,
-  STATUS.REVIEWED,
-  STATUS.RETURNED,
-  STATUS.APPROVED,
-  STATUS.PAID,
-  STATUS.REJECTED,
-];
+/*
+ * แยกหน้าตามบทบาท — สถานะที่แต่ละบทบาทเห็นในคิว
+ *  - ผู้ตรวจสอบ: คำขอที่ยื่นเข้ามา, ส่งกลับแก้ไข, ส่งต่อผู้อนุมัติแล้ว
+ *  - ผู้อนุมัติ: คำขอที่ตรวจแล้ว และผลการพิจารณา
+ *  - ผู้ดูแลระบบ (ดูอย่างเดียว): ทุกสถานะ
+ */
+const MODE_STATUSES = {
+  review: [STATUS.SUBMITTED, STATUS.RETURNED, STATUS.REVIEWED],
+  approve: [
+    STATUS.REVIEWED,
+    STATUS.RETURNED,
+    STATUS.APPROVED,
+    STATUS.PAID,
+    STATUS.REJECTED,
+  ],
+  all: [
+    STATUS.SUBMITTED,
+    STATUS.REVIEWED,
+    STATUS.RETURNED,
+    STATUS.APPROVED,
+    STATUS.PAID,
+    STATUS.REJECTED,
+  ],
+};
 
 const PAGE_SIZE = 10;
 
@@ -89,11 +105,20 @@ export default function ReviewQueue({
   goReport,
   initialStatus = null,
 }) {
-  const defaultStatus = can(user, P.CLAIM_APPROVE)
-    ? STATUS.REVIEWED
+  // ผู้อนุมัติมีสิทธิ์ส่งกลับ (CLAIM_REVIEW) ด้วย จึงเช็กสิทธิ์อนุมัติก่อน
+  const mode = can(user, P.CLAIM_APPROVE)
+    ? "approve"
     : can(user, P.CLAIM_REVIEW)
-      ? STATUS.SUBMITTED
-      : "All";
+      ? "review"
+      : "all";
+  const SUMMARY = MODE_STATUSES[mode];
+
+  const defaultStatus =
+    mode === "approve"
+      ? STATUS.REVIEWED
+      : mode === "review"
+        ? STATUS.SUBMITTED
+        : "All";
 
   const [statusFilter, setStatusFilter] = useState(initialStatus || defaultStatus);
   const [termFilter, setTermFilter] = useState("All");
@@ -114,11 +139,15 @@ export default function ReviewQueue({
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
   const canExport = can(user, P.DATA_EXPORT);
-  const canReview = can(user, P.CLAIM_REVIEW);
+  // ส่งต่อผู้อนุมัติแบบกลุ่ม — เฉพาะหน้าผู้ตรวจสอบ
+  const canReview = mode === "review";
 
   const queue = useMemo(
-    () => claims.filter((c) => QUEUE_STATUSES.includes(c.status)),
-    [claims]
+    () =>
+      claims.filter(
+        (c) => QUEUE_STATUSES.includes(c.status) && SUMMARY.includes(c.status)
+      ),
+    [claims, SUMMARY]
   );
 
   const termOptions = useMemo(
@@ -381,7 +410,7 @@ export default function ReviewQueue({
         description={
           readOnly
             ? "ดูสถานะและประวัติการดำเนินการของคำขอ (อ่านอย่างเดียว)"
-            : can(user, P.CLAIM_APPROVE)
+            : mode === "approve"
               ? `พิจารณาอนุมัติคำขอที่ผ่านการตรวจสอบแล้ว หรือส่งกลับให้ผู้ยื่นแก้ไข · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
               : `ตรวจสอบความถูกต้องของคำขอ คัดแยกรายการที่ผิดปกติ ส่งต่อผู้อนุมัติ · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
         }
@@ -449,61 +478,63 @@ export default function ReviewQueue({
       />
 
 
-      {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) */}
-      <SectionCard hoverable={false} className="p-5">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-              <ShieldAlert size={17} style={{ color: C.teal }} />
-              <span>การคัดกรองความผิดปกติของคำขอ</span>
-            </h4>
-            <p className="text-xs text-slate-500 mt-1">
-              ระบบตรวจสอบคำขอซ้ำซ้อน รายการทับซ้อน เอกสารไม่ครบถ้วน และการเบิกเกินโควตาอัตโนมัติ
-            </p>
+      {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) — งานคัดกรองของผู้ตรวจสอบ */}
+      {mode !== "approve" && (
+        <SectionCard hoverable={false} className="p-5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                <ShieldAlert size={17} style={{ color: C.teal }} />
+                <span>การคัดกรองความผิดปกติของคำขอ</span>
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">
+                ระบบตรวจสอบคำขอซ้ำซ้อน รายการทับซ้อน เอกสารไม่ครบถ้วน และการเบิกเกินโควตาอัตโนมัติ
+              </p>
+            </div>
+
+            {/* Quick Filter Buttons: All | Issues | Clean */}
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+              <button
+                type="button"
+                onClick={() => setAnomalyFilter("All")}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                  anomalyFilter === "All"
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                ทั้งหมด ({scoped.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAnomalyFilter("anomalies")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                  anomalyFilter === "anomalies"
+                    ? "bg-rose-600 text-white shadow-sm"
+                    : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                }`}
+              >
+                <AlertTriangle size={13} />
+                <span>ตรวจพบข้อผิดปกติ / ต้องแก้ไข ({anomalyStats.totalIssues})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAnomalyFilter("clean")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                  anomalyFilter === "clean"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                }`}
+              >
+                <CheckCircle2 size={13} />
+                <span>ข้อมูลครบถ้วนพร้อมส่งต่อ ({anomalyStats.cleanCount})</span>
+              </button>
+            </div>
           </div>
-
-          {/* Quick Filter Buttons: All | Issues | Clean */}
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-            <button
-              type="button"
-              onClick={() => setAnomalyFilter("All")}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                anomalyFilter === "All"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              ทั้งหมด ({scoped.length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAnomalyFilter("anomalies")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                anomalyFilter === "anomalies"
-                  ? "bg-rose-600 text-white shadow-sm"
-                  : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-              }`}
-            >
-              <AlertTriangle size={13} />
-              <span>ตรวจพบข้อผิดปกติ / ต้องแก้ไข ({anomalyStats.totalIssues})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAnomalyFilter("clean")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                anomalyFilter === "clean"
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
-              }`}
-            >
-              <CheckCircle2 size={13} />
-              <span>ข้อมูลครบถ้วนพร้อมส่งต่อ ({anomalyStats.cleanCount})</span>
-            </button>
-          </div>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      )}
 
       {/* Toolbar: Search & Select Filters (FR8) */}
       <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3">
@@ -611,7 +642,11 @@ export default function ReviewQueue({
       </div>
 
       {/* Status Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${
+          SUMMARY.length === 5 ? "lg:grid-cols-5" : SUMMARY.length === 6 ? "lg:grid-cols-6" : ""
+        }`}
+      >
         {SUMMARY.map((key) => {
           const style = STATUS_STYLE[key];
           const active = statusFilter === key;
@@ -653,7 +688,7 @@ export default function ReviewQueue({
         >
           <AlertTriangle size={17} className="shrink-0" />
           <span>
-            มีคำขอรอตรวจสอบเกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
+            มีคำขอ{mode === "approve" ? "รออนุมัติ" : "รอตรวจสอบ"}เกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
             <b>{overdueCount} รายการ</b> (แสดงอยู่ด้านบนของตาราง)
           </span>
         </div>
