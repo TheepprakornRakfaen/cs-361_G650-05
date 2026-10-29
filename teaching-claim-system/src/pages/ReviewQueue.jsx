@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   FileText,
   Filter,
-  Send,
+  FileQuestion,
   ArrowRight,
   ShieldAlert,
   BarChart3,
@@ -23,7 +23,6 @@ import Select from "../components/Select";
 import StatusPill from "../components/StatusPill";
 import Restricted from "../components/Restricted";
 import Pagination from "../components/Pagination";
-import ConfirmDialog from "../components/ConfirmDialog";
 import { STATUS, QUEUE_STATUSES, isPending } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -39,7 +38,11 @@ import {
   slaLevel,
 } from "../utils/sla";
 import { detectClaimAnomalies, buildDuplicateIndex } from "../utils/anomalyDetector";
-import { batchReviewPass } from "../services/api";
+
+// ตัวกรองพิเศษ: คำขอที่ผู้ตรวจสอบขอให้ผู้อนุมัติตรวจสอบหลักฐาน (ยังเป็นสถานะ 2 · claim.escalation มาจาก App)
+const ESCALATED = "ESCALATED";
+const ESCALATED_STYLE = { label: "ขอให้ตรวจสอบหลักฐาน", bg: "#F3EFFC", fg: "#6D4BC2" };
+const cardStyle = (key) => (key === ESCALATED ? ESCALATED_STYLE : STATUS_STYLE[key]);
 
 const SUMMARY = [
   STATUS.SUBMITTED,
@@ -77,7 +80,7 @@ const pillClass =
  * [V4] คิวตรวจสอบและอนุมัติ (Verification & Reporting - FR7 & TC2)
  *  - ค้นหา กรอง จัดกลุ่ม แยกรายการที่ถูกต้องออกจากรายการที่ต้องแก้ไข
  *  - ระบบตรวจสอบความผิดปกติอัตโนมัติ (คำขอซ้ำ, ข้อมูลไม่ครบ, ทับซ้อน, เกินโควตา)
- *  - รองรับการเลือกส่งต่อผู้อนุมัติแบบกลุ่ม (Batch Pass Review)
+ *  - ผู้อนุมัติเห็นป้ายคำขอที่ผู้ตรวจสอบขอให้ตรวจสอบหลักฐาน
  */
 export default function ReviewQueue({
   user,
@@ -104,17 +107,11 @@ export default function ReviewQueue({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
-  // Multi-select for batch actions (TC2)
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [batchLoading, setBatchLoading] = useState(false);
-  const [batchNotice, setBatchNotice] = useState("");
-  const [batchError, setBatchError] = useState("");
-  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
-
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
   const canExport = can(user, P.DATA_EXPORT);
-  const canReview = can(user, P.CLAIM_REVIEW);
+  const isApprover = can(user, P.CLAIM_APPROVE);
+  const readyStatus = isApprover ? STATUS.REVIEWED : STATUS.SUBMITTED;
 
   const queue = useMemo(
     () => claims.filter((c) => QUEUE_STATUSES.includes(c.status)),
@@ -189,7 +186,7 @@ export default function ReviewQueue({
   const anomalyStats = useMemo(() => {
     const withIssues = scoped.filter((c) => anomalyMap.get(c.id)?.hasIssues);
     const cleanSubmitted = scoped.filter(
-      (c) => anomalyMap.get(c.id)?.clean && c.status === STATUS.SUBMITTED
+      (c) => anomalyMap.get(c.id)?.clean && c.status === readyStatus
     );
     const duplicates = withIssues.filter((c) =>
       anomalyMap.get(c.id)?.anomalies.some((a) => a.type === "DUPLICATE")
@@ -204,7 +201,7 @@ export default function ReviewQueue({
       duplicatesCount: duplicates.length,
       missingEvCount: missingEv.length,
     };
-  }, [scoped, anomalyMap]);
+  }, [scoped, anomalyMap, readyStatus]);
 
   const overdueCount = useMemo(
     () =>
@@ -220,7 +217,11 @@ export default function ReviewQueue({
     const keyword = query.trim().toLowerCase();
 
     return scoped
-      .filter((c) => statusFilter === "All" || c.status === statusFilter)
+      .filter((c) =>
+        statusFilter === ESCALATED
+          ? c.escalation
+          : statusFilter === "All" || c.status === statusFilter
+      )
       .filter((c) => {
         if (anomalyFilter === "anomalies") {
           return anomalyMap.get(c.id)?.hasIssues;
@@ -244,9 +245,18 @@ export default function ReviewQueue({
       );
   }, [scoped, statusFilter, anomalyFilter, query, anomalyMap]);
 
+  const escalatedCount = useMemo(
+    () => scoped.filter((c) => c.escalation).length,
+    [scoped]
+  );
+
+  // การ์ด "ขอให้ตรวจสอบหลักฐาน" ต่อจาก "ตรวจแล้ว รออนุมัติ" (ทุกบทบาทที่เห็นคิว)
+  const statusCards = SUMMARY.flatMap((key) =>
+    key === STATUS.REVIEWED ? [key, ESCALATED] : [key]
+  );
+
   useEffect(() => {
     setPage(1);
-    setSelectedIds(new Set());
   }, [query, statusFilter, termFilter, courseFilter, claimantFilter, roleFilter, anomalyFilter]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -275,59 +285,6 @@ export default function ReviewQueue({
     setClaimantFilter("All");
     setRoleFilter("All");
     setAnomalyFilter("All");
-  };
-
-  // Batch selection handlers
-  const handleToggleSelectAll = () => {
-    const selectable = pageRows.filter((c) => c.status === STATUS.SUBMITTED);
-    if (selectedIds.size >= selectable.length && selectable.length > 0) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(selectable.map((c) => c.id)));
-    }
-  };
-
-  const handleToggleSelectRow = (id, e) => {
-    e.stopPropagation();
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  // Batch Pass Review Action (TC2: ส่งคำขอที่พร้อมดำเนินการต่อให้ผู้อนุมัติ)
-  // กดปุ่มแล้วเปิดกล่องยืนยันก่อน (ทำจริงที่ performBatchPass)
-  const handleBatchPass = () => {
-    if (selectedIds.size === 0 || batchLoading) return;
-    setBatchConfirmOpen(true);
-  };
-
-  const performBatchPass = async () => {
-    const count = selectedIds.size;
-
-    setBatchLoading(true);
-    setBatchNotice("");
-    setBatchError("");
-
-    try {
-      await batchReviewPass(Array.from(selectedIds), "ผ่านการตรวจสอบความถูกต้องเรียบร้อยแล้ว (ส่งต่อผู้อนุมัติ)");
-      setSelectedIds(new Set());
-      setBatchNotice(`ส่งต่อคำขอ ${count} รายการ ให้ผู้อนุมัติเรียบร้อยแล้ว`);
-      onReload?.();
-      setTimeout(() => setBatchNotice(""), 4000);
-    } catch (err) {
-      console.error(err);
-      setBatchError(err?.message || "ไม่สามารถดำเนินการแบบกลุ่มได้");
-      setTimeout(() => setBatchError(""), 5000);
-    } finally {
-      setBatchLoading(false);
-      setBatchConfirmOpen(false);
-    }
   };
 
   const exportCsv = () => {
@@ -419,36 +376,6 @@ export default function ReviewQueue({
         }
       />
 
-      {/* Batch Notice (success) */}
-      {batchNotice && (
-        <div className="flex items-center gap-2 p-4 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm font-semibold animate-fade-in">
-          <CheckCircle2 size={18} />
-          <span>{batchNotice}</span>
-        </div>
-      )}
-
-      {/* Batch Notice (error) */}
-      {batchError && (
-        <div className="flex items-center gap-2 p-4 rounded-2xl bg-rose-50 text-rose-800 border border-rose-200 text-sm font-semibold animate-fade-in">
-          <AlertTriangle size={18} />
-          <span>{batchError}</span>
-        </div>
-      )}
-
-      {/* ยืนยันก่อนส่งต่อแบบกลุ่ม */}
-      <ConfirmDialog
-        open={batchConfirmOpen}
-        title="ส่งต่อคำขอให้ผู้อนุมัติ"
-        message={`ยืนยันการตรวจสอบและส่งต่อคำขอที่เลือก ${selectedIds.size} รายการ ให้ผู้อนุมัติ?`}
-        confirmText="ยืนยันส่งต่อ"
-        tone="primary"
-        icon={Send}
-        loading={batchLoading}
-        onConfirm={performBatchPass}
-        onClose={() => !batchLoading && setBatchConfirmOpen(false)}
-      />
-
-
       {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) */}
       <SectionCard hoverable={false} className="p-5">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -499,7 +426,9 @@ export default function ReviewQueue({
               }`}
             >
               <CheckCircle2 size={13} />
-              <span>ข้อมูลครบถ้วนพร้อมส่งต่อ ({anomalyStats.cleanCount})</span>
+              <span>
+                ข้อมูลครบถ้วน{isApprover ? "พร้อมอนุมัติ" : "พร้อมส่งต่อ"} ({anomalyStats.cleanCount})
+              </span>
             </button>
           </div>
         </div>
@@ -591,9 +520,9 @@ export default function ReviewQueue({
           aria-label="กรองตามสถานะ"
         >
           <option value="All">ทุกสถานะ</option>
-          {SUMMARY.map((key) => (
+          {statusCards.map((key) => (
             <option key={key} value={key}>
-              {STATUS_STYLE[key].label}
+              {cardStyle(key).label}
             </option>
           ))}
         </Select>
@@ -611,9 +540,13 @@ export default function ReviewQueue({
       </div>
 
       {/* Status Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {SUMMARY.map((key) => {
-          const style = STATUS_STYLE[key];
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${
+          statusCards.length > 6 ? "lg:grid-cols-7" : "lg:grid-cols-6"
+        }`}
+      >
+        {statusCards.map((key) => {
+          const style = cardStyle(key);
           const active = statusFilter === key;
 
           return (
@@ -633,7 +566,7 @@ export default function ReviewQueue({
                 {style.label}
               </p>
               <p className="text-2xl font-extrabold mt-1 figure" style={{ color: style.fg }}>
-                {counts[key] || 0}
+                {key === ESCALATED ? escalatedCount : counts[key] || 0}
               </p>
             </button>
           );
@@ -653,49 +586,9 @@ export default function ReviewQueue({
         >
           <AlertTriangle size={17} className="shrink-0" />
           <span>
-            มีคำขอรอตรวจสอบเกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
+            มีคำขอ{isApprover ? "รออนุมัติ" : "รอตรวจสอบ"}เกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
             <b>{overdueCount} รายการ</b> (แสดงอยู่ด้านบนของตาราง)
           </span>
-        </div>
-      )}
-
-      {/* Batch Actions Toolbar (TC2: ส่งคำขอที่พร้อมดำเนินการต่อให้ผู้อนุมัติ) */}
-      {canReview && selectedIds.size > 0 && (
-        <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-teal-900 text-white shadow-lg animate-fade-in">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold text-sm">
-              {selectedIds.size}
-            </span>
-            <div>
-              <p className="font-bold text-sm">เลือกคำขอแล้ว {selectedIds.size} รายการ</p>
-              <p className="text-xs text-teal-200">
-                พร้อมตรวจสอบและส่งต่อให้ผู้อนุมัติพิจารณาในขั้นตอนถัดไป
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedIds(new Set())}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 hover:bg-white/20 transition-colors"
-            >
-              ยกเลิกที่เลือก
-            </button>
-            <button
-              type="button"
-              disabled={batchLoading}
-              onClick={handleBatchPass}
-              className="flex items-center gap-2 px-5 py-2 rounded-full font-bold text-xs text-teal-950 bg-emerald-300 hover:bg-emerald-200 shadow-md transition-all active:scale-95 disabled:opacity-50"
-            >
-              {batchLoading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Send size={14} />
-              )}
-              <span>ส่งต่อผู้อนุมัติ ({selectedIds.size})</span>
-            </button>
-          </div>
         </div>
       )}
 
@@ -705,20 +598,6 @@ export default function ReviewQueue({
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: "#F6F9FB", color: C.sub }}>
-                {canReview && (
-                  <th className="px-4 py-4 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={
-                        pageRows.filter((c) => c.status === STATUS.SUBMITTED).length > 0 &&
-                        selectedIds.size >= pageRows.filter((c) => c.status === STATUS.SUBMITTED).length
-                      }
-                      onChange={handleToggleSelectAll}
-                      title="เลือกทั้งหมดในหน้านี้"
-                      className="w-4 h-4 rounded text-teal-600 cursor-pointer"
-                    />
-                  </th>
-                )}
                 <th className="px-5 py-4 font-semibold text-left">รหัสคำขอ</th>
                 <th className="px-5 py-4 font-semibold text-left">ผู้ยื่น & บทบาท</th>
                 <th className="px-5 py-4 font-semibold text-left">รายวิชา</th>
@@ -736,7 +615,6 @@ export default function ReviewQueue({
                 const waiting = isPending(claim.status) ? businessDaysSince(submitted) : null;
                 const sla = SLA_STYLE[slaLevel(waiting)];
                 const check = anomalyMap.get(claim.id);
-                const isSelected = selectedIds.has(claim.id);
 
                 return (
                   <tr
@@ -746,25 +624,8 @@ export default function ReviewQueue({
                       if (e.key === "Enter") goDetail?.(claim.id);
                     }}
                     tabIndex={0}
-                    className={`group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors ${
-                      isSelected ? "bg-teal-50/50" : ""
-                    }`}
+                    className="group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"
                   >
-                    {canReview && (
-                      <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        {claim.status === STATUS.SUBMITTED ? (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => handleToggleSelectRow(claim.id, e)}
-                            className="w-4 h-4 rounded text-teal-600 cursor-pointer"
-                          />
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-                    )}
-
                     <td className="px-5 py-4 font-semibold whitespace-nowrap" style={{ color: C.ink }}>
                       <p className="font-extrabold text-teal-800">#{claim.code || claim.id}</p>
                     </td>
@@ -854,6 +715,16 @@ export default function ReviewQueue({
 
                     <td className="px-5 py-4">
                       <StatusPill status={claim.status} />
+                      {claim.escalation && (
+                        <span
+                          className="flex w-fit items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap"
+                          style={{ background: "#F3EFFC", borderColor: "#D9CCF5", color: "#6D4BC2" }}
+                          title={claim.escalation?.comment || ""}
+                        >
+                          <FileQuestion size={11} />
+                          ขอให้ตรวจสอบหลักฐาน
+                        </span>
+                      )}
                     </td>
 
                     <td className="pr-5 py-4 text-right">
@@ -869,7 +740,7 @@ export default function ReviewQueue({
 
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
+                  <td colSpan={8} className="px-6 py-12 text-center">
                     <p className="text-sm font-semibold text-slate-800">
                       {loading ? "กำลังโหลดข้อมูลคำขอ..." : "ไม่พบคำขอตามเงื่อนไขที่เลือก"}
                     </p>

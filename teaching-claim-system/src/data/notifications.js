@@ -98,7 +98,7 @@ function ownClaimNotification(claim) {
         id: `claim-${claim.id}-Rejected`,
         kind: "rejected",
         title: `คำขอ ${claimLabel(claim)} ไม่ได้รับการอนุมัติ`,
-        description: `${course}ดูเหตุผลที่ไม่อนุมัติในรายละเอียดคำขอ`,
+        description: `${course}ดูเหตุผลในรายละเอียดคำขอ หากต้องการเบิกรายการนี้ให้ยื่นคำขอใหม่`,
       };
     case "Returned":
       return {
@@ -152,8 +152,13 @@ function queueNotification(claim, user) {
       date: claim.reviewedAt || claim.updatedAt || claim.createdAt,
       id: `queue-${claim.id}-ToApprove-${claim.reviewedAt || ""}`,
       kind: "toApprove",
-      title: `คำขอ ${claimLabel(claim)} รอพิจารณาอนุมัติ`,
-      description: detail || "ผู้ตรวจสอบส่งต่อมาแล้ว",
+      // ผู้ตรวจสอบไม่แน่ใจหลักฐาน → บอกให้ชัดว่าต้องตรวจหลักฐานก่อนตัดสินใจ
+      title: claim.escalation
+        ? `คำขอ ${claimLabel(claim)} ขอให้ตรวจสอบหลักฐาน`
+        : `คำขอ ${claimLabel(claim)} รอพิจารณาอนุมัติ`,
+      description: claim.escalation?.comment
+        ? `ผู้ตรวจสอบไม่แน่ใจ: ${claim.escalation.comment}`
+        : detail || "ผู้ตรวจสอบส่งต่อมาแล้ว",
     };
   }
 

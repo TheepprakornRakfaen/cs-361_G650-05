@@ -52,6 +52,7 @@ import AuditTimeline, {
   normalizeHistory,
 } from "../components/AuditTimeline";
 import Restricted from "../components/Restricted";
+import { DEV_AUTH_BYPASS } from "../services/devAuth";
 import {
   ATTACHABLE_STATUSES,
   EDITABLE_STATUSES,
@@ -59,6 +60,7 @@ import {
   getAllowedActions,
   isReviewed,
   isOwnClaim,
+  findEscalation,
 } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -315,7 +317,9 @@ export default function ClaimDetail({
       * localStorage Draft เก่าอาจใช้
       * CL-xxxx แทน UUID
       */
+      // โหมดทดลอง: คำขอตัวอย่างใช้ id แบบข้อความ จึงไม่ต้องเช็ก UUID
       const isUuid =
+        DEV_AUTH_BYPASS ||
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
           String(claimId || "")
         );
@@ -402,6 +406,7 @@ export default function ClaimDetail({
     const claimId = claim?.claimId || claim?.id;
 
     const isUuid =
+      DEV_AUTH_BYPASS ||
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         String(claimId || "")
       );
@@ -830,7 +835,7 @@ export default function ClaimDetail({
 
               {status === STATUS.REJECTED && own && (
                 <p className="text-xs mt-2 leading-5" style={{ color: C.sub }}>
-                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขหรือยื่นซ้ำไม่ได้ หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่
+                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขคำขอเดิมไม่ได้ หากต้องการเบิกรายการนี้ กรุณายื่นคำขอใหม่พร้อมหลักฐานที่ถูกต้อง
                 </p>
               )}
             </div>
@@ -932,6 +937,7 @@ export default function ClaimDetail({
           }
           reviewed={isReviewed(claim)}
           reviewedBy={claim.reviewedBy}
+          escalation={status === STATUS.REVIEWED ? findEscalation(history) : null}
           evidence={{
             canView: canViewEvidence,
             loading: evidenceLoading,

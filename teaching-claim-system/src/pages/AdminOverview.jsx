@@ -12,6 +12,7 @@ import {
   History,
   ClipboardCheck,
   XCircle,
+  FileQuestion,
 } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -26,6 +27,8 @@ import {
   businessDaysSince,
   slaLevel,
 } from "../utils/sla";
+
+const ESCALATED_STYLE = { bg: "#F3EFFC", fg: "#6D4BC2" };
 
 const baht = (n) => `฿${Number(n || 0).toLocaleString()}`;
 
@@ -102,6 +105,8 @@ export default function AdminOverview({
       pending: pending.length,
       submitted: claims.filter((c) => c.status === STATUS.SUBMITTED).length,
       reviewed: claims.filter((c) => c.status === STATUS.REVIEWED).length,
+      // ผู้ตรวจสอบไม่แน่ใจหลักฐาน ส่งต่อให้ผู้อนุมัติตรวจ (claim.escalation มาจาก App)
+      escalated: claims.filter((c) => c.status === STATUS.REVIEWED && c.escalation).length,
       returned: claims.filter((c) => c.status === STATUS.RETURNED).length,
       approved: claims.filter((c) => c.status === STATUS.APPROVED).length,
       paid: claims.filter((c) => c.status === STATUS.PAID).length,
@@ -151,6 +156,7 @@ export default function AdminOverview({
   const cards = [
     { key: STATUS.SUBMITTED, label: "รอตรวจสอบ", value: stats.submitted, icon: Clock3, style: STATUS_STYLE.Submitted, hint: "รอผู้ตรวจสอบ" },
     { key: STATUS.REVIEWED, label: "รออนุมัติ", value: stats.reviewed, icon: ClipboardCheck, style: STATUS_STYLE.Reviewed, hint: "ตรวจแล้ว รอผู้อนุมัติ" },
+    { key: "ESCALATED", label: "ขอให้ตรวจสอบหลักฐาน", value: stats.escalated, icon: FileQuestion, style: ESCALATED_STYLE, hint: "ผู้ตรวจสอบไม่แน่ใจ ส่งให้ผู้อนุมัติตรวจ" },
     { key: "overdue", label: "เกินกำหนด", value: stats.overdue, icon: AlertTriangle, style: SLA_STYLE.overdue, hint: `รอเกิน ${SLA_BUSINESS_DAYS} วันทำการ` },
     { key: STATUS.RETURNED, label: "ส่งคืนแก้ไข", value: stats.returned, icon: RotateCcw, style: STATUS_STYLE.Returned, hint: "รอผู้ยื่นแก้ไข" },
     { key: STATUS.APPROVED, label: "อนุมัติแล้ว รอจ่าย", value: stats.approved, icon: CheckCircle2, style: STATUS_STYLE.Approved, hint: "รอระบบจ่ายเงิน" },
@@ -359,8 +365,19 @@ export default function AdminOverview({
                         </span>
 
                         <span className="flex-1 min-w-0">
-                          <span className="block font-semibold text-sm truncate" style={{ color: C.ink }}>
-                            #{claim.code || claim.id}
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-sm truncate" style={{ color: C.ink }}>
+                              #{claim.code || claim.id}
+                            </span>
+                            {claim.escalation && (
+                              <span
+                                className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ background: ESCALATED_STYLE.bg, color: ESCALATED_STYLE.fg }}
+                              >
+                                <FileQuestion size={11} />
+                                ขอให้ตรวจสอบหลักฐาน
+                              </span>
+                            )}
                           </span>
                           <span className="block text-xs truncate" style={{ color: C.sub }}>
                             {claim.claimantName || "-"} · {claim.courseCode || "-"}
@@ -411,7 +428,7 @@ export default function AdminOverview({
               {activity.length > 0 ? (
                 <ol className="relative">
                   {activity.map((log, i) => {
-                    const meta = getAuditMeta(log.action);
+                    const meta = getAuditMeta(log.action, log.comment);
                     const to = STATUS_STYLE[log.to_status || log.toStatus];
 
                     return (
@@ -465,7 +482,7 @@ export default function AdminOverview({
                 {[
                   ["รายวิชา", ""],
                   ["คำขอทั้งหมด", "text-right"],
-                  ["รอตรวจสอบ", "text-right"],
+                  ["รอพิจารณา", "text-right"],
                   ["อนุมัติแล้ว", "text-right"],
                   ["ชั่วโมงรวม", "text-right"],
                   ...(canSeeFinance ? [["ยอดอนุมัติ", "text-right"]] : []),

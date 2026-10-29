@@ -1,7 +1,7 @@
 import React from "react";
 import { RefreshCw, Lock, History } from "lucide-react";
 import { C } from "../theme";
-import { getAuditMeta } from "../data/workflow";
+import { getAuditMeta, stripEscalateTag } from "../data/workflow";
 import { STATUS_STYLE } from "../theme";
 import { ROLE_META } from "../data/roles";
 import RoleBadge from "./RoleBadge";
@@ -12,6 +12,7 @@ const TONE = {
   green: "#1E8E4F",
   red: C.rose,
   amber: "#E8873A",
+  violet: "#6D4BC2",
 };
 
 function formatDateTime(value) {
@@ -112,7 +113,8 @@ export default function AuditTimeline({
   return (
     <ol className="relative">
       {sorted.map((item, index) => {
-        const meta = getAuditMeta(item.action);
+        const meta = getAuditMeta(item.action, item.comment);
+        const comment = stripEscalateTag(item.comment);
         const last = index === sorted.length - 1;
         const toLabel = STATUS_STYLE[item.toStatus]?.label;
 
@@ -158,12 +160,12 @@ export default function AuditTimeline({
               </span>
             </div>
 
-            {item.comment && (
+            {comment && (
               <p
                 className="text-sm mt-2 px-3 py-2 rounded-xl leading-6 whitespace-pre-wrap break-words"
                 style={{ background: "#F4F8FB", color: C.ink }}
               >
-                {item.comment}
+                {comment}
               </p>
             )}
           </li>

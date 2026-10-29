@@ -39,6 +39,8 @@ import {
   getLandingView,
   isClaimant,
   getQueueLabel,
+  PERMISSION as P,
+  can,
 } from "./data/roles";
 
 import { STATUS, normalizeStatus } from "./data/workflow";
@@ -57,6 +59,7 @@ import {
 } from "./services/auth";
 
 import useNotifications from "./hooks/useNotifications";
+import useEscalations from "./hooks/useEscalations";
 
 import {
   syncCurrentUser,
@@ -1011,11 +1014,23 @@ export default function App() {
    *  - ผู้ตรวจสอบ: คำขอใหม่รอตรวจ · ผู้อนุมัติ: คำขอที่ตรวจแล้วรออนุมัติ
    * สถานะอ่านแล้วเก็บใน localStorage แยกตามผู้ใช้ (ดู hooks/useNotifications.js)
    */
-  const queueClaimsForNotif = useMemo(
-    () => reviewClaims.map(decorateClaim),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reviewClaims, terms, periods]
+  // คำขอที่ผู้ตรวจสอบขอให้ผู้อนุมัติตรวจสอบหลักฐาน → ติด claim.escalation ให้ทุกหน้าของเจ้าหน้าที่ใช้ร่วมกัน
+  const escalations = useEscalations(
+    reviewClaims,
+    canAccessQueue(currentUser) && can(currentUser, P.AUDIT_VIEW)
   );
+
+  const queueClaims = useMemo(
+    () =>
+      reviewClaims.map((raw) => {
+        const claim = decorateClaim(raw);
+        const escalation = escalations.get(String(claim.id));
+        return escalation ? { ...claim, escalation } : claim;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reviewClaims, terms, periods, escalations]
+  );
+  const queueClaimsForNotif = queueClaims;
 
   const ownClaimsKey = claims
     .map((claim) => `${claim.id}:${claim.status}:${claim.updatedAt || ""}`)
@@ -1947,7 +1962,7 @@ export default function App() {
         return (
           <AdminOverview
             user={currentUser}
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             termLabel={currentTermLabel}
             loading={reviewLoading}
             goReview={openReview}
@@ -1963,7 +1978,7 @@ export default function App() {
             key={reviewFilter || "default"}
             initialStatus={reviewFilter}
             user={currentUser}
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             loading={reviewLoading}
             error={reviewError}
             onReload={loadReviewClaims}
@@ -1975,7 +1990,7 @@ export default function App() {
       case "auditlog":
         return (
           <AuditLog
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             goDetail={goReviewDetail}
           />
         );
@@ -1984,7 +1999,7 @@ export default function App() {
         return (
           <AdminManagement
             user={currentUser}
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             onReload={loadReviewClaims}
           />
         );
@@ -1993,7 +2008,7 @@ export default function App() {
         return (
           <Report
             user={currentUser}
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             loading={reviewLoading}
             error={reviewError}
             onReload={loadReviewClaims}
@@ -2053,7 +2068,7 @@ export default function App() {
         return (
           <ClaimDetail
             claim={selectedClaim}
-            claims={reviewClaims.map(decorateClaim)}
+            claims={queueClaims}
             course={
               courses.find(
                 (course) =>

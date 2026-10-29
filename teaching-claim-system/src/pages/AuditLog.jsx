@@ -13,7 +13,7 @@ import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import RoleBadge from "../components/RoleBadge";
 import { ROLE_META } from "../data/roles";
-import { AUDIT_ACTION_META, getAuditMeta } from "../data/workflow";
+import { AUDIT_ACTION_META, getAuditMeta, stripEscalateTag } from "../data/workflow";
 import { getAuditLogs } from "../services/api";
 import { downloadCsv } from "../utils/csv";
 
@@ -137,10 +137,10 @@ export default function AuditLog({
         r.createdAt,
         r.actorName,
         ROLE_META[r.actorRole]?.label || r.actorRole,
-        getAuditMeta(r.action).label,
+        getAuditMeta(r.action, r.comment).label,
         claimById.get(String(r.claimId))?.code || r.claimCode || r.claimId,
         STATUS_STYLE[r.toStatus]?.label || r.toStatus,
-        r.comment,
+        stripEscalateTag(r.comment),
       ])
     );
   };
@@ -316,7 +316,7 @@ export default function AuditLog({
 
             <tbody>
               {rows.map((row) => {
-                const meta = getAuditMeta(row.action);
+                const meta = getAuditMeta(row.action, row.comment);
                 const status = STATUS_STYLE[row.toStatus];
 
                 return (
@@ -385,7 +385,7 @@ export default function AuditLog({
                       className="px-5 py-3.5 max-w-xs whitespace-pre-wrap break-words"
                       style={{ color: C.ink }}
                     >
-                      {row.comment || "-"}
+                      {stripEscalateTag(row.comment) || "-"}
                     </td>
                   </tr>
                 );

@@ -1,6 +1,7 @@
 import { getIdToken } from "./auth";
 import { getDevUser } from "./devAuth";
 import { devMockRequest } from "./devMockApi";
+import { ESCALATE_TAG } from "../data/workflow";
 
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
 
@@ -253,6 +254,15 @@ const VALID_ACTIONS = new Set(["REVIEW_PASS", "APPROVE", "REJECT", "RETURN"]);
 
 // comment: เหตุผล (บังคับเมื่อ REJECT / RETURN)
 export function submitClaimAction(claimId, action, comment) {
+  // ส่งต่อแบบขอให้ผู้อนุมัติตรวจหลักฐาน = REVIEW_PASS + ป้ายหน้าหมายเหตุ (ดู ESCALATE_TAG)
+  if (action === "REVIEW_ESCALATE") {
+    return submitClaimAction(
+      claimId,
+      "REVIEW_PASS",
+      `${ESCALATE_TAG} ${comment?.trim() || ""}`
+    );
+  }
+
   if (!VALID_ACTIONS.has(action)) {
     throw new Error(`ไม่รู้จัก action: ${action}`);
   }
