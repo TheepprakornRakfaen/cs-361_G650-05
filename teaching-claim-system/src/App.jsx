@@ -1975,7 +1975,6 @@ export default function App() {
       case "auditlog":
         return (
           <AuditLog
-            user={currentUser}
             claims={reviewClaims.map(decorateClaim)}
             goDetail={goReviewDetail}
           />

@@ -12,9 +12,9 @@ import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import RoleBadge from "../components/RoleBadge";
-import { ROLE_META, PERMISSION as P, can } from "../data/roles";
+import { ROLE_META } from "../data/roles";
 import { AUDIT_ACTION_META, getAuditMeta } from "../data/workflow";
-import { getAuditLogs, getClaimHistory } from "../services/api";
+import { getAuditLogs } from "../services/api";
 import { downloadCsv } from "../utils/csv";
 
 const PAGE_SIZE = 50;
@@ -57,49 +57,12 @@ const inputClass =
  * [V3] Audit Log รวมทุกคำขอ — ค้นย้อนหลังได้ว่า "ใคร ทำอะไร กับคำขอไหน เมื่อไร"
  * ข้อมูลทั้งหมดมาจาก backend (อ่านอย่างเดียว) หน้านี้ไม่มีทางแก้หรือลบ log
  */
-/*
- * ผู้ไม่มีสิทธิ์ดูประวัติรวม (ผู้ตรวจสอบ) → รวมประวัติรายคำขอในคิวของตัวเองแทน
- * แล้วกรองตามตัวกรองเดียวกันฝั่งหน้าเว็บ
- */
-async function loadQueueHistory(claims, filters) {
-  const results = await Promise.all(
-    claims.map((claim) =>
-      getClaimHistory(claim.id)
-        .then((data) =>
-          (Array.isArray(data?.history) ? data.history : []).map((item) => ({
-            claim_id: claim.id,
-            ...item,
-          }))
-        )
-        .catch(() => [])
-    )
-  );
-
-  const actor = filters.actor.toLowerCase();
-
-  return results
-    .flat()
-    .map(normalizeLog)
-    .filter(
-      (r) =>
-        (!actor || r.actorName.toLowerCase().includes(actor)) &&
-        (!filters.action || r.action === filters.action) &&
-        (!filters.from || String(r.createdAt).slice(0, 10) >= filters.from) &&
-        (!filters.to || String(r.createdAt).slice(0, 10) <= filters.to)
-    )
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-}
-
 export default function AuditLog({
-  user,
   // คำขอในคิว — ใช้แปลง claim_id เป็นรหัสคำขอเต็ม และเปิดหน้ารายละเอียด
   claims = [],
   goDetail,
 }) {
   const claimById = new Map(claims.map((c) => [String(c.id), c]));
-  const queueOnly = !can(user, P.AUDIT_VIEW_ALL);
-  const canExport = can(user, P.DATA_EXPORT);
-  const claimIdsKey = queueOnly ? claims.map((c) => c.id).join(",") : "";
   const [draft, setDraft] = useState(EMPTY_FILTERS);
   const [applied, setApplied] = useState(EMPTY_FILTERS);
 
@@ -115,12 +78,6 @@ export default function AuditLog({
       setError("");
 
       try {
-        if (queueOnly) {
-          setRows(await loadQueueHistory(claims, filters));
-          setCursor(null);
-          return;
-        }
-
         const data = await getAuditLogs({
           ...filters,
           // วันที่สิ้นสุดนับรวมทั้งวัน
@@ -151,8 +108,7 @@ export default function AuditLog({
         setLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queueOnly, claimIdsKey]
+    []
   );
 
   useEffect(() => {
@@ -204,11 +160,7 @@ export default function AuditLog({
       <PageHeader
         icon={History}
         title="ประวัติการดำเนินการ"
-        description={
-          queueOnly
-            ? "บันทึกการยื่น ตรวจสอบ และส่งกลับของคำขอในคิวตรวจสอบ (อ่านอย่างเดียว)"
-            : "บันทึกการยื่น ตรวจสอบ อนุมัติ และส่งกลับของทุกคำขอ (อ่านอย่างเดียว)"
-        }
+        description="บันทึกการยื่น ตรวจสอบ อนุมัติ และส่งกลับของทุกคำขอ (อ่านอย่างเดียว)"
         action={
           <div className="flex items-center gap-2">
             <button
@@ -226,21 +178,19 @@ export default function AuditLog({
               รีเฟรช
             </button>
 
-            {canExport && (
-              <button
-                type="button"
-                onClick={exportCsv}
-                disabled={rows.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-                style={{
-                  background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
-                }}
-                title="ส่งออกเฉพาะรายการที่โหลดแล้ว"
-              >
-                <Download size={15} />
-                ส่งออก CSV
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={rows.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{
+                background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+              }}
+              title="ส่งออกเฉพาะรายการที่โหลดแล้ว"
+            >
+              <Download size={15} />
+              ส่งออก CSV
+            </button>
           </div>
         }
       />
