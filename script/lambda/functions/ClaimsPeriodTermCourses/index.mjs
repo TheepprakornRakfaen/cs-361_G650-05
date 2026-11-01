@@ -8,6 +8,7 @@
 //   GET /api/courses              -> section ที่ผู้ใช้สอน + ชั่วโมงสอนแล้ว / ทั้งหมด / คงเหลือ
 //       ?term_id=1                   กรองเฉพาะเทอม
 //       ?all=true                    ทุก section (ไม่กรองตามผู้สอน) ใช้ทดสอบ / Staff
+//   GET /api/compensation-types   -> ประเภทค่าตอบแทน + อัตราต่อชั่วโมง
 //
 // ทุก path ตั้ง Authorization เป็น Cognito authorizer
 // ผู้ใช้ (cognito_sub) มาจาก event.requestContext.authorizer.claims.sub
@@ -54,6 +55,7 @@ export const handler = async (event) => {
       case '/api/term':    return await getTerms();
       case '/api/period':  return await getPeriods(termId, all);
       case '/api/courses': return await getCourses(claims.sub, termId, all);
+      case '/api/compensation-types': return await getCompensationTypes();
       default:             return respond(404, { message: 'ไม่พบ endpoint นี้' });
     }
   } catch (err) {
@@ -77,6 +79,21 @@ async function getTerms() {
       ORDER BY year DESC, semester DESC`,
   );
   return respond(200, { count: rows.length, terms: rows });
+}
+
+// ---------------------------------------------------------------------
+// GET /api/compensation-types : ประเภทค่าตอบแทน + อัตราต่อชั่วโมง (dropdown ตอนยื่นคำร้อง)
+// ---------------------------------------------------------------------
+async function getCompensationTypes() {
+  const { rows } = await pool.query(
+    `SELECT id,
+            code,
+            name,
+            hourly_rate::float AS hourly_rate
+       FROM compensation_type
+      ORDER BY id`,
+  );
+  return respond(200, { count: rows.length, types: rows });
 }
 
 // ---------------------------------------------------------------------

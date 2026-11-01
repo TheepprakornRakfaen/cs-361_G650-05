@@ -33,13 +33,9 @@ import {
 } from "../utils/time";
 import { HOURLY_RATE } from "../data/rates";
 import { downloadSignForm, printSignForm } from "../utils/signForm";
-import { getClaimEvidence } from "../services/api";
+import { getClaimEvidence, getCompensationTypes } from "../services/api";
 import { getCompType } from "../services/claimMapper";
 import { STATUS } from "../data/workflow";
-import {
-  getCompTypesForRole,
-  getCompTypeMeta,
-} from "../data/compensationTypes";
 
 const STEP_TITLES = [
   "ข้อมูล",
@@ -317,9 +313,9 @@ export default function CreateClaim({
 
       rate: Number(firstCourse?.rate || 0),
 
+      // compensation_type.id จาก backend — ว่างไว้ก่อน แล้วเลือก TEACHING ให้เมื่อโหลดรายการเสร็จ
       compTypeId:
-        initialClaim?.compTypeId ||
-        (user?.role?.includes("TA") || user?.roleKey === "TA" ? "TA_LAB" : "TEACHER_LECTURE"),
+        initialClaim?.typeId != null ? String(initialClaim.typeId) : "",
 
       sessions: [emptySession()],
 
@@ -345,6 +341,44 @@ export default function CreateClaim({
 
   // จำนวนเอกสารลงนามที่มีในระบบแล้ว (กรณีแก้ไขคำขอที่ถูกส่งกลับ ไม่ต้องแนบซ้ำถ้ายังใช้ได้)
   const [existingSignedCount, setExistingSignedCount] = useState(0);
+
+  /*
+   * ประเภทค่าตอบแทนจาก backend (GET /api/compensation-types) เท่านั้น
+   * ระหว่างโหลด/โหลดไม่ได้ = [] (ไม่ส่ง type_id → backend ใช้ TEACHING)
+   */
+  const [apiCompTypes, setApiCompTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    getCompensationTypes()
+      .then((data) => {
+        const types = Array.isArray(data?.types) ? data.types : [];
+
+        if (!active || types.length === 0) return;
+
+        setApiCompTypes(types);
+
+        // ค่าที่เลือกไว้ไม่อยู่ในรายการจริง → เลือก TEACHING (หรือตัวแรก)
+        setForm((current) =>
+          types.some((t) => String(t.id) === String(current.compTypeId))
+            ? current
+            : {
+                ...current,
+                compTypeId: String(
+                  (types.find((t) => t.code === "TEACHING") || types[0]).id
+                ),
+              }
+        );
+      })
+      .catch((error) => {
+        console.warn("Load compensation types failed:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const id = initialClaim?.id;
@@ -400,9 +434,15 @@ export default function CreateClaim({
         form.courseCode
     );
 
-  const userRoleKey = user?.roleKey || (user?.role?.includes("TA") ? "TA" : "TEACHER");
-  const availableCompTypes = getCompTypesForRole(userRoleKey);
-  const currentCompType = getCompTypeMeta(form.compTypeId);
+  const availableCompTypes = apiCompTypes.map((t) => ({
+    id: String(t.id),
+    code: t.code,
+    name: t.name,
+    defaultRate: Number(t.hourly_rate),
+  }));
+  const currentCompType = availableCompTypes.find(
+    (t) => t.id === String(form.compTypeId)
+  );
 
   // อัตราตามประเภทค่าตอบแทนที่เลือก หรือตามการมอบหมายรายวิชา (FR2 & FR4)
   const rate = currentCompType?.defaultRate || Number(course?.rate) || HOURLY_RATE;
@@ -1120,24 +1160,17 @@ export default function CreateClaim({
                   value={form.compTypeId || ""}
                   onChange={(e) => set("compTypeId", e.target.value)}
                 >
+                  {availableCompTypes.length === 0 && (
+                    <option value="" disabled>
+                      กำลังโหลดประเภทค่าตอบแทน...
+                    </option>
+                  )}
                   {availableCompTypes.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} (฿{t.defaultRate}/ชม.)
                     </option>
                   ))}
                 </Select>
-                {currentCompType && (
-                  <div className="mt-2 text-xs space-y-1 p-3 rounded-xl bg-slate-50 border border-slate-200" style={{ color: C.sub }}>
-                    <p>
-                      <span className="font-semibold text-slate-700">หลักฐานที่กำหนดสำหรับประเภทนี้:</span>{" "}
-                      {currentCompType.requiredEvidence?.join(", ")}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-slate-700">เพดานชั่วโมง:</span> ไม่เกิน{" "}
-                      {currentCompType.maxHoursPerMonth || 40} ชม./เดือน
-                    </p>
-                  </div>
-                )}
               </Field>
 
               {/* ตำแหน่งและอัตรามาจากการมอบหมายงาน ผู้ใช้แก้เองไม่ได้ */}

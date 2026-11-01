@@ -45,14 +45,6 @@ import {
 
 import { STATUS, normalizeStatus } from "./data/workflow";
 
-import {
-  loadState,
-  saveState,
-  addClaim,
-  updateClaimFromForm,
-  deleteClaim as deleteLocalClaim,
-} from "./data/store";
-
 import { getAuthenticatedUser, logoutFromCognito } from "./services/auth";
 
 import useNotifications from "./hooks/useNotifications";
@@ -701,20 +693,6 @@ export default function App() {
     };
   }, [currentUser]);
 
-  const [state, setState] = useState(() => loadState());
-
-  /*
-   * บันทึก localStorage ทุกครั้งที่ state เปลี่ยน
-   */
-  const localDrafts = Array.isArray(state?.claims)
-    ? state.claims.filter(
-        (claim) =>
-          claim.status === "Draft" &&
-          currentUser &&
-          claim.owner === currentUser.username,
-      )
-    : [];
-
   /*
    * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
    * ใช้ทั้งคำขอของฉัน และคิวตรวจสอบ
@@ -750,18 +728,9 @@ export default function App() {
   };
 
   /*
-   * API Claims + local Draft
-   *
-   * local Draft เป็น temporary
-   * จนกว่า #24 backend จะเสร็จ
+   * คำขอของฉันจาก backend (รวมแบบร่าง status 0)
    */
-  const claims = [
-    ...localDrafts,
-    ...apiClaims.filter(
-      (apiClaim) =>
-        !localDrafts.some((draft) => String(draft.id) === String(apiClaim.id)),
-    ),
-  ]
+  const claims = [...apiClaims]
     .sort((a, b) => {
       const aTime = new Date(a.createdAt || 0).getTime();
 
@@ -1249,7 +1218,27 @@ export default function App() {
   /*
    * Submit คำขอ (สร้างใหม่ หรือยื่นคำขอที่แก้ไข)
    */
-  const handleSubmit = async (form, evidenceFiles = []) => {
+  const handleSubmit = (form, evidenceFiles = []) =>
+    saveClaimToApi(form, evidenceFiles, false);
+
+  /*
+   * บันทึก/ยื่นคำขอผ่าน backend
+   * isDraft = true → POST /api/claims status 0 (แบบร่างเก็บใน DB ไม่ใช่ localStorage)
+   */
+  const saveClaimToApi = async (form, evidenceFiles = [], isDraft = false) => {
+    const editingClaim = editingClaimId
+      ? apiClaims.find((item) => String(item.id) === String(editingClaimId))
+      : null;
+
+    // backend ไม่มี API แก้คำขอที่ถูกส่งคืนแบบไม่ยื่น → ต้องยื่นอีกครั้ง (resend)
+    if (isDraft && editingClaim?.status === STATUS.RETURNED) {
+      notify(
+        "คำขอที่ถูกส่งคืนบันทึกเป็นแบบร่างไม่ได้ กรุณาแก้ไขแล้วกดยื่นคำขออีกครั้ง",
+        "error",
+      );
+      return;
+    }
+
     try {
       /*
        * STEP 1
@@ -1266,13 +1255,10 @@ export default function App() {
        * STEP 2
        * Create Claim
        */
-      const returnedClaim = editingClaimId
-        ? apiClaims.find(
-            (item) =>
-              String(item.id) === String(editingClaimId) &&
-              item.status === STATUS.RETURNED,
-          )
-        : null;
+      const returnedClaim =
+        !isDraft && editingClaim?.status === STATUS.RETURNED
+          ? editingClaim
+          : null;
 
       /*
        * [V3] คำขอที่ถูกส่งกลับ → ยื่นใหม่บนคำขอเดิม (ไม่สร้างใหม่)
@@ -1357,7 +1343,7 @@ export default function App() {
           (claimResponse?.status != null &&
             normalizeStatus(claimResponse.status) !== STATUS.UNKNOWN &&
             normalizeStatus(claimResponse.status)) ||
-          STATUS.SUBMITTED,
+          (isDraft ? STATUS.DRAFT : STATUS.SUBMITTED),
 
         createdAt:
           claimResponse?.created_at ||
@@ -1384,35 +1370,21 @@ export default function App() {
        * ถ้ายื่นจากแบบร่างเดิม → ลบแบบร่างนั้นทิ้ง
        * ไม่งั้นจะมีทั้งร่างเก่าและคำขอที่ยื่นแล้วซ้อนกัน
        */
-      if (editingClaimId) {
-        const isLocalDraft = localDrafts.some(
-          (draft) => String(draft.id) === String(editingClaimId),
-        );
+      // ร่างเดิมใน backend → ลบผ่าน API (ถ้าลบไม่ได้ก็ไม่ให้การยื่นล้ม)
+      if (
+        editingClaim?.status === STATUS.DRAFT &&
+        String(editingClaim.id) !== String(claimId)
+      ) {
+        try {
+          await deleteClaim(editingClaim.id, currentUser?.cognitoSub);
 
-        if (isLocalDraft) {
-          setState(deleteLocalClaim(editingClaimId));
-        } else {
-          const oldClaim = apiClaims.find(
-            (item) => String(item.id) === String(editingClaimId),
+          setApiClaims((current) =>
+            current.filter(
+              (item) => String(item.id) !== String(editingClaim.id),
+            ),
           );
-
-          // ร่างที่อยู่ใน backend → ลบผ่าน API (ถ้าลบไม่ได้ก็ไม่ให้การยื่นล้ม)
-          if (
-            oldClaim?.status === "Draft" &&
-            String(oldClaim.id) !== String(claimId)
-          ) {
-            try {
-              await deleteClaim(oldClaim.id, currentUser?.cognitoSub);
-
-              setApiClaims((current) =>
-                current.filter(
-                  (item) => String(item.id) !== String(oldClaim.id),
-                ),
-              );
-            } catch (error) {
-              console.error("Submitted but old draft delete failed:", error);
-            }
-          }
+        } catch (error) {
+          console.error("Saved but old draft delete failed:", error);
         }
       }
 
@@ -1440,25 +1412,27 @@ export default function App() {
       // บางไฟล์ไม่สำเร็จ → หน้ารายละเอียดแสดงแถบแจ้งพร้อมปุ่ม "ลองอีกครั้ง"
       if (uploadResult.failed.length > 0) {
         notify(
-          `ยื่นคำขอเรียบร้อยแล้ว แต่แนบไฟล์ไม่สำเร็จ ${uploadResult.failed.length} ไฟล์\n` +
+          `${isDraft ? "บันทึกแบบร่าง" : "ยื่นคำขอ"}เรียบร้อยแล้ว แต่แนบไฟล์ไม่สำเร็จ ${uploadResult.failed.length} ไฟล์\n` +
             "กดปุ่ม “ลองอีกครั้ง” ในหน้ารายละเอียดคำขอได้เลย",
           "info",
         );
+      } else if (isDraft) {
+        notify("บันทึกแบบร่างเรียบร้อยแล้ว", "success");
       }
     } catch (error) {
-      console.error("Submit claim failed:", error);
+      console.error(isDraft ? "Save draft failed:" : "Submit claim failed:", error);
 
       notify(
-        error?.data?.message || error?.message || "ไม่สามารถยื่นคำขอได้",
+        error?.data?.message ||
+          error?.message ||
+          (isDraft ? "ไม่สามารถบันทึกแบบร่างได้" : "ไม่สามารถยื่นคำขอได้"),
         "error",
       );
     }
   };
 
   /*
-   * ลบคำขอ
-   * - ร่างใน localStorage → ลบในเครื่อง
-   * - คำขอจาก backend → DELETE /api/claims (body: claim_id, cognito_sub)
+   * ลบแบบร่าง → DELETE /api/claims (body: { id })
    */
   const handleDeleteClaim = (claim) => {
     // ลบได้เฉพาะแบบร่าง (คำขอที่ยื่นแล้วต้องเก็บไว้เพื่อตรวจสอบย้อนหลัง)
@@ -1477,20 +1451,12 @@ export default function App() {
   };
 
   const performDeleteClaim = async (claim) => {
-    const isLocalDraft = localDrafts.some(
-      (draft) => String(draft.id) === String(claim.id),
-    );
-
     try {
-      if (isLocalDraft) {
-        setState(deleteLocalClaim(claim.id));
-      } else {
-        await deleteClaim(claim.id, currentUser?.cognitoSub);
+      await deleteClaim(claim.id, currentUser?.cognitoSub);
 
-        setApiClaims((current) =>
-          current.filter((item) => String(item.id) !== String(claim.id)),
-        );
-      }
+      setApiClaims((current) =>
+        current.filter((item) => String(item.id) !== String(claim.id)),
+      );
 
       if (String(selectedClaimId) === String(claim.id)) {
         setSelectedClaimId(null);
@@ -1520,48 +1486,11 @@ export default function App() {
   }
 
   /*
-   * บันทึกร่างคำขอ (สร้างร่างใหม่ หรืออัปเดตร่างเดิม)
+   * บันทึกร่างคำขอใน backend (status 0) พร้อมไฟล์แนบ
+   * แก้ร่างเดิม = สร้างร่างใหม่แล้วลบร่างเดิม (backend ยังไม่มี API แก้ร่าง)
    */
-  const handleSaveDraft = (form, evidenceFiles = []) => {
-    /*
-     * File object เก็บใน
-     * localStorage ไม่ได้
-     *
-     * จึงไม่แกล้งเก็บชื่อไฟล์
-     * แล้วทำเหมือนยังมีไฟล์อยู่
-     */
-    const draftForm = {
-      ...form,
-      fileName: "",
-    };
-
-    const savedClaim = editingClaimId
-      ? updateClaimFromForm(editingClaimId, draftForm, "Draft")
-      : addClaim(draftForm, "Draft", currentUser?.username);
-
-    if (!savedClaim) {
-      notify("ไม่สามารถบันทึกแบบร่างได้", "error");
-
-      return;
-    }
-
-    if (evidenceFiles.length > 0) {
-      notify(
-        "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข",
-        "info",
-      );
-    }
-
-    const latestState = loadState();
-
-    setState(latestState);
-
-    setEditingClaimId(null);
-
-    setSelectedClaimId(savedClaim.id);
-
-    setView("detail");
-  };
+  const handleSaveDraft = (form, evidenceFiles = []) =>
+    saveClaimToApi({ ...form, status: 0 }, evidenceFiles, true);
 
   /*
    * หาคำขอที่เลือก

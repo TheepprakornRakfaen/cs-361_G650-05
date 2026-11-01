@@ -48,6 +48,12 @@ export function buildClaimApiPayload(form) {
     period_id: Number(form.periodId),
 
     section_id: Number(form.sectionId),
+
+    // compensation_type.id จาก dropdown — ประเภทในเครื่อง (ไม่ใช่ตัวเลข) ไม่ส่ง ให้ backend ใช้ TEACHING
+    ...(/^\d+$/.test(String(form.compTypeId ?? ""))
+      ? { type_id: Number(form.compTypeId) }
+      : {}),
+
     status,
     date,
 
@@ -243,6 +249,9 @@ export function normalizeClaim(raw) {
         compTypeName,
       };
     })(),
+
+    // compensation_type.id จริง (ใช้เลือกค่าเดิมใน dropdown ตอนแก้คำขอ)
+    typeId: raw.type_id ?? null,
 
     periodMonth: raw.period_month ?? null,
 

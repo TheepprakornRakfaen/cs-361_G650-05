@@ -941,14 +941,7 @@ async function handleClaimAction(cognitoSub, groups, claimId, rawBody) {
         c.claimant_id::text AS claimant_id,
         c.status,
         c.section_id,
-        COALESCE(
-          (
-            SELECT SUM(cd.hour)
-            FROM claim_date cd
-            WHERE cd.claim_id = c.id
-          ),
-          0
-        )::float AS hour
+        c.hour::float AS hour
       FROM claim c
       WHERE c.id = $1::uuid
       FOR UPDATE OF c
@@ -996,27 +989,27 @@ async function handleClaimAction(cognitoSub, groups, claimId, rawBody) {
       });
     }
 
-    // คืนชั่วโมงที่จองไว้ เมื่อไม่อนุมัติหรือส่งกลับแก้ไข
+    // คืนชั่วโมงที่ผู้ยื่นจองไว้ (section_staff.hour) เมื่อไม่อนุมัติหรือส่งกลับแก้ไข
     if (action === "REJECT" || action === "RETURN") {
       const {
-        rows: [schedule],
+        rows: [quota],
       } = await client.query(
         `
-          UPDATE class_schedule
-          SET hour = hour - $1
+          UPDATE section_staff
+          SET hour = GREATEST(hour - $1::numeric, 0)
           WHERE section_id = $2
-            AND hour >= $1
+            AND user_id = $3::uuid
           RETURNING hour::float AS hour
         `,
-        [Number(claim.hour), claim.section_id],
+        [Number(claim.hour), claim.section_id, claim.claimant_id],
       );
 
-      if (!schedule) {
+      if (!quota) {
         await client.query("ROLLBACK");
         transactionStarted = false;
 
         return respond(409, {
-          message: "ไม่สามารถคืนชั่วโมงของ Section ได้",
+          message: "ไม่พบโควตาชั่วโมงของผู้ยื่นใน Section นี้",
         });
       }
     }

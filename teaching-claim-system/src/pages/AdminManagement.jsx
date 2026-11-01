@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ShieldCheck,
   Plus,
@@ -73,6 +73,8 @@ import {
 } from "../data/roles";
 
 import { MOCK_USERS } from "../data/users";
+import { getDevUser } from "../services/devAuth";
+import { getCompensationTypes as fetchCompensationTypes } from "../services/api";
 
 const baht = (n) => `฿${Number(n || 0).toLocaleString("th-TH")}`;
 
@@ -90,6 +92,37 @@ export default function AdminManagement({ user, claims = [], onReload }) {
 
   // Compensation types state
   const [compTypes, setCompTypes] = useState(getCompensationTypes);
+  // true = รายการมาจาก GET /api/compensation-types (อ่านอย่างเดียว ยังไม่มี API เพิ่ม/แก้/ลบ)
+  const [compTypesFromApi, setCompTypesFromApi] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchCompensationTypes()
+      .then((data) => {
+        const types = Array.isArray(data?.types) ? data.types : [];
+
+        if (!active || types.length === 0) return;
+
+        setCompTypes(
+          types.map((t) => ({
+            id: String(t.id),
+            code: t.code,
+            name: t.name,
+            defaultRate: Number(t.hourly_rate),
+            status: "ACTIVE",
+          }))
+        );
+        setCompTypesFromApi(true);
+      })
+      .catch((error) => {
+        console.warn("Load compensation types failed, using local list:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
   const [compModalOpen, setCompModalOpen] = useState(false);
   const [editingComp, setEditingComp] = useState(null);
   const [compFormData, setCompFormData] = useState({
@@ -123,7 +156,8 @@ export default function AdminManagement({ user, claims = [], onReload }) {
   const [periods, setPeriods] = useState(getMasterPeriods);
 
   // Users state
-  const [usersList, setUsersList] = useState(MOCK_USERS);
+  // ผู้ใช้จำลองแสดงเฉพาะโหมดทดลอง — ล็อกอินจริงยังไม่มี API รายชื่อผู้ใช้
+  const [usersList, setUsersList] = useState(() => (getDevUser() ? MOCK_USERS : []));
   const [userRoleModal, setUserRoleModal] = useState(null); // selected user
   const [showMatrix, setShowMatrix] = useState(false);
   const [userSearch, setUserSearch] = useState("");
@@ -570,9 +604,12 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 ประเภทค่าตอบแทนในระบบ
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                รองรับการกำหนดประเภทค่าตอบแทน อัตราต่อชั่วโมง เอกสารหลักฐานที่ต้องแนบ และรองรับประเภทใหม่ในอนาคต
+                {compTypesFromApi
+                  ? "ข้อมูลจากฐานข้อมูล (ตาราง compensation_type) — ดูได้อย่างเดียว ยังไม่มี API เพิ่ม/แก้ไข/ลบ"
+                  : "รองรับการกำหนดประเภทค่าตอบแทน อัตราต่อชั่วโมง เอกสารหลักฐานที่ต้องแนบ และรองรับประเภทใหม่ในอนาคต"}
               </p>
             </div>
+            {!compTypesFromApi && (
             <button
               type="button"
               onClick={() => handleOpenCompModal()}
@@ -582,6 +619,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
               <Plus size={16} />
               <span>เพิ่มประเภทค่าตอบแทนใหม่</span>
             </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -609,7 +647,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                       </h4>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className={`flex items-center gap-1 ${compTypesFromApi ? "hidden" : ""}`}>
                       <button
                         type="button"
                         onClick={() => handleOpenCompModal(type)}
@@ -641,6 +679,9 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                       </span>
                     </div>
 
+                    {/* ผู้มีสิทธิ์ / เพดาน / หลักฐาน มีเฉพาะประเภทในเครื่อง — ตารางใน DB ยังไม่มี */}
+                    {!compTypesFromApi && (
+                    <>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-500">ผู้มีสิทธิ์เบิก:</span>
                       <div className="flex gap-1">
@@ -676,6 +717,8 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                         ))}
                       </div>
                     </div>
+                    </>
+                    )}
                   </div>
                 </div>
               </SectionCard>
@@ -1416,6 +1459,16 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                       </td>
                     </tr>
                   ))}
+
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-8 text-center text-xs text-slate-500">
+                        {usersList.length === 0
+                          ? "ยังไม่มี API รายชื่อผู้ใช้จาก backend — จัดการบทบาทได้ที่ Cognito group"
+                          : "ไม่พบผู้ใช้ที่ค้นหา"}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

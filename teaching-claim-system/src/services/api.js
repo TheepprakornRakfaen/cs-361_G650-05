@@ -253,6 +253,16 @@ export function getCourses(termId) {
 }
 
 /*
+ * ประเภทค่าตอบแทนจากตาราง compensation_type
+ * คืน { types: [{ id, code, name, hourly_rate }] }
+ */
+export function getCompensationTypes() {
+  return apiRequest("/api/compensation-types", {
+    method: "GET",
+  });
+}
+
+/*
  * =====================
  * [V3] Workflow & Audit
  *

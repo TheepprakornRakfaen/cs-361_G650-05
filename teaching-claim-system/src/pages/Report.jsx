@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, RefreshCw, Loader2, Download } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
@@ -9,11 +9,12 @@ import { STATUS } from "../data/workflow";
 import { PERMISSION as P, can } from "../data/roles";
 import { downloadCsv } from "../utils/csv";
 import { formatDuration } from "../utils/time";
-import {
-  getCompensationTypes,
-  resolveClaimCompType,
-} from "../data/compensationTypes";
+import { resolveClaimCompType } from "../data/compensationTypes";
 import { getSystemRules } from "../data/rulesConfig";
+import {
+  getCompensationTypes as fetchCompensationTypes,
+  getTerms,
+} from "../services/api";
 
 // ประเภทค่าตอบแทนของคำขอ (ใช้ค่าที่ normalizeClaim ใส่ไว้ ถ้าไม่มีค่อยคำนวณสด)
 const claimTypeId = (claim) =>
@@ -42,6 +43,9 @@ const dateOnly = (value) => {
 };
 
 const claimDate = (claim) => dateOnly(claim.submittedAt || "");
+
+// ภาค "1/2569" — คำขอในรายงานไม่ได้ผ่าน decorateClaim จึงใช้ semester (term จาก backend) แทน
+const claimTerm = (claim) => claim.termLabel || claim.semester || "";
 
 // กลุ่มสถานะสำหรับรายงาน (เรียงตามลำดับกระบวนการ)
 const STATUS_GROUPS = [
@@ -120,18 +124,59 @@ function SummaryReport({ claims, canExport, canViewPII }) {
   const rules = getSystemRules();
   const annualBudget = Number(rules.annualBudget || 2500000);
 
-  // ประเภทค่าตอบแทนที่ยังเปิดใช้งาน (ละเอียด 4 แบบ หรือมากกว่าถ้าแอดมินเพิ่ม)
+  /*
+   * ตัวเลือกของ dropdown จาก DB โหลดครั้งเดียวตอนเปิดหน้า (เรียกพร้อมกัน 2 ตัว)
+   *   ประเภทค่าตอบแทน : GET /api/compensation-types
+   *   ภาคการศึกษา     : GET /api/term (ล่าสุดก่อน)
+   * ระหว่างโหลด/โหลดไม่ได้ dropdown มีแค่ตัวเลือก "ทุก..."
+   */
+  const [apiTypes, setApiTypes] = useState([]);
+  const [apiTerms, setApiTerms] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchCompensationTypes()
+      .then((data) => {
+        const types = Array.isArray(data?.types) ? data.types : [];
+        if (active && types.length > 0) setApiTypes(types);
+      })
+      .catch((error) => {
+        console.warn("Load compensation types failed:", error);
+      });
+
+    getTerms()
+      .then((data) => {
+        const list = Array.isArray(data?.terms) ? data.terms : [];
+        if (active && list.length > 0) setApiTerms(list);
+      })
+      .catch((error) => {
+        console.warn("Load terms failed:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const compTypeList = useMemo(
-    () => getCompensationTypes().filter((t) => t.status !== "INACTIVE"),
+    () => apiTypes.map((t) => ({ id: String(t.id), name: t.name })),
+    [apiTypes],
+  );
+
+  // กรองด้วย type_id จาก backend — คำขอโหลดมาแล้วทั้งหมด จึงกรองในเครื่องได้ทันที ไม่ต้องเรียก API ใหม่ทุกครั้งที่เปลี่ยน dropdown
+  const typeKey = useCallback(
+    (c) => (c.typeId != null ? String(c.typeId) : claimTypeId(c)),
     [],
   );
 
+  // "1/2569" — ตรงกับ claim.termLabel ที่ใช้กรอง
   const terms = useMemo(
     () =>
-      [...new Set(claims.map((c) => c.termLabel).filter(Boolean))]
-        .sort()
-        .reverse(),
-    [claims],
+      apiTerms
+        .map((t) => t.label || `${t.semester}/${t.year}`)
+        .filter(Boolean),
+    [apiTerms],
   );
 
   const filtered = useMemo(
@@ -139,8 +184,8 @@ function SummaryReport({ claims, canExport, canViewPII }) {
       claims.filter((c) => {
         if (c.status === STATUS.DRAFT || c.status === STATUS.UNKNOWN)
           return false;
-        if (term !== "All" && c.termLabel !== term) return false;
-        if (compType !== "All" && claimTypeId(c) !== compType) return false;
+        if (term !== "All" && claimTerm(c) !== term) return false;
+        if (compType !== "All" && typeKey(c) !== compType) return false;
         if (group !== "All" && groupOf(c.status) !== group) return false;
 
         const day = claimDate(c);
@@ -150,7 +195,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
 
         return true;
       }),
-    [claims, from, to, term, compType, group],
+    [claims, from, to, term, compType, group, typeKey],
   );
 
   // ตาราง: แถว = ประเภทค่าตอบแทนละเอียด, คอลัมน์ = กลุ่มสถานะ
@@ -158,7 +203,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
     // จัดกลุ่มคำขอตาม compTypeId ครั้งเดียว (เร็วกว่า filter ซ้ำทุกประเภท)
     const buckets = new Map();
     filtered.forEach((c) => {
-      const id = claimTypeId(c);
+      const id = typeKey(c);
       if (!buckets.has(id)) buckets.set(id, []);
       buckets.get(id).push(c);
     });
@@ -200,7 +245,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
           ),
         };
       });
-  }, [filtered, compTypeList]);
+  }, [filtered, compTypeList, typeKey]);
 
   // ตาราง: แถว = ภาค + เดือนของรอบการยื่น
   const byPeriod = useMemo(() => {
