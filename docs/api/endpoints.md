@@ -64,10 +64,9 @@ Lambda: `ClaimsPeriodTermCourses` · section ที่ผู้ใช้เป�
 { "count": 1, "courses": [
   { "section_id": 1, "course_code": "CS361", "course_name_th": "...", "course_name_en": "...",
     "section_no": "1", "term_id": 1, "term_label": "1/2569", "role": "INSTRUCTOR",
-    "start_time": "09:00:00", "end_time": "12:00:00",
     "hour": 9, "max_hour": 45, "remaining_hour": 36 } ] }
 ```
-หลัง migration 012: `start_time/end_time` หายไป และ `hour/max_hour` มาจาก `section`
+หลัง migration 017: `start_time/end_time` ไม่มีแล้ว และ `hour/max_hour` เป็นโควตาของผู้ใช้คนนั้นจาก `section_staff`
 
 ---
 

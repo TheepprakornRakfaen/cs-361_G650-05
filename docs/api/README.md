@@ -78,6 +78,6 @@ REST API บน Amazon API Gateway (`cs361-claims-api`, stage `v2`) ต่อก
 
 ## ข้อควรระวังของโค้ดปัจจุบัน
 
-1. โค้ด `ClaimUserRequest` และ `ClaimsPeriodTermCourses` เป็นรุ่นก่อน migration 012 (ใช้ `class_schedule`, `claim_date.hour`) ต้องแก้ก่อนรัน 012 บน RDS
+1. โค้ด `ClaimUserRequest` และ `ClaimsPeriodTermCourses` เขียนสำหรับ schema หลัง migration 012 (ชั่วโมงรวมที่ `claim.hour`, โควตาแยกรายคนที่ `section_staff.hour/max_hour` ต้องรัน migration 017)
 2. `ClaimsPeriodTermCourses` (`/api/period`) เทียบ `claim_period.status = 'OPEN'` (ข้อความ) แต่ใน migration 008 และ `ClaimUserRequest` ใช้ตัวเลข `status = 1` ให้ตรวจว่าเวอร์ชันที่ deploy ใช้แบบไหน
 3. ค่า `Access-Control-Allow-Origin` ในทุก Lambda เป็น `*` ควรจำกัดเป็นโดเมน Amplify เมื่อใช้งานจริง

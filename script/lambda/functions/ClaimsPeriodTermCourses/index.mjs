@@ -15,8 +15,8 @@
 // Environment variables:
 //   DATABASE_URL = postgres://claim_admin:<PASSWORD>@<RDS_ENDPOINT>:5432/claims
 //
-// รุ่นหลัง migration 012: ชั่วโมงสอนอยู่ที่ section.hour / section.max_hour
-// (ไม่มี class_schedule แล้ว และไม่มี start_time / end_time)
+// รุ่นหลัง migration 017: โควตาชั่วโมงแยกรายคนอยู่ที่ section_staff.hour / max_hour
+// (ไม่มี class_schedule และไม่มี start_time / end_time)
 // อยู่ใน VPC เดียวกับ RDS (security group: cs361-lambda-sg)
 // =====================================================================
 import pg from 'pg';
@@ -103,7 +103,7 @@ async function getPeriods(termId, all) {
 }
 
 // ---------------------------------------------------------------------
-// GET /api/courses : section + ชั่วโมงสอน จาก section.hour / max_hour (หลัง 012)
+// GET /api/courses : section + โควตาชั่วโมงของผู้ใช้คนนั้น จาก section_staff.hour / max_hour
 // ---------------------------------------------------------------------
 async function getCourses(cognitoSub, termId, all) {
   const { rows } = await pool.query(
@@ -115,9 +115,9 @@ async function getCourses(cognitoSub, termId, all) {
             s.term_id,
             t.semester || '/' || t.year   AS term_label,
             ss.role,                                           -- INSTRUCTOR / TA (NULL ถ้า all=true แล้วไม่ได้สอน)
-            s.hour::float                 AS hour,             -- สอน (เบิก) ไปแล้ว
-            s.max_hour::float             AS max_hour,         -- ชั่วโมงทั้งหมด
-            (s.max_hour - s.hour)::float  AS remaining_hour    -- เหลือ
+            COALESCE(ss.hour, 0)::float                          AS hour,           -- ผู้ใช้คนนี้เบิกไปแล้ว
+            COALESCE(ss.max_hour, 0)::float                      AS max_hour,       -- โควตาของผู้ใช้คนนี้
+            (COALESCE(ss.max_hour, 0) - COALESCE(ss.hour, 0))::float AS remaining_hour  -- เหลือ
        FROM section s
        JOIN course         co ON co.id = s.course_id
        JOIN academic_term  t  ON t.id  = s.term_id

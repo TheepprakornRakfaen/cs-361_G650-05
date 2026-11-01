@@ -1,0 +1,105 @@
+erDiagram
+    course ||--o{ section : "has"
+    academic_term ||--o{ section : "has"
+    academic_term ||--o{ claim_period : "has"
+    section ||--o{ section_staff : "staffed by"
+    app_user ||--o{ section_staff : "teaches"
+    app_user ||--o{ claim : "files"
+    claim_period ||--o{ claim : "in"
+    section ||--o{ claim : "for"
+    compensation_type |o--o{ claim : "type"
+    claim ||--o{ claim_date : "has"
+    claim ||--o{ claim_evidence : "has"
+    app_user |o--o{ claim_evidence : "uploads"
+    claim ||..o{ audit_log : "logged in"
+    app_user |o..o{ audit_log : "acts"
+
+    app_user {
+        UUID cognito_sub PK
+        TEXT username UK
+        TEXT name
+        TEXT bank_name
+        TEXT bank_account_no
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ synced_at
+    }
+    academic_term {
+        SERIAL id PK
+        INT year UK
+        INT semester UK
+        DATE start_date
+        DATE end_date
+    }
+    course {
+        SERIAL id PK
+        TEXT code UK
+        TEXT name_th
+        TEXT name_en
+    }
+    section {
+        SERIAL id PK
+        INT course_id FK
+        INT term_id FK
+        TEXT section_no
+    }
+    section_staff {
+        INT section_id PK, FK
+        UUID user_id PK, FK
+        TEXT role
+        NUMERIC hour
+        NUMERIC max_hour
+    }
+    claim_period {
+        SERIAL id PK
+        INT term_id FK
+        INT month
+        TIMESTAMPTZ open_at
+        TIMESTAMPTZ close_at
+        SMALLINT status
+    }
+    compensation_type {
+        SERIAL id PK
+        TEXT code UK
+        TEXT name
+        NUMERIC hourly_rate
+    }
+    claim {
+        UUID id PK
+        UUID claimant_id FK
+        INT period_id FK
+        INT section_id FK
+        INT type_id FK
+        NUMERIC hour
+        SMALLINT status
+        TEXT note
+        TIMESTAMPTZ submitted_at
+        TIMESTAMPTZ created_at
+    }
+    claim_date {
+        SERIAL id PK
+        UUID claim_id FK
+        DATE teach_date
+    }
+    claim_evidence {
+        UUID id PK
+        UUID claim_id FK
+        TEXT object_key UK
+        TEXT file_name
+        TEXT content_type
+        BIGINT file_size
+        TEXT evidence_type
+        UUID uploaded_by FK
+        TIMESTAMPTZ created_at
+    }
+    audit_log {
+        BIGSERIAL id PK
+        UUID claim_id
+        TEXT action
+        UUID actor_sub
+        TEXT actor_name
+        TEXT actor_role
+        TEXT from_status
+        TEXT to_status
+        TEXT comment
+        TIMESTAMPTZ created_at
+    }

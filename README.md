@@ -68,7 +68,7 @@
 
 ## 4. ฐานข้อมูล (Database)
 
-![CS361 V3 Database Schema](docs/database/V3_Databaseschema.png)
+![CS361 Database Schema](docs/database/V4_Databaseschema.png)
 
 - สคริปต์สร้างและแก้โครงสร้างฐานข้อมูลอยู่ใน [docs/database/migrations/](docs/database/migrations/) รันตามลำดับเลขไฟล์
 - ผู้ใช้ใน Cognito เป็นแหล่งข้อมูลหลัก ส่วนตาราง `app_user` เป็นเพียงสำเนาบางส่วน โดยใช้ `cognito_sub` เป็นคีย์
@@ -139,7 +139,7 @@ cs-361_G650-05/
 | `docs/api/` | เอกสาร API: `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
 | `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
-| `docs/database/` | ภาพ ER diagram `V3_Databaseschema.png` |
+| `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` (รุ่นเก่า `V3_Databaseschema.png`) |
 | `docs/database/migrations/` | SQL สำหรับสร้างและแก้ฐานข้อมูล รันตามลำดับ (ตารางด้านล่าง) |
 | `docs/testing/` | สคริปต์ทดสอบสิทธิ์และความปลอดภัย `rbac_security_test.sh` |
 
@@ -159,6 +159,11 @@ cs-361_G650-05/
 | `010_claim_review_status.sql` | เปลี่ยนสถานะเป็นชุด 0-5 สำหรับขั้นตรวจและอนุมัติ |
 | `011_audit_log.sql` | ตาราง `audit_log` เก็บประวัติการตรวจและอนุมัติ |
 | `012_claim_hour_section_merge.sql` | ย้ายชั่วโมงไปที่ `claim.hour`, ยื่นได้หลายครั้งต่อเดือน, รวม `class_schedule` เข้า `section` |
+| `013_seed_mock_reference.sql` | ข้อมูลทดสอบชุดใหม่ (ภาคการศึกษา / รายวิชา / section / รอบเบิก) |
+| `014_app_user_bank_account.sql` | เพิ่ม `bank_name`, `bank_account_no` ใน `app_user` |
+| `015_claim_evidence_type.sql` | เพิ่ม `evidence_type`, `uploaded_by` ใน `claim_evidence` |
+| `016_compensation_type_rate.sql` | ย้ายอัตราค่าตอบแทนไปที่ `compensation_type.hourly_rate` (ลบ `claim.hourly_rate`, `course.hourly_rate`) |
+| `017_section_staff_quota.sql` | ย้ายโควตาชั่วโมง `hour` / `max_hour` จาก `section` ไปที่ `section_staff` (แยกรายคน) |
 
 ### สคริปต์ AWS (`script/`)
 

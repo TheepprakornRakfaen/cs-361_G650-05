@@ -13,7 +13,7 @@
 //   - date รับทั้ง ["2026-09-01"] และ [{ date: "2026-09-01" }]
 //   - ถ้าไม่ส่ง hour แต่ date เป็น [{date, hour}] แบบเก่า จะรวม hour ให้ (เข้ากันได้ย้อนหลัง)
 //
-// ตัวนับ section.hour = ชั่วโมงที่เบิกไปแล้ว (คำร้องสถานะ 1,2,3)
+// ตัวนับ section_staff.hour = ชั่วโมงที่ผู้ยื่นคนนั้นเบิกไปแล้วใน section (คำร้องสถานะ 1,2,3)
 //   - +hour ตอนยื่น (status 1) / ส่งใหม่  - ถ้าเกิน max_hour ปฏิเสธ
 //   - ตอนไม่อนุมัติ (4) / ส่งคืนแก้ไข (5) ต้อง -hour ที่ ClaimReview / Workflow
 //   - ไม่มี uq_claim_one_per_month แล้ว: ยื่นวิชาเดียวกันได้หลายครั้งต่อเดือน
@@ -127,8 +127,8 @@ async function queryClaims(cognitoSub) {
             c.status,
             COALESCE(d.dates, '[]')      AS date,
             c.hour::float                AS hour,
-            c.hourly_rate::float         AS rate,
-            (c.hour * c.hourly_rate)::float AS amount,
+            ct.hourly_rate::float        AS rate,
+            (c.hour * ct.hourly_rate)::float AS amount,
             c.note,
             c.submitted_at,
             c.created_at,
@@ -142,6 +142,7 @@ async function queryClaims(cognitoSub) {
             p.month                      AS period_month
        FROM claim c
        JOIN app_user           u  ON u.cognito_sub = c.claimant_id
+       JOIN compensation_type  ct ON ct.id = c.type_id
        JOIN section            s  ON s.id  = c.section_id
        JOIN course             co ON co.id = s.course_id
        JOIN academic_term      t  ON t.id  = s.term_id
@@ -196,7 +197,7 @@ async function validateClaim(cognitoSub, body, excludeClaimId = null) {
             p.term_id AS period_term,
             (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at) AS period_open,
             ss.role   AS staff_role,
-            (s.max_hour - s.hour)::float AS remaining_hour,
+            (ss.max_hour - ss.hour)::float AS remaining_hour,
             (SELECT bool_and(d BETWEEN t.start_date AND t.end_date)
                FROM unnest($3::date[]) AS d) AS date_in_term
        FROM (SELECT 1) AS x
@@ -242,15 +243,15 @@ async function validateClaim(cognitoSub, body, excludeClaimId = null) {
 }
 
 // ---------------------------------------------------------------------
-// จองชั่วโมงใน section (ตัวนับ section.hour) ภายใน transaction เดียวกับคำร้อง
+// จองชั่วโมงของผู้ยื่นใน section (ตัวนับ section_staff.hour) ภายใน transaction เดียวกับคำร้อง
 // UPDATE เดียว เช็ก max_hour พร้อมกัน -> ไม่เกิดช่วงชิงกันระหว่างหลายคนยื่นพร้อมกัน
 // คืน true ถ้าจองได้, false ถ้าเกิน max_hour
 // ---------------------------------------------------------------------
-async function reserveHours(client, sectionId, hour) {
+async function reserveHours(client, sectionId, cognitoSub, hour) {
   const { rowCount } = await client.query(
-    `UPDATE section SET hour = hour + $2::numeric
-      WHERE id = $1 AND hour + $2::numeric <= max_hour`,
-    [sectionId, hour],
+    `UPDATE section_staff SET hour = hour + $3::numeric
+      WHERE section_id = $1 AND user_id = $2::uuid AND hour + $3::numeric <= max_hour`,
+    [sectionId, cognitoSub, hour],
   );
   return rowCount === 1;
 }
@@ -291,7 +292,7 @@ async function createClaim(cognitoSub, rawBody) {
     );
 
     // ร่าง (0) ยังไม่จองชั่วโมง จองเมื่อยื่น (1)
-    if (status === 1 && !(await reserveHours(client, data.sectionId, data.hour))) {
+    if (status === 1 && !(await reserveHours(client, data.sectionId, cognitoSub, data.hour))) {
       await client.query('ROLLBACK');
       return respond(400, { message: 'ชั่วโมงเกินที่เหลือของ section' });
     }
@@ -355,7 +356,7 @@ async function resendClaim(cognitoSub, claimId, rawBody) {
     );
 
     // คำร้องสถานะ 5 ไม่นับในตัวนับ -> จองชั่วโมงใหม่ตอนส่งใหม่
-    if (!(await reserveHours(client, data.sectionId, data.hour))) {
+    if (!(await reserveHours(client, data.sectionId, cognitoSub, data.hour))) {
       await client.query('ROLLBACK');
       return respond(400, { message: 'ชั่วโมงเกินที่เหลือของ section' });
     }

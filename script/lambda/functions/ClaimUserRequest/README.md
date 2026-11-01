@@ -8,10 +8,10 @@
 | POST | `/api/claims/{id}/resend` | แก้คำขอที่ถูกส่งคืน (5) แล้วยื่นใหม่ (1) | TEACHER, TA (เจ้าของ) |
 | DELETE | `/api/claims` | ลบแบบร่างของตัวเอง body `{ "id": "<uuid>" }` | TEACHER, TA |
 
-- ตาราง: `claim`, `claim_date`, `claim_period`, `section`, `section_staff`, `course`, `academic_term`, `app_user`, `compensation_type`, `class_schedule`
+- ตาราง: `claim`, `claim_date`, `claim_period`, `section`, `section_staff`, `course`, `academic_term`, `app_user`, `compensation_type`
 - Env: `DATABASE_URL`
 - การตรวจก่อนบันทึก: ภาค/รอบ/section ตรงกัน, รอบเปิดอยู่, วันสอนอยู่ในภาคการศึกษา, เป็นผู้สอนหรือ TA ของ section, ชั่วโมงไม่เกินที่เหลือ, วันไม่ซ้ำ, ชั่วโมง/วัน 0–12
 - ข้อความ error ไม่เปิดเผยรายละเอียด DB (ดูใน CloudWatch)
 
-> ⚠️ โค้ดนี้เป็นรุ่นก่อน migration 012 (ชั่วโมงอยู่ที่ `claim_date.hour`, ชั่วโมงเหลืออยู่ที่ `class_schedule`)
-> ต้องแก้ให้ใช้ `claim.hour` และ `section.hour/max_hour` พร้อมย้ายการกันวันซ้ำข้ามคำขอมาตรวจใน Lambda ก่อนรัน 012 บน RDS
+> โค้ดนี้เขียนสำหรับ schema หลัง migration 012: ชั่วโมงรวมที่ `claim.hour`, วันสอนที่ `claim_date.teach_date`, โควตาชั่วโมงแยกรายคนที่ `section_staff.hour/max_hour` (ตัวนับ บวกตอนยื่น/ส่งใหม่ ต้องรัน migration 017)
+> การกันวันสอนซ้ำข้ามคำขอตรวจใน Lambda (ไม่มี `uq_claim_one_per_month` แล้ว)
