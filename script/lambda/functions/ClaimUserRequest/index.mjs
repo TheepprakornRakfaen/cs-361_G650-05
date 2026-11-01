@@ -3,6 +3,7 @@
 //
 //   GET    /api/claims                  -> คำร้องของตัวเอง
 //   GET    /api/claims?scope=review     -> คิวตรวจ (REVIEWER / APPROVER) ทุกคน ยกเว้นร่าง
+//   GET    /api/claims?scope=report     -> รายงานสรุปยอด (APPROVER / ADMIN) ทุกคน ยกเว้นร่าง
 //   POST   /api/claims                  -> สร้างคำร้อง (status 0 ร่าง / 1 ยื่น)
 //   POST   /api/claims/{id}/resend      -> แก้คำร้องที่ถูกส่งคืน (5) แล้วยื่นใหม่ (1)
 //   DELETE /api/claims                  -> ลบร่างของตัวเอง  Body: { id }
@@ -39,6 +40,7 @@ const DEFAULT_TYPE_CODE = 'TEACHING';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLAIMANT_GROUPS = ['TEACHER', 'TA'];
 const REVIEW_GROUPS = ['REVIEWER', 'APPROVER'];
+const REPORT_GROUPS = ['APPROVER', 'ADMIN'];   // รายงานสรุปยอดเบิก (อ่านอย่างเดียว)
 
 // ดึง Group จาก Cognito Claims ที่ API Gateway ตรวจสอบแล้ว
 const getGroups = (claims) => {
@@ -55,6 +57,7 @@ const hasAnyGroup = (claims, allowedGroups) =>
 
 const isClaimant = (claims) => hasAnyGroup(claims, CLAIMANT_GROUPS);
 const isReviewer = (claims) => hasAnyGroup(claims, REVIEW_GROUPS);
+const canReport  = (claims) => hasAnyGroup(claims, REPORT_GROUPS);
 
 const respond = (statusCode, body) => ({
   statusCode,
@@ -81,6 +84,10 @@ export const handler = async (event) => {
     if (event.httpMethod === 'GET') {
       if (event.queryStringParameters?.scope === 'review') {
         if (!isReviewer(claims)) return respond(403, { message: 'คุณไม่มีสิทธิ์ดูคิวตรวจสอบ' });
+        return await queryClaims(null);
+      }
+      if (event.queryStringParameters?.scope === 'report') {
+        if (!canReport(claims)) return respond(403, { message: 'คุณไม่มีสิทธิ์ดูรายงาน' });
         return await queryClaims(null);
       }
       if (!isClaimant(claims)) return respond(403, { message: 'คุณไม่มีสิทธิ์ดูรายการคำร้องส่วนนี้' });
