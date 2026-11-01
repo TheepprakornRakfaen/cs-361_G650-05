@@ -134,10 +134,26 @@ export function syncCurrentUser() {
  * scope "mine"   = คำขอของตัวเอง (ค่าเริ่มต้น)
  * scope "review" = คิวของเจ้าหน้าที่/ผู้อนุมัติ/ผู้ดูแล — backend ต้องตรวจสิทธิ์เอง
  */
-export function getClaims(scope) {
-  const query = scope ? `?scope=${encodeURIComponent(scope)}` : "";
+export function getClaims(scope, pagination = {}) {
+  const params = new URLSearchParams();
 
-  return apiRequest(`/api/claims${query}`, {
+  if (scope) {
+    params.set("scope", scope);
+  }
+
+  const { limit, offset } = pagination;
+
+  if (limit !== undefined && limit !== null) {
+    params.set("limit", String(limit));
+  }
+
+  if (offset !== undefined && offset !== null) {
+    params.set("offset", String(offset));
+  }
+
+  const query = params.toString();
+
+  return apiRequest(`/api/claims${query ? `?${query}` : ""}`, {
     method: "GET",
   });
 }
