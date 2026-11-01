@@ -1311,6 +1311,131 @@ async function getAuditLogs(cognitoSub, groups, filters = {}) {
   }
 }
 
+async function batchReviewPass(cognitoSub, groups, rawBody) {
+  const body = parseBody(rawBody);
+
+  if (!body) {
+    return respond(400, {
+      message: "รูปแบบ JSON ไม่ถูกต้อง",
+    });
+  }
+
+  const isReviewer = ["REVIEWER", "STAFF"].some((role) =>
+    groups.includes(role),
+  );
+
+  if (!isReviewer) {
+    return respond(403, {
+      message: "คุณไม่มีสิทธิ์ดำเนินการนี้",
+    });
+  }
+
+  const claimIds = body.claimIds;
+  const comment = typeof body.comment === "string" ? body.comment.trim() : "";
+
+  if (
+    !Array.isArray(claimIds) ||
+    claimIds.length === 0 ||
+    claimIds.length > 50 ||
+    !claimIds.every(isUuid) ||
+    new Set(claimIds).size !== claimIds.length
+  ) {
+    return respond(400, {
+      message: "รายการ Claim ID ไม่ถูกต้อง",
+    });
+  }
+
+  if (comment.length > 2000) {
+    return respond(400, {
+      message: "เหตุผลต้องมีความยาวไม่เกิน 2000 ตัวอักษร",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const results = [];
+
+    for (const claimId of claimIds) {
+      const {
+        rows: [claim],
+      } = await client.query(
+        `
+        SELECT id, claimant_id::text AS claimant_id, status
+        FROM claim
+        WHERE id = $1::uuid
+        FOR UPDATE
+        `,
+        [claimId],
+      );
+
+      if (!claim) {
+        throw new Error(`ไม่พบ Claim: ${claimId}`);
+      }
+
+      if (claim.claimant_id === cognitoSub) {
+        throw new Error("ไม่สามารถตรวจสอบคำขอของตัวเองได้");
+      }
+
+      if (Number(claim.status) !== 1) {
+        throw new Error(`Claim ${claimId} ไม่ได้อยู่ในสถานะ Submitted`);
+      }
+
+      const {
+        rows: [updated],
+      } = await client.query(
+        `
+        UPDATE claim
+        SET status = 2
+        WHERE id = $1::uuid AND status = 1
+        RETURNING id, status
+        `,
+        [claimId],
+      );
+
+      if (!updated) {
+        throw new Error(`ไม่สามารถอัปเดต Claim ${claimId} ได้`);
+      }
+
+      await writeAuditLog(client, {
+        claimId,
+        action: "REVIEW_PASS",
+        actorSub: cognitoSub,
+        groups,
+        fromStatus: 1,
+        toStatus: 2,
+        comment: comment || null,
+      });
+
+      results.push(updated);
+    }
+
+    await client.query("COMMIT");
+
+    return respond(200, {
+      message: "ตรวจสอบคำขอเป็นกลุ่มเรียบร้อยแล้ว",
+      total: results.length,
+      claims: results,
+    });
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      console.error("Batch rollback failed:", rollbackError);
+    }
+
+    console.error("Batch review error:", error.message);
+
+    return respond(400, {
+      message: error.message || "ไม่สามารถตรวจสอบคำขอเป็นกลุ่มได้",
+    });
+  } finally {
+    client.release();
+  }
+}
+
 /*
  * ============================================
  * Handler
@@ -1349,6 +1474,29 @@ export const handler = async (event) => {
       console.error("Audit logs error:", error.code, error.message);
       return respond(500, {
         message: "ไม่สามารถดึง Audit Log ได้",
+      });
+    }
+  }
+
+  // Batch review does not require a single claimId.
+  if (
+    event.httpMethod === "POST" &&
+    event.resource === "/api/claims/batch-actions"
+  ) {
+    try {
+      const body = parseBody(event.body);
+
+      if (body?.action !== "REVIEW_PASS") {
+        return respond(400, {
+          message: "Action ไม่ถูกต้อง",
+        });
+      }
+
+      return await batchReviewPass(cognitoSub, cognitoGroups, event.body);
+    } catch (error) {
+      console.error("Batch review error:", error);
+      return respond(500, {
+        message: "ไม่สามารถตรวจสอบคำขอเป็นกลุ่มได้",
       });
     }
   }
