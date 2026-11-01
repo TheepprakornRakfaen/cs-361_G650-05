@@ -100,7 +100,13 @@
 cs-361_G650-05/
 ├── README.md
 ├── package-lock.json
+├── lambda/
+│   ├── me/
+│   ├── lookup-api/
+│   ├── ClaimsUserRequests/
+│   └── ClaimReview/
 ├── docs/
+│   ├── api/
 │   ├── AWS_Architecture/
 │   ├── DataFlow/
 │   ├── database/
@@ -121,6 +127,7 @@ cs-361_G650-05/
 
 | Path | หมายถึง |
 |---|---|
+| `docs/api/` | เอกสาร API: `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
 | `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
 | `docs/database/` | ภาพ ER diagram `V3_Databaseschema.png` |
@@ -144,6 +151,17 @@ cs-361_G650-05/
 | `011_audit_log.sql` | ตาราง `audit_log` เก็บประวัติการตรวจและอนุมัติ |
 | `012_claim_hour_section_merge.sql` | ย้ายชั่วโมงไปที่ `claim.hour`, ยื่นได้หลายครั้งต่อเดือน, รวม `class_schedule` เข้า `section` |
 
+### Backend (`lambda/`)
+
+| Path | หมายถึง |
+|---|---|
+| `lambda/me/` | `POST /api/auth/me` สร้าง/อัปเดตผู้ใช้ |
+| `lambda/lookup-api/` | `GET /api/term`, `/api/period`, `/api/courses` |
+| `lambda/ClaimsUserRequests/` | ยื่น ดู ลบ ส่งใหม่ และคิวตรวจ `/api/claims` |
+| `lambda/ClaimReview/` | ตรวจและอนุมัติ `/api/claims/{id}/pass\|return\|approve\|reject` |
+
+รายละเอียด: [lambda/README.md](lambda/README.md) และ [docs/api/](docs/api/)
+
 ### Frontend (`teaching-claim-system/`)
 
 | Path | หมายถึง |
@@ -163,7 +181,7 @@ cs-361_G650-05/
 | `teaching-claim-system/src/services/` | โค้ดเรียก API และ auth: `api.js`, `auth.js`, `evidence.js` (อัปโหลดหลักฐาน), `claimMapper.js` (แปลงข้อมูลจาก API) |
 | `teaching-claim-system/src/utils/` | ฟังก์ชันช่วย เช่น `csv.js`, `time.js`, `sla.js` |
 
-> โค้ด Lambda ไม่ได้อยู่ใน repo นี้ (อยู่ในโฟลเดอร์ `lambda/` แยกต่างหาก)
+> Lambda ที่ยังไม่อยู่ใน repo: evidence (presign/register) และ workflow `/actions`, `/history`, `/audit-logs`
 
 ## 7. วิธีรันฝั่ง Frontend
 
