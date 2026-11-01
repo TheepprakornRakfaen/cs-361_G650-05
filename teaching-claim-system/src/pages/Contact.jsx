@@ -85,7 +85,7 @@ export default function Contact({ user, onDone }) {
           <CheckCircle2
             size={48}
             className="mx-auto mb-4"
-            style={{ color: "#1E8E4F" }}
+            style={{ color: C.green }}
           />
           <h2 className="text-xl font-extrabold" style={{ color: C.ink }}>
             ส่งเรื่องเรียบร้อยแล้ว

@@ -275,7 +275,7 @@ export default function CreateClaimList({
       {error && (
         <div
           className="px-4 py-3 rounded-2xl mb-4 text-sm"
-          style={{ background: C.roseSoft, color: "#C23B3B" }}
+          style={{ background: C.roseSoft, color: C.red }}
           role="alert"
         >
           {error}
@@ -391,7 +391,7 @@ export default function CreateClaimList({
                               className="text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap shrink-0"
                               style={
                                 open
-                                  ? { background: "#DFF5E6", color: "#1E8E4F" }
+                                  ? { background: C.greenSoft, color: C.green }
                                   : { background: "#EDF0F2", color: "#5B6672" }
                               }
                             >
@@ -414,7 +414,7 @@ export default function CreateClaimList({
                                   type="button"
                                   onClick={() => goDetail?.(submitted.id)}
                                   className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
-                                  style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                                  style={{ background: C.greenSoft, color: C.green }}
                                   title="ดูคำขอล่าสุดที่ยื่นในรอบนี้"
                                 >
                                   <CheckCircle2 size={14} />

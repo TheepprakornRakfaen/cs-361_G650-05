@@ -497,8 +497,8 @@ export default function Dashboard({
                 <div
                   className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
                   style={{
-                    background: openRound ? "#DFF5E6" : "#EEF2F5",
-                    color: openRound ? "#1E8E4F" : C.sub,
+                    background: openRound ? C.greenSoft : "#EEF2F5",
+                    color: openRound ? C.green : C.sub,
                   }}
                 >
                   <CalendarClock size={22} />
@@ -513,7 +513,7 @@ export default function Dashboard({
                       className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
                       style={
                         openRound
-                          ? { background: "#DFF5E6", color: "#1E8E4F" }
+                          ? { background: C.greenSoft, color: C.green }
                           : { background: "#EDF0F2", color: "#5B6672" }
                       }
                     >
@@ -535,7 +535,7 @@ export default function Dashboard({
                 <button
                   onClick={() => goDetail?.(submittedClaim.id)}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-opacity hover:opacity-80"
-                  style={{ background: "#DFF5E6", color: "#1E8E4F" }}
+                  style={{ background: C.greenSoft, color: C.green }}
                   title="ดูรายละเอียดคำขอล่าสุดที่ยื่นในรอบนี้"
                 >
                   <CheckCircle2 size={16} />
@@ -572,7 +572,7 @@ export default function Dashboard({
                   </span>
                   <span
                     className="font-semibold"
-                    style={{ color: progress.daysLeft <= 3 ? "#B4531A" : C.tealDark }}
+                    style={{ color: progress.daysLeft <= 3 ? C.orange : C.tealDark }}
                   >
                     {progress.daysLeft === 0
                       ? "ปิดรับวันนี้"
@@ -669,7 +669,7 @@ export default function Dashboard({
                               course.percent >= 100
                                 ? C.rose
                                 : course.percent > 85
-                                  ? "#B4531A"
+                                  ? C.orange
                                   : C.sub,
                           }}
                         >

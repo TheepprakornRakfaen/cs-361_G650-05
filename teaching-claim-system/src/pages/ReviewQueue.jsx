@@ -16,7 +16,7 @@ import {
   BarChart3,
 } from "lucide-react";
 
-import { C, STATUS_STYLE } from "../theme";
+import { C, STATUS_STYLE, ESCALATED_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
@@ -41,7 +41,6 @@ import { detectClaimAnomalies, buildDuplicateIndex } from "../utils/anomalyDetec
 
 // ตัวกรองพิเศษ: คำขอที่ผู้ตรวจสอบขอให้ผู้อนุมัติตรวจสอบหลักฐาน (ยังเป็นสถานะ 2 · claim.escalation มาจาก App)
 const ESCALATED = "ESCALATED";
-const ESCALATED_STYLE = { label: "ขอให้ตรวจสอบหลักฐาน", bg: "#F3EFFC", fg: "#6D4BC2" };
 const cardStyle = (key) => (key === ESCALATED ? ESCALATED_STYLE : STATUS_STYLE[key]);
 
 const SUMMARY = [
@@ -378,7 +377,7 @@ export default function ReviewQueue({
 
       {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) */}
       <SectionCard hoverable={false} className="p-5">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           <div>
             <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
               <ShieldAlert size={17} style={{ color: C.teal }} />
@@ -390,7 +389,7 @@ export default function ReviewQueue({
           </div>
 
           {/* Quick Filter Buttons: All | Issues | Clean */}
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
             <button
               type="button"
               onClick={() => setAnomalyFilter("All")}
@@ -541,8 +540,8 @@ export default function ReviewQueue({
 
       {/* Status Summary KPI Cards */}
       <div
-        className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${
-          statusCards.length > 6 ? "lg:grid-cols-7" : "lg:grid-cols-6"
+        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${
+          statusCards.length > 6 ? "xl:grid-cols-7" : "xl:grid-cols-6"
         }`}
       >
         {statusCards.map((key) => {
@@ -562,7 +561,7 @@ export default function ReviewQueue({
                 outline: active ? `2px solid ${style.fg}` : "none",
               }}
             >
-              <p className="font-bold text-xs" style={{ color: style.fg }}>
+              <p className="font-bold text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
                 {style.label}
               </p>
               <p className="text-2xl font-extrabold mt-1 figure" style={{ color: style.fg }}>
@@ -595,17 +594,17 @@ export default function ReviewQueue({
       {/* Main Table */}
       <SectionCard hoverable={false} className="overflow-hidden p-0 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm [&_th:first-child]:pl-5 [&_td:first-child]:pl-5">
             <thead>
               <tr style={{ background: "#F6F9FB", color: C.sub }}>
-                <th className="px-5 py-4 font-semibold text-left">รหัสคำขอ</th>
-                <th className="px-5 py-4 font-semibold text-left">ผู้ยื่น & บทบาท</th>
-                <th className="px-5 py-4 font-semibold text-left">รายวิชา</th>
-                <th className="px-5 py-4 font-semibold text-left">ผลตรวจสอบความถูกต้อง</th>
-                <th className="px-5 py-4 font-semibold text-left">ยื่นเมื่อ / รอมาแล้ว</th>
-                <th className="px-5 py-4 font-semibold text-right">จำนวนเงิน</th>
-                <th className="px-5 py-4 font-semibold text-left">สถานะ</th>
-                <th className="pr-5 py-4"></th>
+                <th className="px-3 py-4 font-semibold text-left">รหัสคำขอ</th>
+                <th className="px-3 py-4 font-semibold text-left">ผู้ยื่น & บทบาท</th>
+                <th className="px-3 py-4 font-semibold text-left">รายวิชา</th>
+                <th className="px-3 py-4 font-semibold text-left">ผลตรวจสอบความถูกต้อง</th>
+                <th className="px-3 py-4 font-semibold text-left">ยื่นเมื่อ / รอมาแล้ว</th>
+                <th className="px-3 py-4 font-semibold text-right">จำนวนเงิน</th>
+                <th className="px-3 py-4 font-semibold text-left">สถานะ</th>
+                <th className="pr-3 py-4"></th>
               </tr>
             </thead>
 
@@ -626,19 +625,19 @@ export default function ReviewQueue({
                     tabIndex={0}
                     className="group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"
                   >
-                    <td className="px-5 py-4 font-semibold whitespace-nowrap" style={{ color: C.ink }}>
-                      <p className="font-extrabold text-teal-800">#{claim.code || claim.id}</p>
+                    <td className="px-3 py-4 font-semibold min-w-[8.5rem] max-w-[11rem]" style={{ color: C.ink }}>
+                      <p className="font-extrabold text-[13px] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>#{claim.code || claim.id}</p>
                     </td>
 
-                    <td className="px-5 py-4 min-w-[10rem]">
+                    <td className="px-3 py-4 min-w-[10rem]">
                       <div className="flex items-center gap-1.5">
                         <p className="font-bold text-slate-900">{claim.claimantName || "-"}</p>
                         {claim.claimantRole && (
                           <span
                             className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                             style={{
-                              background: claim.claimantRole.includes("TA") ? "#E8F0FA" : "#F1EFFB",
-                              color: claim.claimantRole.includes("TA") ? "#1E5687" : "#6E62C9",
+                              background: claim.claimantRole.includes("TA") ? C.tealSoft : C.violetSoft,
+                              color: claim.claimantRole.includes("TA") ? C.tealDark : C.violet,
                             }}
                           >
                             {claim.claimantRole.includes("TA") ? "TA" : "อาจารย์"}
@@ -652,15 +651,15 @@ export default function ReviewQueue({
                       )}
                     </td>
 
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <p className="font-bold text-slate-800">{claim.courseCode || "-"}</p>
                       {claim.courseName && (
-                        <p className="text-xs text-slate-500 max-w-[10rem] truncate">{claim.courseName}</p>
+                        <p className="text-xs text-slate-500 max-w-[8.5rem] truncate">{claim.courseName}</p>
                       )}
                     </td>
 
                     {/* Verification & Anomaly Badge (FR7 & TC2) */}
-                    <td className="px-5 py-4">
+                    <td className="px-3 py-4">
                       {check?.clean ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 size={13} />
@@ -675,7 +674,7 @@ export default function ReviewQueue({
                               title={a.message}
                             >
                               <AlertTriangle size={11} className="shrink-0" />
-                              <span className="truncate max-w-[12rem]">{a.title}</span>
+                              <span className="truncate max-w-[9.5rem]">{a.title}</span>
                             </span>
                           ))}
                         </div>
@@ -688,14 +687,14 @@ export default function ReviewQueue({
                               title={a.message}
                             >
                               <AlertTriangle size={11} className="shrink-0" />
-                              <span className="truncate max-w-[12rem]">{a.title}</span>
+                              <span className="truncate max-w-[9.5rem]">{a.title}</span>
                             </span>
                           ))}
                         </div>
                       )}
                     </td>
 
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 whitespace-nowrap">
                       <p className="text-xs text-slate-500">{formatDate(submitted)}</p>
                       {waiting !== null && (
                         <span
@@ -707,18 +706,18 @@ export default function ReviewQueue({
                       )}
                     </td>
 
-                    <td className="px-5 py-4 whitespace-nowrap figure text-right font-extrabold text-slate-900">
+                    <td className="px-3 py-4 whitespace-nowrap figure text-right font-extrabold text-slate-900">
                       <Restricted allowed={canSeeFinance} value={claim.amount}>
                         ฿{Number(claim.amount || 0).toLocaleString()}
                       </Restricted>
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td className="px-3 py-4">
                       <StatusPill status={claim.status} />
                       {claim.escalation && (
                         <span
                           className="flex w-fit items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap"
-                          style={{ background: "#F3EFFC", borderColor: "#D9CCF5", color: "#6D4BC2" }}
+                          style={{ background: ESCALATED_STYLE.bg, borderColor: ESCALATED_STYLE.border, color: ESCALATED_STYLE.fg }}
                           title={claim.escalation?.comment || ""}
                         >
                           <FileQuestion size={11} />
@@ -727,7 +726,7 @@ export default function ReviewQueue({
                       )}
                     </td>
 
-                    <td className="pr-5 py-4 text-right">
+                    <td className="pr-3 py-4 text-right">
                       <ChevronRight
                         size={16}
                         className="transition-transform group-hover:translate-x-1 inline-block"

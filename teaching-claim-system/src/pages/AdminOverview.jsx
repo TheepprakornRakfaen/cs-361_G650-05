@@ -15,7 +15,7 @@ import {
   FileQuestion,
 } from "lucide-react";
 
-import { C, STATUS_STYLE } from "../theme";
+import { C, STATUS_STYLE, ESCALATED_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import RoleBadge from "../components/RoleBadge";
 import { STATUS, getAuditMeta, isPending, isApprovedOrBeyond } from "../data/workflow";
@@ -28,7 +28,6 @@ import {
   slaLevel,
 } from "../utils/sla";
 
-const ESCALATED_STYLE = { bg: "#F3EFFC", fg: "#6D4BC2" };
 
 const baht = (n) => `฿${Number(n || 0).toLocaleString()}`;
 
@@ -397,7 +396,7 @@ export default function AdminOverview({
               </ul>
             ) : (
               <div className="px-6 py-10 text-center">
-                <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: "#1E8E4F" }} />
+                <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: C.green }} />
                 <p className="text-sm font-semibold" style={{ color: C.ink }}>
                   {loading ? "กำลังโหลด..." : "ไม่มีคำขอที่รอตรวจสอบ"}
                 </p>

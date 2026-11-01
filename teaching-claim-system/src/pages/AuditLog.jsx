@@ -294,7 +294,7 @@ export default function AuditLog({
       {error && (
         <p
           className="text-sm px-4 py-3 rounded-2xl mb-4"
-          style={{ background: C.roseSoft, color: "#C23B3B" }}
+          style={{ background: C.roseSoft, color: C.red }}
           role="alert"
         >
           {error}

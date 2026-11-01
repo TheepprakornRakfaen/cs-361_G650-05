@@ -91,7 +91,7 @@ export default function ForgotPasswordForm({ onBack }) {
         <CheckCircle2
           size={40}
           className="mx-auto mb-3"
-          style={{ color: "#1E8E4F" }}
+          style={{ color: C.green }}
         />
 
         <h3 className="font-extrabold text-lg" style={{ color: C.ink }}>

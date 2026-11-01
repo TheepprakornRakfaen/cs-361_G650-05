@@ -198,7 +198,7 @@ const ACTION = {
   REVIEW_ESCALATE: {
     key: "REVIEW_ESCALATE",
     label: "ส่งต่อให้ผู้อนุมัติตรวจสอบหลักฐาน",
-    tone: "violet",
+    tone: "plum",
     requireComment: true,
     confirmTitle: "ส่งต่อให้ผู้อนุมัติตรวจสอบหลักฐาน",
     confirmText:
@@ -366,7 +366,7 @@ export const stripEscalateTag = (comment) =>
     ? String(comment).trim().slice(ESCALATE_TAG.length).trim()
     : comment || "";
 
-const ESCALATE_META = { label: "ส่งต่อผู้อนุมัติ · ขอให้ตรวจสอบหลักฐาน", tone: "violet" };
+const ESCALATE_META = { label: "ส่งต่อผู้อนุมัติ · ขอให้ตรวจสอบหลักฐาน", tone: "plum" };
 
 // ประวัติล่าสุดที่ผู้ตรวจสอบส่งต่อแบบขอให้ตรวจหลักฐาน → { comment, actorName, createdAt } หรือ null
 export function findEscalation(history = []) {

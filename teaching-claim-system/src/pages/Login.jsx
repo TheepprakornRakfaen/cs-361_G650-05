@@ -479,7 +479,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
               >
                 <p
                   className="flex items-center gap-1.5 text-xs font-bold"
-                  style={{ color: "#B4531A" }}
+                  style={{ color: C.orange }}
                 >
                   <FlaskConical size={14} />
                   โหมดทดลอง (เฉพาะตอนพัฒนา)
@@ -495,7 +495,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
                       type="button"
                       onClick={() => onLoginSuccess?.(startDevSession(role))}
                       className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border transition-colors hover:bg-[#FDEBDD]"
-                      style={{ borderColor: "#F0B37E", color: "#B4531A" }}
+                      style={{ borderColor: "#F0B37E", color: C.orange }}
                     >
                       {label}
                     </button>
@@ -504,7 +504,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
 
                 {DEV_TEST_ACCOUNT_OPTIONS.length > 0 && (
                   <>
-                <p className="text-[11px] mt-3 mb-2 font-semibold" style={{ color: "#B4531A" }}>
+                <p className="text-[11px] mt-3 mb-2 font-semibold" style={{ color: C.orange }}>
                   ผู้ใช้จริงตามสถานการณ์ทดสอบ V4
                 </p>
 
@@ -515,7 +515,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
                       type="button"
                       onClick={() => onLoginSuccess?.(startDevSession(role))}
                       className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border transition-colors hover:bg-[#FDEBDD]"
-                      style={{ borderColor: "#F0B37E", color: "#B4531A" }}
+                      style={{ borderColor: "#F0B37E", color: C.orange }}
                     >
                       {label}
                     </button>

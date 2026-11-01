@@ -715,6 +715,12 @@ function autoPayApproved() {
   });
 }
 
+// ประเภทค่าตอบแทน ตรงกับ seed ใน docs/database/migrations/002_seed.sql
+const COMPENSATION_TYPES = [
+  { id: 1, code: "TEACHING", name: "ค่าตอบแทนอาจารย์ผู้สอนบรรยาย", hourly_rate: 600 },
+  { id: 2, code: "SPECIAL_LECTURER", name: "ค่าตอบแทนอาจารย์พิเศษภายนอก", hourly_rate: 900 },
+];
+
 export async function devMockRequest(path, options = {}) {
   autoPayApproved();
 
@@ -749,6 +755,9 @@ export async function devMockRequest(path, options = {}) {
         ),
       };
     }
+
+    case "compensation-types":
+      return { types: clone(COMPENSATION_TYPES) };
 
     case "courses": {
       const termId = url.searchParams.get("term_id");
@@ -794,11 +803,15 @@ export async function devMockRequest(path, options = {}) {
 
           requirePermission(
             user,
-            scope === "review" ? P.CLAIM_VIEW_ALL : P.CLAIM_CREATE,
+            scope === "report"
+              ? P.DATA_EXPORT
+              : scope === "review"
+                ? P.CLAIM_VIEW_ALL
+                : P.CLAIM_CREATE,
           );
 
           const list =
-            scope === "review"
+            scope === "review" || scope === "report"
               ? claims
                   .filter((c) => c.status !== "DRAFT")
                   .map((c) => redactClaim(user, c))
