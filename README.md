@@ -100,11 +100,18 @@
 cs-361_G650-05/
 ├── README.md
 ├── package-lock.json
-├── lambda/
-│   ├── me/
-│   ├── lookup-api/
-│   ├── ClaimsUserRequests/
-│   └── ClaimReview/
+├── script/
+│   ├── cognito/
+│   ├── lambda/
+│   │   └── functions/
+│   │       ├── ClaimCRUDUser/
+│   │       ├── ClaimsPeriodTermCourses/
+│   │       ├── ClaimUserRequest/
+│   │       ├── ClaimReview/
+│   │       ├── ClaimWorkflowAPI/
+│   │       ├── ClaimEvidenceAPI/
+│   │       └── ClaimEvidencePresign/
+│   └── api-gateway/
 ├── docs/
 │   ├── api/
 │   ├── AWS_Architecture/
@@ -127,6 +134,8 @@ cs-361_G650-05/
 
 | Path | หมายถึง |
 |---|---|
+| `docs/security_group.md` | Security Group ของ Lambda/RDS: กฎ inbound/outbound, วิธีสร้างและตรวจ, ปัญหาที่พบบ่อย |
+| `docs/scripts.md` | วิธีใช้สคริปต์ตั้งค่า AWS (Cognito, Lambda, API Gateway) และลำดับเมื่อสร้างระบบใหม่ |
 | `docs/api/` | เอกสาร API: `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
 | `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
@@ -151,16 +160,26 @@ cs-361_G650-05/
 | `011_audit_log.sql` | ตาราง `audit_log` เก็บประวัติการตรวจและอนุมัติ |
 | `012_claim_hour_section_merge.sql` | ย้ายชั่วโมงไปที่ `claim.hour`, ยื่นได้หลายครั้งต่อเดือน, รวม `class_schedule` เข้า `section` |
 
-### Backend (`lambda/`)
+### สคริปต์ AWS (`script/`)
 
 | Path | หมายถึง |
 |---|---|
-| `lambda/me/` | `POST /api/auth/me` สร้าง/อัปเดตผู้ใช้ |
-| `lambda/lookup-api/` | `GET /api/term`, `/api/period`, `/api/courses` |
-| `lambda/ClaimsUserRequests/` | ยื่น ดู ลบ ส่งใหม่ และคิวตรวจ `/api/claims` |
-| `lambda/ClaimReview/` | ตรวจและอนุมัติ `/api/claims/{id}/pass\|return\|approve\|reject` |
+| `script/cognito/` | สร้างกลุ่ม/ผู้ใช้ใน Cognito และ SQL ซิงก์ `app_user` |
+| `script/lambda/` | สคริปต์สร้าง zip / สร้าง / อัปเดต Lambda และโฟลเดอร์ `functions/` ที่เก็บโค้ดทุก function |
+| `script/api-gateway/` | สร้าง/ตรวจ route ของ API Gateway ทั้งหมด |
 
-รายละเอียด: [lambda/README.md](lambda/README.md) และ [docs/api/](docs/api/)
+วิธีใช้: [docs/scripts.md](docs/scripts.md)
+
+### Backend (`script/lambda/functions/`)
+
+| Path | หมายถึง |
+|---|---|
+| `script/lambda/functions/ClaimCRUDUser/` | `POST /api/auth/me` สร้าง/อัปเดตผู้ใช้ |
+| `script/lambda/functions/ClaimsPeriodTermCourses/` | `GET /api/term`, `/api/period`, `/api/courses` |
+| `script/lambda/functions/ClaimUserRequest/` | ยื่น ดู ลบ ส่งใหม่ และคิวตรวจ `/api/claims` |
+| `script/lambda/functions/ClaimReview/` | ตรวจและอนุมัติ `/api/claims/{id}/pass\|return\|approve\|reject` |
+
+รายละเอียด: [script/lambda/functions/README.md](script/lambda/functions/README.md) และ [docs/api/](docs/api/)
 
 ### Frontend (`teaching-claim-system/`)
 

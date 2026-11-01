@@ -1,6 +1,6 @@
 # CS361 Claims API
 
-REST API บน Amazon API Gateway (`cs361-claims-api`, stage `v2`) ต่อกับ AWS Lambda ใน [`lambda/`](../../lambda/)
+REST API บน Amazon API Gateway (`cs361-claims-api`, stage `v2`) ต่อกับ AWS Lambda ใน [`script/lambda/functions/`](../../script/lambda/functions/)
 
 รายละเอียดแต่ละ endpoint: [endpoints.md](endpoints.md)
 
@@ -51,27 +51,33 @@ REST API บน Amazon API Gateway (`cs361-claims-api`, stage `v2`) ต่อก
 
 | Method | Path | Lambda | กลุ่ม |
 |---|---|---|---|
-| POST | `/api/auth/me` | `me` | ทุกคนที่ล็อกอิน |
-| GET | `/api/term` | `lookup-api` | ทุกคนที่ล็อกอิน |
-| GET | `/api/period` | `lookup-api` | ทุกคนที่ล็อกอิน |
-| GET | `/api/courses` | `lookup-api` | ทุกคนที่ล็อกอิน |
-| GET | `/api/claims` | `ClaimsUserRequests` | TEACHER, TA |
-| GET | `/api/claims?scope=review` | `ClaimsUserRequests` | REVIEWER, APPROVER |
-| POST | `/api/claims` | `ClaimsUserRequests` | TEACHER, TA |
-| DELETE | `/api/claims` | `ClaimsUserRequests` | TEACHER, TA |
-| POST | `/api/claims/{id}/resend` | `ClaimsUserRequests` | TEACHER, TA |
+| POST | `/api/auth/me` | `ClaimCRUDUser` | ทุกคนที่ล็อกอิน |
+| GET | `/api/term` | `ClaimsPeriodTermCourses` | ทุกคนที่ล็อกอิน |
+| GET | `/api/period` | `ClaimsPeriodTermCourses` | ทุกคนที่ล็อกอิน |
+| GET | `/api/courses` | `ClaimsPeriodTermCourses` | ทุกคนที่ล็อกอิน |
+| GET | `/api/claims` | `ClaimUserRequest` | TEACHER, TA |
+| GET | `/api/claims?scope=review` | `ClaimUserRequest` | REVIEWER, APPROVER |
+| POST | `/api/claims` | `ClaimUserRequest` | TEACHER, TA |
+| DELETE | `/api/claims` | `ClaimUserRequest` | TEACHER, TA |
+| POST | `/api/claims/{id}/resend` | `ClaimReview` | TEACHER, TA |
 | POST | `/api/claims/{id}/pass` | `ClaimReview` | REVIEWER |
 | POST | `/api/claims/{id}/return` | `ClaimReview` | REVIEWER, APPROVER |
 | POST | `/api/claims/{id}/approve` | `ClaimReview` | APPROVER |
 | POST | `/api/claims/{id}/reject` | `ClaimReview` | APPROVER |
+| POST | `/api/claims/{id}/evidence/upload-url` | Evidence (ยังไม่อยู่ใน repo) | เจ้าของคำขอ |
 | POST/GET | `/api/claims/{id}/evidence` | Evidence (ยังไม่อยู่ใน repo) | เจ้าของ / REVIEWER / APPROVER |
 | POST | `/api/claims/{id}/actions` | workflow (ยังไม่อยู่ใน repo) | REVIEWER, APPROVER |
 | GET | `/api/claims/{id}/history` | workflow (ยังไม่อยู่ใน repo) | ผู้มีสิทธิ์ |
 | GET | `/api/audit-logs` | workflow (ยังไม่อยู่ใน repo) | ผู้มีสิทธิ์ audit |
 | POST | `/api/claims/batch-actions` | ยังไม่พัฒนา (V4) | REVIEWER |
 
+## Endpoint ที่หน้าเว็บเรียกจริง และที่ไม่ได้เรียก
+
+หน้าเว็บ (`teaching-claim-system/src/services/api.js`) ตรวจ/อนุมัติผ่าน **`POST /api/claims/{id}/actions`** (body `{ action: REVIEW_PASS|APPROVE|REJECT|RETURN, comment }`) ไม่ได้เรียก `/pass`, `/return`, `/approve`, `/reject` ของ Lambda `ClaimReview` โดยตรง
+ดังนั้น `ClaimReview` ใช้ได้ก็ต่อเมื่อมี route เหล่านั้นใน API Gateway หรือหน้าเว็บเปลี่ยนมาเรียก ต้องตัดสินใจว่าจะใช้ตัวไหนเป็นหลัก (ไม่ควรมีทั้งสองชุดที่เปลี่ยนสถานะได้)
+
 ## ข้อควรระวังของโค้ดปัจจุบัน
 
-1. โค้ด `ClaimsUserRequests` และ `lookup-api` เป็นรุ่นก่อน migration 012 (ใช้ `class_schedule`, `claim_date.hour`) ต้องแก้ก่อนรัน 012 บน RDS
-2. `lookup-api` (`/api/period`) เทียบ `claim_period.status = 'OPEN'` (ข้อความ) แต่ใน migration 008 และ `ClaimsUserRequests` ใช้ตัวเลข `status = 1` ให้ตรวจว่าเวอร์ชันที่ deploy ใช้แบบไหน
+1. โค้ด `ClaimUserRequest` และ `ClaimsPeriodTermCourses` เป็นรุ่นก่อน migration 012 (ใช้ `class_schedule`, `claim_date.hour`) ต้องแก้ก่อนรัน 012 บน RDS
+2. `ClaimsPeriodTermCourses` (`/api/period`) เทียบ `claim_period.status = 'OPEN'` (ข้อความ) แต่ใน migration 008 และ `ClaimUserRequest` ใช้ตัวเลข `status = 1` ให้ตรวจว่าเวอร์ชันที่ deploy ใช้แบบไหน
 3. ค่า `Access-Control-Allow-Origin` ในทุก Lambda เป็น `*` ควรจำกัดเป็นโดเมน Amplify เมื่อใช้งานจริง

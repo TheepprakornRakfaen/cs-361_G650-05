@@ -1,7 +1,0 @@
-{
-  "name": "cs361-auth-api",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "main": "index.mjs"
-}

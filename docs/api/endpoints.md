@@ -25,7 +25,7 @@ Lambda: `me`
 ---
 
 ## GET /api/term
-Lambda: `lookup-api` · ภาคการศึกษาทั้งหมด (ล่าสุดก่อน)
+Lambda: `ClaimsPeriodTermCourses` · ภาคการศึกษาทั้งหมด (ล่าสุดก่อน)
 
 **200**
 ```json
@@ -36,7 +36,7 @@ Lambda: `lookup-api` · ภาคการศึกษาทั้งหมด (
 `year` เป็น พ.ศ. ส่วน `start_date`/`end_date` เป็นปี ค.ศ.
 
 ## GET /api/period
-Lambda: `lookup-api` · รอบยื่นที่เปิดอยู่ตอนนี้
+Lambda: `ClaimsPeriodTermCourses` · รอบยื่นที่เปิดอยู่ตอนนี้
 
 | Query | ความหมาย |
 |---|---|
@@ -52,7 +52,7 @@ Lambda: `lookup-api` · รอบยื่นที่เปิดอยู่�
 ```
 
 ## GET /api/courses
-Lambda: `lookup-api` · section ที่ผู้ใช้เป็นผู้สอน/TA พร้อมชั่วโมง
+Lambda: `ClaimsPeriodTermCourses` · section ที่ผู้ใช้เป็นผู้สอน/TA พร้อมชั่วโมง
 
 | Query | ความหมาย |
 |---|---|
@@ -72,7 +72,7 @@ Lambda: `lookup-api` · section ที่ผู้ใช้เป็นผู้
 ---
 
 ## GET /api/claims
-Lambda: `ClaimsUserRequests` · กลุ่ม TEACHER, TA
+Lambda: `ClaimUserRequest` · กลุ่ม TEACHER, TA
 
 | Query | ความหมาย |
 |---|---|
@@ -92,7 +92,7 @@ Lambda: `ClaimsUserRequests` · กลุ่ม TEACHER, TA
 ไม่ส่ง `claimant_id` (Cognito sub) กลับไป
 
 ## POST /api/claims
-Lambda: `ClaimsUserRequests` · สร้างแบบร่างหรือยื่น
+Lambda: `ClaimUserRequest` · สร้างแบบร่างหรือยื่น
 
 ```json
 {
@@ -115,7 +115,7 @@ Lambda: `ClaimsUserRequests` · สร้างแบบร่างหรือ
 | 409 | ข้อจำกัดซ้ำในฐานข้อมูล (เช่น ยื่นซ้ำในเดือนเดียวกันตามกฎเดิม) |
 
 ## POST /api/claims/{id}/resend
-Lambda: `ClaimsUserRequests` · แก้คำขอที่ถูกส่งคืน (สถานะ 5) แล้วยื่นใหม่ (กลับเป็น 1)
+Lambda: `ClaimUserRequest` · แก้คำขอที่ถูกส่งคืน (สถานะ 5) แล้วยื่นใหม่ (กลับเป็น 1)
 
 Body เหมือน `POST /api/claims` (ไม่ต้องมี `status`)
 
@@ -123,7 +123,7 @@ Body เหมือน `POST /api/claims` (ไม่ต้องมี `status`
 **404** ไม่พบคำขอ (หรือไม่ใช่ของตัวเอง) · **409** ไม่ใช่สถานะ 5 หรือสถานะเปลี่ยนระหว่างทาง
 
 ## DELETE /api/claims
-Lambda: `ClaimsUserRequests` · ลบแบบร่างของตัวเอง
+Lambda: `ClaimUserRequest` · ลบแบบร่างของตัวเอง
 
 Body `{ "id": "uuid" }` → **200** `{ "id": "uuid", "message": "ลบแบบร่างเรียบร้อยแล้ว" }`
 **404** ไม่พบแบบร่าง หรือคำขอไม่ใช่สถานะร่าง
@@ -155,7 +155,9 @@ Body `{ "comment": "ข้อความ" | null }`
 
 | Endpoint | หมายเหตุ |
 |---|---|
+| `POST /api/claims/{id}/evidence/upload-url` | ขอ presigned PUT URL body `{ fileName, contentType, fileSize, evidenceType }` → คืน `{ uploadUrl, evidenceId, claimId, ... }` หน้าเว็บ `PUT` ไฟล์ไป S3 ตรง (ไม่ใส่ Authorization) แล้วเรียกบันทึกหลักฐาน |
 | `POST /api/claims/{id}/evidence` | บันทึกข้อมูลไฟล์หลักฐานหลังอัปโหลดขึ้น S3 (body: `evidence_id`, `object_key`, `file_name`, `content_type`, `file_size`, `evidence_type`) |
 | `GET /api/claims/{id}/evidence` | ขอลิงก์อ่านไฟล์ (presigned GET อายุ ~300 วินาที) |
-| `POST /api/claims/{id}/actions`, `GET /api/claims/{id}/history`, `GET /api/audit-logs` | workflow + `audit_log` |
+| `POST /api/claims/{id}/actions` | **เส้นที่หน้าเว็บใช้ตรวจ/อนุมัติ** body `{ action: "REVIEW_PASS"\|"APPROVE"\|"REJECT"\|"RETURN", comment }` (comment บังคับกับ REJECT/RETURN) |
+| `GET /api/claims/{id}/history`, `GET /api/audit-logs` | ประวัติ (`audit_log`) filters ของ audit-logs: `actor, action, from, to, cursor, limit` → `{ logs, next_cursor }` |
 | `POST /api/claims/batch-actions` | V4 ตรวจผ่านเป็นกลุ่ม body `{ "action": "REVIEW_PASS", "claimIds": [...], "comment": "..." }` |
