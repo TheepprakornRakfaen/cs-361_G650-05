@@ -13,7 +13,10 @@
 // ผู้ใช้ (cognito_sub) มาจาก event.requestContext.authorizer.claims.sub
 //
 // Environment variables:
-//   DATABASE_URL = postgres://claims_admin:<PASSWORD>@<RDS_ENDPOINT>:5432/claims
+//   DATABASE_URL = postgres://claim_admin:<PASSWORD>@<RDS_ENDPOINT>:5432/claims
+//
+// รุ่นหลัง migration 012: ชั่วโมงสอนอยู่ที่ section.hour / section.max_hour
+// (ไม่มี class_schedule แล้ว และไม่มี start_time / end_time)
 // อยู่ใน VPC เดียวกับ RDS (security group: cs361-lambda-sg)
 // =====================================================================
 import pg from 'pg';
@@ -88,11 +91,11 @@ async function getPeriods(termId, all) {
             p.open_at,
             p.close_at,
             p.status,
-            (p.status = 'OPEN' AND now() BETWEEN p.open_at AND p.close_at) AS is_open_now
+            (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at) AS is_open_now
        FROM claim_period p
        JOIN academic_term t ON t.id = p.term_id
       WHERE ($1::int IS NULL OR p.term_id = $1)
-        AND ($2 OR (p.status = 'OPEN' AND now() BETWEEN p.open_at AND p.close_at))
+        AND ($2 OR (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at))
       ORDER BY p.open_at DESC`,
     [termId, all],
   );
@@ -100,7 +103,7 @@ async function getPeriods(termId, all) {
 }
 
 // ---------------------------------------------------------------------
-// GET /api/courses : section + ชั่วโมงสอน จาก class_schedule
+// GET /api/courses : section + ชั่วโมงสอน จาก section.hour / max_hour (หลัง 012)
 // ---------------------------------------------------------------------
 async function getCourses(cognitoSub, termId, all) {
   const { rows } = await pool.query(
@@ -112,15 +115,12 @@ async function getCourses(cognitoSub, termId, all) {
             s.term_id,
             t.semester || '/' || t.year   AS term_label,
             ss.role,                                           -- INSTRUCTOR / TA (NULL ถ้า all=true แล้วไม่ได้สอน)
-            cs.start_time,
-            cs.end_time,
-            cs.hour::float                AS hour,             -- สอน (เบิก) ไปแล้ว
-            cs.max_hour::float            AS max_hour,         -- ชั่วโมงทั้งหมด
-            (cs.max_hour - cs.hour)::float AS remaining_hour   -- เหลือ
+            s.hour::float                 AS hour,             -- สอน (เบิก) ไปแล้ว
+            s.max_hour::float             AS max_hour,         -- ชั่วโมงทั้งหมด
+            (s.max_hour - s.hour)::float  AS remaining_hour    -- เหลือ
        FROM section s
        JOIN course         co ON co.id = s.course_id
        JOIN academic_term  t  ON t.id  = s.term_id
-       LEFT JOIN class_schedule cs ON cs.section_id = s.id
        LEFT JOIN section_staff  ss ON ss.section_id = s.id AND ss.user_id = $1
       WHERE ($2::int IS NULL OR s.term_id = $2)
         AND ($3 OR ss.user_id IS NOT NULL)
