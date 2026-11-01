@@ -71,7 +71,7 @@
 
 ![CS361 Database Schema](docs/database/V4_Databaseschema.png)
 
-- สคริปต์สร้างและแก้โครงสร้างฐานข้อมูลอยู่ใน [docs/database/migrations/](docs/database/migrations/) รันตามลำดับเลขไฟล์
+- สคริปต์ฐานข้อมูลอยู่ใน [docs/database/migrations/](docs/database/migrations/): `001_schema.sql` (โครงสร้างทั้งหมด) แล้วตามด้วย `002_seed.sql` (ข้อมูลตัวอย่าง) ส่วน migration เดิม 001–017 เก็บไว้ที่ `_archive/`
 - ผู้ใช้ใน Cognito เป็นแหล่งข้อมูลหลัก ส่วนตาราง `app_user` เป็นเพียงสำเนาบางส่วน โดยใช้ `cognito_sub` เป็นคีย์
 
 ## 5. สิทธิ์การใช้งานและการเป็นเจ้าของข้อมูล
@@ -127,6 +127,7 @@ cs-361_G650-05/
 │   ├── DataFlow/
 │   ├── database/
 │   │   └── migrations/
+│   │       └── _archive/
 │   └── testing/
 └── teaching-claim-system/
     ├── public/
@@ -149,30 +150,20 @@ cs-361_G650-05/
 | `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
 | `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` (รุ่นเก่า `V3_Databaseschema.png`) |
-| `docs/database/migrations/` | SQL สำหรับสร้างและแก้ฐานข้อมูล รันตามลำดับ (ตารางด้านล่าง) |
+| `docs/database/migrations/` | SQL สร้างฐานข้อมูล: `001_schema.sql` + `002_seed.sql` (ตารางด้านล่าง) |
 | `docs/testing/` | สคริปต์ทดสอบสิทธิ์และความปลอดภัย `rbac_security_test.sh` |
 
 ### Migration (`docs/database/migrations/`)
 
 | ไฟล์ | ทำอะไร |
 |---|---|
-| `001_app_user.sql` | ตาราง `app_user` (สำเนาผู้ใช้จาก Cognito) |
-| `002_claim_submission.sql` | ตารางหลักของการยื่นคำขอ: course, section, claim, ประเภทค่าตอบแทน ฯลฯ |
-| `003_seed_users.sql` | ข้อมูลผู้ใช้ตัวอย่าง |
-| `004_section_staff.sql` | ผู้สอน/TA ประจำ section |
-| `005_seed_reference.sql` | ข้อมูลอ้างอิง เช่น รายวิชา ภาคการศึกษา |
-| `006_claim_evidence.sql` | ตารางไฟล์หลักฐานของคำขอ |
-| `007_claim_date.sql` | ตาราง `claim_date` (วันที่สอนของแต่ละคำขอ) |
-| `008_seed_claim_period.sql` | รอบการยื่นรายเดือนเริ่มต้น |
-| `009_monthly_claim_course_rate.sql` | ยื่นรายเดือนตามรายวิชา และอัตราค่าตอบแทน |
-| `010_claim_review_status.sql` | เปลี่ยนสถานะเป็นชุด 0-5 สำหรับขั้นตรวจและอนุมัติ |
-| `011_audit_log.sql` | ตาราง `audit_log` เก็บประวัติการตรวจและอนุมัติ |
-| `012_claim_hour_section_merge.sql` | ย้ายชั่วโมงไปที่ `claim.hour`, ยื่นได้หลายครั้งต่อเดือน, รวม `class_schedule` เข้า `section` |
-| `013_seed_mock_reference.sql` | ข้อมูลทดสอบชุดใหม่ (ภาคการศึกษา / รายวิชา / section / รอบเบิก) |
-| `014_app_user_bank_account.sql` | เพิ่ม `bank_name`, `bank_account_no` ใน `app_user` |
-| `015_claim_evidence_type.sql` | เพิ่ม `evidence_type`, `uploaded_by` ใน `claim_evidence` |
-| `016_compensation_type_rate.sql` | ย้ายอัตราค่าตอบแทนไปที่ `compensation_type.hourly_rate` (ลบ `claim.hourly_rate`, `course.hourly_rate`) |
-| `017_section_staff_quota.sql` | ย้ายโควตาชั่วโมง `hour` / `max_hour` จาก `section` ไปที่ `section_staff` (แยกรายคน) |
+| `001_schema.sql` | สร้างตาราง ดัชนี และ view `claim_amount` ทั้งหมดในครั้งเดียว (เทียบเท่า migration เดิม 001–017 รวมกัน) |
+| `002_seed.sql` | ข้อมูลตัวอย่าง: ผู้ใช้ placeholder, ภาคการศึกษา, รายวิชา, section, `section_staff` (พร้อม `max_hour`), รอบเบิก, ประเภทค่าตอบแทน 2 แบบ |
+| `_archive/` | migration เดิม 001–017 เก็บไว้อ้างอิงประวัติ ไม่ต้องรันอีก |
+
+- ฐานข้อมูลใหม่ (ว่าง): รัน `001_schema.sql` แล้ว `002_seed.sql`
+- RDS ที่รัน migration เดิมถึง 017 แล้ว: **ไม่ต้องรันซ้ำ** (โครงสร้างเท่ากัน)
+- แก้โครงสร้างครั้งต่อไป: เพิ่มไฟล์ `003_...sql` เป็นต้นไป แล้วอัปเดต `001_schema.sql` ให้ตรงกันถ้าต้องการให้ฐานข้อมูลใหม่ได้โครงสร้างล่าสุด
 
 ### สคริปต์ AWS (`script/`)
 
