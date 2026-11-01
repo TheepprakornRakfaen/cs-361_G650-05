@@ -9,7 +9,10 @@ import { STATUS } from "../data/workflow";
 import { PERMISSION as P, can } from "../data/roles";
 import { downloadCsv } from "../utils/csv";
 import { formatDuration } from "../utils/time";
-import { getCompensationTypes, resolveClaimCompType } from "../data/compensationTypes";
+import {
+  getCompensationTypes,
+  resolveClaimCompType,
+} from "../data/compensationTypes";
 import { getSystemRules } from "../data/rulesConfig";
 
 // ประเภทค่าตอบแทนของคำขอ (ใช้ค่าที่ normalizeClaim ใส่ไว้ ถ้าไม่มีค่อยคำนวณสด)
@@ -38,8 +41,7 @@ const dateOnly = (value) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 };
 
-const claimDate = (claim) =>
-  dateOnly(claim.submittedAt || claim.createdAt || "");
+const claimDate = (claim) => dateOnly(claim.submittedAt || "");
 
 // กลุ่มสถานะสำหรับรายงาน (เรียงตามลำดับกระบวนการ)
 const STATUS_GROUPS = [
@@ -89,7 +91,10 @@ function Stat({ label, value, hint, tone = C.ink, icon: Icon }) {
         {label}
       </p>
 
-      <p className="text-2xl font-extrabold figure mt-0.5" style={{ color: tone }}>
+      <p
+        className="text-2xl font-extrabold figure mt-0.5"
+        style={{ color: tone }}
+      >
         {value}
       </p>
 
@@ -105,7 +110,7 @@ function Stat({ label, value, hint, tone = C.ink, icon: Icon }) {
 /* =========================
  * รายงานสรุปยอดเบิก (ตามประเภทค่าตอบแทนและช่วงเวลา)
  * ========================= */
-function SummaryReport({ claims, canExport }) {
+function SummaryReport({ claims, canExport, canViewPII }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [term, setTerm] = useState("All");
@@ -118,7 +123,7 @@ function SummaryReport({ claims, canExport }) {
   // ประเภทค่าตอบแทนที่ยังเปิดใช้งาน (ละเอียด 4 แบบ หรือมากกว่าถ้าแอดมินเพิ่ม)
   const compTypeList = useMemo(
     () => getCompensationTypes().filter((t) => t.status !== "INACTIVE"),
-    []
+    [],
   );
 
   const terms = useMemo(
@@ -126,13 +131,14 @@ function SummaryReport({ claims, canExport }) {
       [...new Set(claims.map((c) => c.termLabel).filter(Boolean))]
         .sort()
         .reverse(),
-    [claims]
+    [claims],
   );
 
   const filtered = useMemo(
     () =>
       claims.filter((c) => {
-        if (c.status === STATUS.DRAFT || c.status === STATUS.UNKNOWN) return false;
+        if (c.status === STATUS.DRAFT || c.status === STATUS.UNKNOWN)
+          return false;
         if (term !== "All" && c.termLabel !== term) return false;
         if (compType !== "All" && claimTypeId(c) !== compType) return false;
         if (group !== "All" && groupOf(c.status) !== group) return false;
@@ -144,7 +150,7 @@ function SummaryReport({ claims, canExport }) {
 
         return true;
       }),
-    [claims, from, to, term, compType, group]
+    [claims, from, to, term, compType, group],
   );
 
   // ตาราง: แถว = ประเภทค่าตอบแทนละเอียด, คอลัมน์ = กลุ่มสถานะ
@@ -161,13 +167,13 @@ function SummaryReport({ claims, canExport }) {
     const orderedIds = [
       ...compTypeList.map((t) => t.id),
       ...[...buckets.keys()].filter(
-        (id) => !compTypeList.some((t) => t.id === id)
+        (id) => !compTypeList.some((t) => t.id === id),
       ),
     ];
 
     const nameOf = (id) =>
-      compTypeList.find((t) => t.id === id)?.name ||
       buckets.get(id)?.[0]?.compTypeName ||
+      compTypeList.find((t) => t.id === id)?.name ||
       "ไม่ระบุประเภท";
 
     return orderedIds
@@ -185,9 +191,12 @@ function SummaryReport({ claims, canExport }) {
               const inGroup = list.filter((c) => groupOf(c.status) === g.key);
               return [
                 g.key,
-                { count: inGroup.length, amount: sumBy(inGroup, (c) => c.amount) },
+                {
+                  count: inGroup.length,
+                  amount: sumBy(inGroup, (c) => c.amount),
+                },
               ];
-            })
+            }),
           ),
         };
       });
@@ -219,8 +228,8 @@ function SummaryReport({ claims, canExport }) {
 
     return [...map.values()].sort((a, b) =>
       `${b.term}${String(b.month).padStart(2, "0")}`.localeCompare(
-        `${a.term}${String(a.month).padStart(2, "0")}`
-      )
+        `${a.term}${String(a.month).padStart(2, "0")}`,
+      ),
     );
   }, [filtered]);
 
@@ -230,11 +239,11 @@ function SummaryReport({ claims, canExport }) {
     amount: sumBy(filtered, (c) => c.amount),
     paid: sumBy(
       filtered.filter((c) => c.status === STATUS.PAID),
-      (c) => c.amount
+      (c) => c.amount,
     ),
     pendingPay: sumBy(
       filtered.filter((c) => c.status === STATUS.APPROVED),
-      (c) => c.amount
+      (c) => c.amount,
     ),
   };
 
@@ -267,7 +276,7 @@ function SummaryReport({ claims, canExport }) {
     downloadCsv(
       `finance-summary-${new Date().toISOString().slice(0, 10)}.csv`,
       ["ประเภทค่าตอบแทน", "สถานะ", "จำนวนคำขอ", "จำนวนเงิน (บาท)"],
-      rows
+      rows,
     );
   };
 
@@ -290,7 +299,7 @@ function SummaryReport({ claims, canExport }) {
       filtered.map((c) => [
         c.code || c.id,
         claimTypeName(c),
-        c.claimantName,
+        canViewPII ? c.claimantName : "ปกปิดข้อมูล",
         c.courseCode,
         c.termLabel,
         c.periodMonth ?? "",
@@ -299,7 +308,7 @@ function SummaryReport({ claims, canExport }) {
         c.amount ?? "",
         STATUS_STYLE[c.status]?.label || c.status,
         dateOnly(c.paidAt),
-      ])
+      ]),
     );
   };
 
@@ -412,21 +421,39 @@ function SummaryReport({ claims, canExport }) {
         <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex mb-2">
           <div
             className="h-full bg-emerald-500 transition-all duration-500"
-            style={{ width: `${Math.min(100, (totals.paid / annualBudget) * 100)}%` }}
+            style={{
+              width: `${Math.min(100, (totals.paid / annualBudget) * 100)}%`,
+            }}
             title={`จ่ายแล้ว: ${baht(totals.paid)}`}
           />
           <div
             className="h-full bg-purple-500 transition-all duration-500"
-            style={{ width: `${Math.min(100, (totals.pendingPay / annualBudget) * 100)}%` }}
+            style={{
+              width: `${Math.min(100, (totals.pendingPay / annualBudget) * 100)}%`,
+            }}
             title={`อนุมัติรอจ่าย: ${baht(totals.pendingPay)}`}
           />
         </div>
 
         <div className="flex flex-wrap items-center justify-between text-xs text-slate-500">
-          <span>ใช้ไปแล้ว {Math.min(100, Math.round(((totals.paid + totals.pendingPay) / annualBudget) * 100))}%</span>
+          <span>
+            ใช้ไปแล้ว{" "}
+            {Math.min(
+              100,
+              Math.round(
+                ((totals.paid + totals.pendingPay) / annualBudget) * 100,
+              ),
+            )}
+            %
+          </span>
           <span>
             งบประมาณคงเหลือสุทธิ:{" "}
-            <b className="text-slate-800">฿{baht(Math.max(0, annualBudget - totals.paid - totals.pendingPay))}</b>
+            <b className="text-slate-800">
+              ฿
+              {baht(
+                Math.max(0, annualBudget - totals.paid - totals.pendingPay),
+              )}
+            </b>
           </span>
         </div>
       </SectionCard>
@@ -437,13 +464,21 @@ function SummaryReport({ claims, canExport }) {
           value={totals.count}
           hint={formatDuration(totals.hours * 60)}
         />
-        <Stat label="ยอดเบิกรวม" value={`฿${baht(totals.amount)}`} tone={C.tealDark} />
+        <Stat
+          label="ยอดเบิกรวม"
+          value={`฿${baht(totals.amount)}`}
+          tone={C.tealDark}
+        />
         <Stat
           label="อนุมัติแล้ว รอจ่ายเงิน"
           value={`฿${baht(totals.pendingPay)}`}
           tone="#0F6F7C"
         />
-        <Stat label="จ่ายแล้ว" value={`฿${baht(totals.paid)}`} tone={STATUS_STYLE.Paid.fg} />
+        <Stat
+          label="จ่ายแล้ว"
+          value={`฿${baht(totals.paid)}`}
+          tone={STATUS_STYLE.Paid.fg}
+        />
       </div>
 
       <SectionCard className="p-5" hoverable={false}>
@@ -484,14 +519,19 @@ function SummaryReport({ claims, canExport }) {
             ไม่พบคำขอตามเงื่อนไขที่เลือก
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: C.border }}>
+          <div
+            className="overflow-x-auto rounded-2xl border"
+            style={{ borderColor: C.border }}
+          >
             <table className="w-full text-sm">
               <thead style={{ background: "#F7FAFC", color: C.sub }}>
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold">
                     ประเภทค่าตอบแทน
                   </th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold">คำขอ</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold">
+                    คำขอ
+                  </th>
                   {STATUS_GROUPS.map((g) => (
                     <th
                       key={g.key}
@@ -508,8 +548,15 @@ function SummaryReport({ claims, canExport }) {
 
               <tbody>
                 {byType.map((row) => (
-                  <tr key={row.type} className="border-t" style={{ borderColor: C.border }}>
-                    <td className="px-4 py-3 font-semibold" style={{ color: C.ink }}>
+                  <tr
+                    key={row.type}
+                    className="border-t"
+                    style={{ borderColor: C.border }}
+                  >
+                    <td
+                      className="px-4 py-3 font-semibold"
+                      style={{ color: C.ink }}
+                    >
                       {row.label}
                     </td>
                     <td className="px-4 py-3 text-right figure">{row.count}</td>
@@ -517,7 +564,9 @@ function SummaryReport({ claims, canExport }) {
                       <td
                         key={g.key}
                         className="px-4 py-3 text-right figure"
-                        style={{ color: row.cells[g.key].count ? g.color : C.sub }}
+                        style={{
+                          color: row.cells[g.key].count ? g.color : C.sub,
+                        }}
                       >
                         {row.cells[g.key].count
                           ? `${baht(row.cells[g.key].amount)} (${row.cells[g.key].count})`
@@ -533,14 +582,24 @@ function SummaryReport({ claims, canExport }) {
                   </tr>
                 ))}
 
-                <tr className="border-t" style={{ borderColor: C.border, background: "#F7FAFC" }}>
+                <tr
+                  className="border-t"
+                  style={{ borderColor: C.border, background: "#F7FAFC" }}
+                >
                   <td className="px-4 py-3 font-extrabold">รวมทั้งหมด</td>
-                  <td className="px-4 py-3 text-right figure font-bold">{totals.count}</td>
+                  <td className="px-4 py-3 text-right figure font-bold">
+                    {totals.count}
+                  </td>
                   {STATUS_GROUPS.map((g) => {
-                    const list = filtered.filter((c) => groupOf(c.status) === g.key);
+                    const list = filtered.filter(
+                      (c) => groupOf(c.status) === g.key,
+                    );
 
                     return (
-                      <td key={g.key} className="px-4 py-3 text-right figure font-bold">
+                      <td
+                        key={g.key}
+                        className="px-4 py-3 text-right figure font-bold"
+                      >
                         {list.length
                           ? `${baht(sumBy(list, (c) => c.amount))} (${list.length})`
                           : "-"}
@@ -570,7 +629,10 @@ function SummaryReport({ claims, canExport }) {
             ไม่พบคำขอตามเงื่อนไขที่เลือก
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: C.border }}>
+          <div
+            className="overflow-x-auto rounded-2xl border"
+            style={{ borderColor: C.border }}
+          >
             <table className="w-full text-sm">
               <thead style={{ background: "#F7FAFC", color: C.sub }}>
                 <tr>
@@ -596,7 +658,11 @@ function SummaryReport({ claims, canExport }) {
 
               <tbody>
                 {byPeriod.map((row) => (
-                  <tr key={row.key} className="border-t" style={{ borderColor: C.border }}>
+                  <tr
+                    key={row.key}
+                    className="border-t"
+                    style={{ borderColor: C.border }}
+                  >
                     <td className="px-4 py-3">{row.term}</td>
                     <td className="px-4 py-3">
                       {row.month === "-" ? "-" : `เดือน ${row.month}`}
@@ -608,7 +674,10 @@ function SummaryReport({ claims, canExport }) {
                     <td className="px-4 py-3 text-right figure font-semibold">
                       {baht(row.amount)}
                     </td>
-                    <td className="px-4 py-3 text-right figure" style={{ color: STATUS_STYLE.Paid.fg }}>
+                    <td
+                      className="px-4 py-3 text-right figure"
+                      style={{ color: STATUS_STYLE.Paid.fg }}
+                    >
                       {baht(row.paid)}
                     </td>
                   </tr>
@@ -630,6 +699,7 @@ export default function Report({
   onReload,
 }) {
   const canExport = can(user, P.DATA_EXPORT);
+  const canViewPII = can(user, P.PII_VIEW);
 
   return (
     <div className="w-full space-y-5">
@@ -678,8 +748,21 @@ export default function Report({
             กำลังโหลดข้อมูล...
           </p>
         </SectionCard>
+      ) : error && claims.length === 0 ? (
+        <SectionCard className="p-10 text-center" hoverable={false}>
+          <p className="text-sm font-medium" style={{ color: C.ink }}>
+            ไม่สามารถโหลดรายงานได้
+          </p>
+          <p className="text-sm mt-2" style={{ color: C.sub }}>
+            กรุณาลองกดปุ่มรีเฟรชอีกครั้ง
+          </p>
+        </SectionCard>
       ) : (
-        <SummaryReport claims={claims} canExport={canExport} />
+        <SummaryReport
+          claims={claims}
+          canExport={canExport}
+          canViewPII={canViewPII}
+        />
       )}
     </div>
   );

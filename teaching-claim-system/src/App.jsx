@@ -53,10 +53,7 @@ import {
   deleteClaim as deleteLocalClaim,
 } from "./data/store";
 
-import {
-  getAuthenticatedUser,
-  logoutFromCognito,
-} from "./services/auth";
+import { getAuthenticatedUser, logoutFromCognito } from "./services/auth";
 
 import useNotifications from "./hooks/useNotifications";
 import useEscalations from "./hooks/useEscalations";
@@ -67,6 +64,7 @@ import {
   getPeriods,
   getCourses,
   getClaims,
+  getReportClaims,
   createClaim,
   deleteClaim,
   submitClaimAction,
@@ -216,7 +214,6 @@ export default function App() {
 
   const [editingClaimId, setEditingClaimId] = useState(null);
 
-
   // =========================
   // Semester & Submission Period
   // =========================
@@ -236,104 +233,72 @@ export default function App() {
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseError, setCourseError] = useState("");
 
-  const loadTerms =
-    async () => {
-      setTermLoading(true);
-      setTermError("");
+  const loadTerms = async () => {
+    setTermLoading(true);
+    setTermError("");
 
-      try {
-        const data =
-          await getTerms();
+    try {
+      const data = await getTerms();
 
-        const nextTerms =
-          Array.isArray(
-            data?.terms
-          )
-            ? data.terms
-            : Array.isArray(data)
-              ? data
-              : [];
+      const nextTerms = Array.isArray(data?.terms)
+        ? data.terms
+        : Array.isArray(data)
+          ? data
+          : [];
 
-        setTerms(
-          nextTerms
-        );
+      setTerms(nextTerms);
 
-        return nextTerms;
-      } catch (error) {
-        console.error(
-          "Load terms error:",
-          error
-        );
+      return nextTerms;
+    } catch (error) {
+      console.error("Load terms error:", error);
 
-        setTerms([]);
+      setTerms([]);
 
-        setTermError(
-          error?.message ||
-          "ไม่สามารถโหลดภาคการศึกษาได้"
-        );
+      setTermError(error?.message || "ไม่สามารถโหลดภาคการศึกษาได้");
 
-        return [];
-      } finally {
-        setTermLoading(false);
-      }
-    };
+      return [];
+    } finally {
+      setTermLoading(false);
+    }
+  };
 
-  const loadPeriods =
-    async (termId) => {
-      if (!termId) {
-        setPeriods([]);
-        setSelectedPeriodId(
-          null
-        );
+  const loadPeriods = async (termId) => {
+    if (!termId) {
+      setPeriods([]);
+      setSelectedPeriodId(null);
 
-        return [];
-      }
+      return [];
+    }
 
-      setPeriodLoading(true);
-      setTermError("");
+    setPeriodLoading(true);
+    setTermError("");
 
-      try {
-        const data =
-          await getPeriods(
-            termId
-          );
+    try {
+      const data = await getPeriods(termId);
 
-        const nextPeriods =
-          Array.isArray(
-            data?.periods
-          )
-            ? data.periods
-            : Array.isArray(data)
-              ? data
-              : [];
+      const nextPeriods = Array.isArray(data?.periods)
+        ? data.periods
+        : Array.isArray(data)
+          ? data
+          : [];
 
-        setPeriods(
-          nextPeriods
-        );
+      setPeriods(nextPeriods);
 
-        return nextPeriods;
-      } catch (error) {
-        console.error(
-          "Load periods error:",
-          error
-        );
+      return nextPeriods;
+    } catch (error) {
+      console.error("Load periods error:", error);
 
-        setPeriods([]);
+      setPeriods([]);
 
-        setSelectedPeriodId(
-          null
-        );
+      setSelectedPeriodId(null);
 
-        setTermError(
-          error?.message ||
-          "ไม่สามารถโหลดรอบการยื่นได้"
-        );
+      setTermError(error?.message || "ไม่สามารถโหลดรอบการยื่นได้");
 
-        return [];
-      } finally {
-        setPeriodLoading(false);
-      }
-    };
+      return [];
+    } finally {
+      setPeriodLoading(false);
+    }
+  };
 
   // โหลดรอบการยื่นของทุกภาคการศึกษาพร้อมกัน
   const loadAllPeriods = async (termList = terms) => {
@@ -363,7 +328,7 @@ export default function App() {
           ...period,
           term_id: period.term_id ?? term.id,
         }));
-      })
+      }),
     );
 
     const loaded = results
@@ -371,14 +336,14 @@ export default function App() {
       .flatMap((r) => r.value);
 
     const failedTerms = termList.filter(
-      (_, index) => results[index].status === "rejected"
+      (_, index) => results[index].status === "rejected",
     );
 
     failedTerms.forEach((term, i) =>
       console.error(
         `Load periods failed for term ${term.semester}/${term.year}:`,
-        results.filter((r) => r.status === "rejected")[i]?.reason
-      )
+        results.filter((r) => r.status === "rejected")[i]?.reason,
+      ),
     );
 
     setAllPeriods(loaded);
@@ -391,7 +356,7 @@ export default function App() {
       setAllPeriodsError(
         loaded.length > 0
           ? `โหลดรอบของบางภาคการศึกษาไม่สำเร็จ (${names}) — แสดงเฉพาะภาคที่โหลดได้`
-          : `ไม่สามารถโหลดรอบการยื่นได้ (${names})`
+          : `ไม่สามารถโหลดรอบการยื่นได้ (${names})`,
       );
     }
 
@@ -400,143 +365,96 @@ export default function App() {
 
   // เข้าหน้ารอบการยื่นเมื่อไหร่ โหลดรอบของทุกภาคใหม่ให้ข้อมูลสด
   useEffect(() => {
-    if (
-      (view === "create" || view === "rounds") &&
-      terms.length > 0
-    ) {
+    if ((view === "create" || view === "rounds") && terms.length > 0) {
       loadAllPeriods(terms);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, terms]);
 
-  const loadCourses =
-    async (termId) => {
-      if (!termId) {
-        setApiCourses([]);
-        setCourseError("");
-
-        return [];
-      }
-
-      setCourseLoading(true);
+  const loadCourses = async (termId) => {
+    if (!termId) {
+      setApiCourses([]);
       setCourseError("");
 
-      try {
-        const data =
-          await getCourses(
-            termId
-          );
+      return [];
+    }
 
-        const nextCourses =
-          Array.isArray(
-            data?.courses
-          )
-            ? data.courses
-            : Array.isArray(data)
-              ? data
-              : [];
+    setCourseLoading(true);
+    setCourseError("");
 
-        setApiCourses(
-          nextCourses
-        );
+    try {
+      const data = await getCourses(termId);
 
-        return nextCourses;
-      } catch (error) {
-        console.error(
-          "Load courses error:",
-          error
-        );
+      const nextCourses = Array.isArray(data?.courses)
+        ? data.courses
+        : Array.isArray(data)
+          ? data
+          : [];
 
-        setApiCourses([]);
+      setApiCourses(nextCourses);
 
-        setCourseError(
-          error?.message ||
-          "ไม่สามารถโหลดรายวิชาได้"
-        );
-
-        return [];
-      } finally {
-        setCourseLoading(false);
-      }
-    };
-
-  const handleTermChange =
-    async (termId) => {
-      setSelectedTermId(
-        termId
-      );
-
-      setPeriods([]);
-
-      setSelectedPeriodId(
-        null
-      );
+      return nextCourses;
+    } catch (error) {
+      console.error("Load courses error:", error);
 
       setApiCourses([]);
 
-      if (!termId) {
-        return;
-      }
+      setCourseError(error?.message || "ไม่สามารถโหลดรายวิชาได้");
 
-      try {
-        await Promise.all([
-          loadPeriods(
-            termId
-          ),
+      return [];
+    } finally {
+      setCourseLoading(false);
+    }
+  };
 
-          loadCourses(
-            termId
-          ),
-        ]);
-      } catch (error) {
-        console.error(
-          "Load term-dependent data error:",
-          error
-        );
-      }
-    };
+  const handleTermChange = async (termId) => {
+    setSelectedTermId(termId);
+
+    setPeriods([]);
+
+    setSelectedPeriodId(null);
+
+    setApiCourses([]);
+
+    if (!termId) {
+      return;
+    }
+
+    try {
+      await Promise.all([loadPeriods(termId), loadCourses(termId)]);
+    } catch (error) {
+      console.error("Load term-dependent data error:", error);
+    }
+  };
 
   const [apiClaims, setApiClaims] = useState([]);
 
-  const [claimsLoading, setClaimsLoading,] = useState(false);
+  const [claimsLoading, setClaimsLoading] = useState(false);
 
   const [claimsError, setClaimsError] = useState("");
 
-  const loadClaims =
-    async () => {
-      setClaimsLoading(true);
-      setClaimsError("");
+  const loadClaims = async () => {
+    setClaimsLoading(true);
+    setClaimsError("");
 
-      try {
-        const data =
-          await getClaims();
+    try {
+      const data = await getClaims();
 
-        const nextClaims =
-          normalizeClaimsResponse(
-            data
-          );
+      const nextClaims = normalizeClaimsResponse(data);
 
-        setApiClaims(
-          nextClaims
-        );
+      setApiClaims(nextClaims);
 
-        return nextClaims;
-      } catch (error) {
-        console.error(
-          "Load claims error:",
-          error
-        );
+      return nextClaims;
+    } catch (error) {
+      console.error("Load claims error:", error);
 
-        setClaimsError(
-          error?.message ||
-          "ไม่สามารถโหลดคำขอได้"
-        );
+      setClaimsError(error?.message || "ไม่สามารถโหลดคำขอได้");
 
-        return [];
-      } finally {
-        setClaimsLoading(false);
-      }
-    };
+      return [];
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
   /*
    * [V3] คิวตรวจสอบ/อนุมัติ — backend เป็นผู้กำหนดว่าเห็นคำขอของใครได้บ้าง
    * แยก state จาก "คำขอของฉัน" เพื่อไม่ให้คำขอของผู้อื่นไปโผล่ในหน้าของตัวเอง
@@ -545,59 +463,93 @@ export default function App() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState("");
 
+  // [V4] Report — แยกข้อมูลจาก Review Queue
+  const [reportClaims, setReportClaims] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState("");
+
   // หน้ารายละเอียดเปิดมาจากที่ไหน (ใช้กำหนดปุ่มย้อนกลับ/เมนูที่ไฮไลต์)
   const [detailFrom, setDetailFrom] = useState("myclaims");
 
   // ข้อความบนหน้า Login เมื่อถูกเด้งออก (เช่น เซสชันหมดอายุ)
   const [loginNotice, setLoginNotice] = useState("");
 
-  const loadReviewClaims =
-    async () => {
-      setReviewLoading(true);
-      setReviewError("");
+  const loadReviewClaims = async () => {
+    setReviewLoading(true);
+    setReviewError("");
 
-      try {
-        const data =
-          await getClaims("review");
+    try {
+      const data = await getClaims("review");
 
-        const next =
-          normalizeClaimsResponse(
-            data
-          );
+      const next = normalizeClaimsResponse(data);
 
-        setReviewClaims(next);
+      setReviewClaims(next);
 
-        return next;
-      } catch (error) {
-        console.error(
-          "Load review queue error:",
-          error
-        );
+      return next;
+    } catch (error) {
+      console.error("Load review queue error:", error);
 
-        setReviewClaims([]);
+      setReviewClaims([]);
 
-        setReviewError(
-          error?.status === 403
-            ? "คุณไม่มีสิทธิ์ดูคิวตรวจสอบ"
-            : error?.message ||
-              "ไม่สามารถโหลดคิวตรวจสอบได้"
-        );
+      setReviewError(
+        error?.status === 403
+          ? "คุณไม่มีสิทธิ์ดูคิวตรวจสอบ"
+          : error?.message || "ไม่สามารถโหลดคิวตรวจสอบได้",
+      );
 
-        return [];
-      } finally {
-        setReviewLoading(false);
-      }
-    };
+      return [];
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  // [V4][61] โหลดข้อมูลรายงานจาก Backend
+  const loadReportClaims = async () => {
+    setReportLoading(true);
+    setReportError("");
+
+    try {
+      const data = await getReportClaims();
+
+      const nextClaims = normalizeClaimsResponse(data);
+
+      setReportClaims(nextClaims);
+
+      return nextClaims;
+    } catch (error) {
+      console.error("Load report claims error:", error);
+
+      setReportClaims([]);
+
+      setReportError(
+        error?.status === 403
+          ? "คุณไม่มีสิทธิ์ดูรายงาน"
+          : error?.message || "ไม่สามารถโหลดข้อมูลรายงานได้",
+      );
+
+      return [];
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   /*
    * ผู้ใช้ที่เข้าสู่ระบบอยู่ (null = ยังไม่เข้าสู่ระบบ)
    * เก็บไว้ใน localStorage เพื่อให้รีเฟรชแล้วไม่หลุด
    */
   const [currentUser, setCurrentUser] = useState(null);
-
   const [authLoading, setAuthLoading] = useState(true);
 
   const isLoggedIn = Boolean(currentUser);
+
+  // [V4][61] โหลดรายงานเมื่อเปิดหน้า Report
+  useEffect(() => {
+    if (view !== "report" || !currentUser) return;
+
+    loadReportClaims();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currentUser]);
 
   /*
    * [V3] token หมดอายุ / ถูกเพิกถอน (API ตอบ 401)
@@ -612,16 +564,13 @@ export default function App() {
       }
 
       setCurrentUser(null);
-      setLoginNotice(
-        "เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบอีกครั้ง"
-      );
+      setLoginNotice("เซสชันหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบอีกครั้ง");
       setView("login");
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
 
-    return () =>
-      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
   }, []);
 
   /*
@@ -661,15 +610,16 @@ export default function App() {
       setApiClaims([]);
       setPendingEvidence({});
       setReviewClaims([]);
+
+      setReportClaims([]);
+      setReportLoading(false);
+      setReportError("");
+
       setTerms([]);
       setPeriods([]);
       setApiCourses([]);
-      setSelectedTermId(
-        null
-      );
-      setSelectedPeriodId(
-        null
-      );
+      setSelectedTermId(null);
+      setSelectedPeriodId(null);
 
       return;
     }
@@ -678,109 +628,70 @@ export default function App() {
 
     async function bootstrap() {
       /*
-      * Sync Cognito user
-      * กับ backend
-      */
+       * Sync Cognito user
+       * กับ backend
+       */
       try {
         await syncCurrentUser();
       } catch (error) {
-        console.error(
-          "User sync failed:",
-          error
-        );
+        console.error("User sync failed:", error);
       }
 
       /*
-      * Claims กับ Terms
-      * โหลดพร้อมกันได้
-      */
-      const [
-        nextTerms,
-      ] =
-        await Promise.all([
-          loadTerms(),
+       * Claims กับ Terms
+       * โหลดพร้อมกันได้
+       */
+      const [nextTerms] = await Promise.all([
+        loadTerms(),
 
-          isClaimant(currentUser)
-            ? loadClaims().catch(
-                () => []
-              )
-            : Promise.resolve([]),
+        isClaimant(currentUser)
+          ? loadClaims().catch(() => [])
+          : Promise.resolve([]),
 
-          canAccessQueue(currentUser)
-            ? loadReviewClaims().catch(
-                () => []
-              )
-            : Promise.resolve([]),
-        ]);
+        canAccessQueue(currentUser)
+          ? loadReviewClaims().catch(() => [])
+          : Promise.resolve([]),
+      ]);
 
-      if (
-        !active ||
-        nextTerms.length === 0
-      ) {
+      if (!active || nextTerms.length === 0) {
         return;
       }
 
       /*
-      * หา term ปัจจุบัน
-      * 1) flag จาก backend
-      * 2) term ที่วันนี้อยู่ในช่วง start_date–end_date
-      * 3) term ล่าสุด (id มากสุด)
-      */
-      const today =
-        new Date()
-          .toISOString()
-          .slice(0, 10);
+       * หา term ปัจจุบัน
+       * 1) flag จาก backend
+       * 2) term ที่วันนี้อยู่ในช่วง start_date–end_date
+       * 3) term ล่าสุด (id มากสุด)
+       */
+      const today = new Date().toISOString().slice(0, 10);
 
-      const termByDate =
-        nextTerms.find(
-          (term) =>
-            term.start_date &&
-            term.end_date &&
-            String(term.start_date).slice(0, 10) <= today &&
-            String(term.end_date).slice(0, 10) >= today
-        );
+      const termByDate = nextTerms.find(
+        (term) =>
+          term.start_date &&
+          term.end_date &&
+          String(term.start_date).slice(0, 10) <= today &&
+          String(term.end_date).slice(0, 10) >= today,
+      );
 
-      const latestTerm =
-        [...nextTerms].sort(
-          (a, b) =>
-            Number(b.id) -
-            Number(a.id)
-        )[0];
+      const latestTerm = [...nextTerms].sort(
+        (a, b) => Number(b.id) - Number(a.id),
+      )[0];
 
       const defaultTerm =
         nextTerms.find(
           (term) =>
-            term.is_current ===
-              true ||
-            term.is_active ===
-              true ||
-            String(
-              term.status ||
-                ""
-            ).toUpperCase() ===
-              "OPEN"
+            term.is_current === true ||
+            term.is_active === true ||
+            String(term.status || "").toUpperCase() === "OPEN",
         ) ||
         termByDate ||
         latestTerm;
 
-      const termId =
-        Number(
-          defaultTerm.id
-        );
+      const termId = Number(defaultTerm.id);
 
-      setSelectedTermId(
-        termId
-      );
+      setSelectedTermId(termId);
 
-      await Promise.all([
-        loadPeriods(
-          termId
-        ),
-
-        loadCourses(
-          termId
-        ),
-      ]);
+      await Promise.all([loadPeriods(termId), loadCourses(termId)]);
     }
 
     bootstrap();
@@ -795,19 +706,14 @@ export default function App() {
   /*
    * บันทึก localStorage ทุกครั้งที่ state เปลี่ยน
    */
-  const localDrafts =
-    Array.isArray(
-      state?.claims
-    )
-      ? state.claims.filter(
-          (claim) =>
-            claim.status ===
-              "Draft" &&
-            currentUser &&
-            claim.owner ===
-              currentUser.username
-        )
-      : [];
+  const localDrafts = Array.isArray(state?.claims)
+    ? state.claims.filter(
+        (claim) =>
+          claim.status === "Draft" &&
+          currentUser &&
+          claim.owner === currentUser.username,
+      )
+    : [];
 
   /*
    * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
@@ -815,24 +721,17 @@ export default function App() {
    */
   const decorateClaim = (claim) => {
     /*
-    * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
-    * ใช้ในตาราง คำขอของฉัน / หน้ารายละเอียด / แจ้งเตือน
-    */
-    const term = terms.find(
-      (item) =>
-        String(item.id) ===
-        String(claim.termId)
-    );
+     * เติมภาค ("1/2569") กับรหัสคำขอที่อ่านง่าย
+     * ใช้ในตาราง คำขอของฉัน / หน้ารายละเอียด / แจ้งเตือน
+     */
+    const term = terms.find((item) => String(item.id) === String(claim.termId));
 
-    const termLabel =
-      term
-        ? `${term.semester}/${term.year}`
-        : claim.semester || "";
+    const termLabel = term
+      ? `${term.semester}/${term.year}`
+      : claim.semester || "";
 
     const period = periods.find(
-      (item) =>
-        String(item.id) ===
-        String(claim.periodId)
+      (item) => String(item.id) === String(claim.periodId),
     );
 
     return {
@@ -844,49 +743,33 @@ export default function App() {
         id: claim.id,
         courseCode: claim.courseCode,
         termLabel,
-        periodMonth:
-          claim.period_month ??
-          period?.month,
-        submittedAt:
-          claim.submittedAt ||
-          claim.createdAt,
+        periodMonth: claim.period_month ?? period?.month,
+        submittedAt: claim.submittedAt || claim.createdAt,
       }),
     };
   };
 
   /*
-  * API Claims + local Draft
-  *
-  * local Draft เป็น temporary
-  * จนกว่า #24 backend จะเสร็จ
-  */
+   * API Claims + local Draft
+   *
+   * local Draft เป็น temporary
+   * จนกว่า #24 backend จะเสร็จ
+   */
   const claims = [
     ...localDrafts,
     ...apiClaims.filter(
       (apiClaim) =>
-        !localDrafts.some(
-          (draft) =>
-            String(
-              draft.id
-            ) ===
-            String(
-              apiClaim.id
-            )
-        )
+        !localDrafts.some((draft) => String(draft.id) === String(apiClaim.id)),
     ),
-  ].sort((a, b) => {
-    const aTime =
-      new Date(
-        a.createdAt || 0
-      ).getTime();
+  ]
+    .sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
 
-    const bTime =
-      new Date(
-        b.createdAt || 0
-      ).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
 
-    return bTime - aTime;
-  }).map(decorateClaim);
+      return bTime - aTime;
+    })
+    .map(decorateClaim);
 
   /*
    * ชั่วโมงที่เบิกไปแล้วต่อ section — รวมจากคำขอที่ยื่นแล้วของผู้ใช้
@@ -916,7 +799,7 @@ export default function App() {
     const quota = Number(course.max_hour ?? course.quota ?? 45);
     const used = Math.max(
       Number(course.hour ?? course.used ?? 0),
-      Math.round((claimedHoursBySection[String(sectionId)] || 0) * 100) / 100
+      Math.round((claimedHoursBySection[String(sectionId)] || 0) * 100) / 100,
     );
 
     return {
@@ -929,84 +812,42 @@ export default function App() {
   });
 
   /*
-  * Courses จาก Teaching Assignment API
-  */
-  const courses =
-    coursesWithUsage.map(
-      (course) => {
-        const role =
-          course.role || "";
+   * Courses จาก Teaching Assignment API
+   */
+  const courses = coursesWithUsage.map((course) => {
+    const role = course.role || "";
 
-        return {
-          ...course,
+    return {
+      ...course,
 
-          sectionId:
-            course.section_id ??
-            course.sectionId ??
-            course.id,
+      sectionId: course.section_id ?? course.sectionId ?? course.id,
 
-          code:
-            course.course_code ??
-            course.code ??
-            "",
+      code: course.course_code ?? course.code ?? "",
 
-          name:
-            course.course_name_th ??
-            course.course_name_en ??
-            course.name ??
-            "",
+      name: course.course_name_th ?? course.course_name_en ?? course.name ?? "",
 
-          position:
-            role,
+      position: role,
 
-          positionLabel:
-            role ===
-            "INSTRUCTOR"
-              ? "อาจารย์ผู้สอน"
-              : role === "TA"
-                ? "ผู้ช่วยสอน (TA)"
-                : role ||
-                  "ไม่ระบุตำแหน่ง",
+      positionLabel:
+        role === "INSTRUCTOR"
+          ? "อาจารย์ผู้สอน"
+          : role === "TA"
+            ? "ผู้ช่วยสอน (TA)"
+            : role || "ไม่ระบุตำแหน่ง",
 
-          used:
-            Number(
-              course.hour ??
-              course.used ??
-              0
-            ),
+      used: Number(course.hour ?? course.used ?? 0),
 
-          quota:
-            Number(
-              course.max_hour ??
-              course.quota ??
-              45
-            ),
+      quota: Number(course.max_hour ?? course.quota ?? 45),
 
-          remaining:
-            Number(
-              course.remaining_hour ??
-              course.remaining ??
-              Math.max(
-                Number(
-                  course.max_hour ??
-                    45
-                ) -
-                  Number(
-                    course.hour ??
-                      0
-                  ),
-                0
-              )
-            ),
+      remaining: Number(
+        course.remaining_hour ??
+          course.remaining ??
+          Math.max(Number(course.max_hour ?? 45) - Number(course.hour ?? 0), 0),
+      ),
 
-          rate:
-            Number(
-              course.rate ||
-              0
-            ),
-        };
-      }
-    );
+      rate: Number(course.rate || 0),
+    };
+  });
 
   /*
    * การแจ้งเตือนในเว็บ (สร้างจากสถานะคำขอ + คิวงานตามบทบาท + ข่าวสาร)
@@ -1017,7 +858,7 @@ export default function App() {
   // คำขอที่ผู้ตรวจสอบขอให้ผู้อนุมัติตรวจสอบหลักฐาน → ติด claim.escalation ให้ทุกหน้าของเจ้าหน้าที่ใช้ร่วมกัน
   const escalations = useEscalations(
     reviewClaims,
-    canAccessQueue(currentUser) && can(currentUser, P.AUDIT_VIEW)
+    canAccessQueue(currentUser) && can(currentUser, P.AUDIT_VIEW),
   );
 
   const queueClaims = useMemo(
@@ -1028,7 +869,7 @@ export default function App() {
         return escalation ? { ...claim, escalation } : claim;
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reviewClaims, terms, periods, escalations]
+    [reviewClaims, terms, periods, escalations],
   );
   const queueClaimsForNotif = queueClaims;
 
@@ -1037,19 +878,17 @@ export default function App() {
     .join("|");
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const ownClaimsForNotif = useMemo(() => claims, [ownClaimsKey, terms, periods]);
+  const ownClaimsForNotif = useMemo(
+    () => claims,
+    [ownClaimsKey, terms, periods],
+  );
 
-  const {
-    notifications,
-    unreadCount,
-    markRead,
-    markAllRead,
-    markClaimRead,
-  } = useNotifications({
-    user: currentUser,
-    ownClaims: ownClaimsForNotif,
-    queueClaims: queueClaimsForNotif,
-  });
+  const { notifications, unreadCount, markRead, markAllRead, markClaimRead } =
+    useNotifications({
+      user: currentUser,
+      ownClaims: ownClaimsForNotif,
+      queueClaims: queueClaimsForNotif,
+    });
 
   // เปิดดูคำขอไหน → แจ้งเตือนของคำขอนั้นถือว่าอ่านแล้ว
   useEffect(() => {
@@ -1092,9 +931,7 @@ export default function App() {
   }, [currentUser]);
 
   const mapPeriodToRound = (period) => {
-    const formatDate = (
-      value
-    ) => {
+    const formatDate = (value) => {
       if (!value) {
         return "";
       }
@@ -1106,14 +943,11 @@ export default function App() {
         return "";
       }
 
-      return new Intl.DateTimeFormat(
-        "th-TH",
-        {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }
-      ).format(date);
+      return new Intl.DateTimeFormat("th-TH", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(date);
     };
 
     /*
@@ -1124,104 +958,58 @@ export default function App() {
      * รองรับกรณี API ส่ง
      * number / string / "OPEN"
      */
-    const statusValue =
-      String(
-        period.status ?? ""
-      )
-        .trim()
-        .toUpperCase();
+    const statusValue = String(period.status ?? "")
+      .trim()
+      .toUpperCase();
 
     const statusEnabled =
-      period.status === 1 ||
-      period.status === "1" ||
-      statusValue === "OPEN";
+      period.status === 1 || period.status === "1" || statusValue === "OPEN";
 
     /*
      * ตรวจช่วงเวลาเปิดจริงด้วย
      */
-    const now =
-      new Date();
+    const now = new Date();
 
-    const openAt =
-      period.open_at
-        ? new Date(
-            period.open_at
-          )
-        : null;
+    const openAt = period.open_at ? new Date(period.open_at) : null;
 
-    const closeAt =
-      period.close_at
-        ? new Date(
-            period.close_at
-          )
-        : null;
+    const closeAt = period.close_at ? new Date(period.close_at) : null;
 
     const withinPeriod =
-      (!openAt ||
-        now >= openAt) &&
-      (!closeAt ||
-        now <= closeAt);
+      (!openAt || now >= openAt) && (!closeAt || now <= closeAt);
 
-    const isOpen =
-      statusEnabled &&
-      withinPeriod;
+    const isOpen = statusEnabled && withinPeriod;
 
     const term = terms.find(
-      (item) =>
-        String(item.id) === String(period.term_id)
+      (item) => String(item.id) === String(period.term_id),
     );
 
     return {
-      id:
-        period.id,
+      id: period.id,
 
-      termId:
-        period.term_id,
+      termId: period.term_id,
 
       // ปีการศึกษา / ภาคการศึกษา ใช้ค้นหาและจัดกลุ่มในหน้ารอบการยื่น
-      year:
-        term?.year != null ? String(term.year) : "",
+      year: term?.year != null ? String(term.year) : "",
 
-      semester:
-        term?.semester != null ? String(term.semester) : "",
+      semester: term?.semester != null ? String(term.semester) : "",
 
-      termLabel:
-        term ? `${term.semester}/${term.year}` : "",
+      termLabel: term ? `${term.semester}/${term.year}` : "",
 
-      month:
-        period.month,
+      month: period.month,
 
-      label:
-        period.label ||
-        `รอบเดือน ${
-          period.month || "-"
-        }`,
+      label: period.label || `รอบเดือน ${period.month || "-"}`,
 
-      period:
-        `${formatDate(
-          period.open_at
-        )} - ${formatDate(
-          period.close_at
-        )}`,
+      period: `${formatDate(period.open_at)} - ${formatDate(period.close_at)}`,
 
-      deadline:
-        formatDate(
-          period.close_at
-        ),
+      deadline: formatDate(period.close_at),
 
-      openAt:
-        period.open_at,
+      openAt: period.open_at,
 
-      closeAt:
-        period.close_at,
+      closeAt: period.close_at,
 
-      status:
-        isOpen
-          ? "Open"
-          : "Closed",
+      status: isOpen ? "Open" : "Closed",
     };
   };
-
 
   const rounds = periods.map(mapPeriodToRound);
 
@@ -1231,14 +1019,10 @@ export default function App() {
   // ภาคที่เลือกอยู่ เช่น "1/2569"
   const currentTermLabel = (() => {
     const term = terms.find(
-      (item) =>
-        String(item.id) ===
-        String(selectedTermId)
+      (item) => String(item.id) === String(selectedTermId),
     );
 
-    return term
-      ? `${term.semester}/${term.year}`
-      : "";
+    return term ? `${term.semester}/${term.year}` : "";
   })();
 
   /*
@@ -1287,25 +1071,16 @@ export default function App() {
   /*
    * สร้างคำขอจากรายวิชา
    */
-  const goCreateFor =
-    (course) => {
-      setPresetCourse(
-        course?.code ||
-        course?.course_code ||
-        ""
-      );
+  const goCreateFor = (course) => {
+    setPresetCourse(course?.code || course?.course_code || "");
 
-      setPresetSectionId(
-        course?.sectionId ??
-        course?.section_id ??
-        null
-      );
+    setPresetSectionId(course?.sectionId ?? course?.section_id ?? null);
 
-      setPresetRound(null);
-      setEditingClaimId(null);
+    setPresetRound(null);
+    setEditingClaimId(null);
 
-      setView("create");
-    };
+    setView("create");
+  };
 
   /*
    * สร้างคำขอจากรอบ
@@ -1316,10 +1091,7 @@ export default function App() {
     setView("claim-create");
 
     // รอบอาจอยู่คนละภาคกับที่เลือกอยู่ → สลับภาค (โหลดวิชา/รอบของภาคนั้น) ก่อนเลือกรอบ
-    if (
-      round?.termId &&
-      String(round.termId) !== String(selectedTermId)
-    ) {
+    if (round?.termId && String(round.termId) !== String(selectedTermId)) {
       await handleTermChange(round.termId);
     }
 
@@ -1341,12 +1113,12 @@ export default function App() {
             (claim) =>
               String(claim.periodId) === String(round.id) &&
               claim.status !== STATUS.DRAFT &&
-              claim.status !== STATUS.UNKNOWN
+              claim.status !== STATUS.UNKNOWN,
           )
           .sort(
             (a, b) =>
               new Date(b.createdAt || 0).getTime() -
-              new Date(a.createdAt || 0).getTime()
+              new Date(a.createdAt || 0).getTime(),
           )
       : [];
 
@@ -1430,13 +1202,13 @@ export default function App() {
         entries.map((entry) =>
           entry instanceof File
             ? entry.name
-            : entry?.fileName || entry?.file?.name
-        )
+            : entry?.fileName || entry?.file?.name,
+        ),
       );
 
       // ตัดรายการที่ลองรอบนี้ออก แล้วใส่เฉพาะที่ยังพลาดกลับเข้าไป
       const remaining = (current[claimId] || []).filter(
-        (item) => !retriedNames.has(item.fileName)
+        (item) => !retriedNames.has(item.fileName),
       );
       const merged = [...remaining, ...result.failed];
 
@@ -1461,7 +1233,7 @@ export default function App() {
         await loadReviewClaims();
 
         throw new Error(
-          "สถานะของคำขอเปลี่ยนไปแล้ว ระบบอัปเดตข้อมูลล่าสุดให้แล้ว กรุณาตรวจสอบอีกครั้ง"
+          "สถานะของคำขอเปลี่ยนไปแล้ว ระบบอัปเดตข้อมูลล่าสุดให้แล้ว กรุณาตรวจสอบอีกครั้ง",
         );
       }
 
@@ -1480,109 +1252,74 @@ export default function App() {
   const handleSubmit = async (form, evidenceFiles = []) => {
     try {
       /*
-      * STEP 1
-      * ตอนนี้ยังไม่ map ตาม API Gateway Model
-      * เพราะ Model ไม่ได้ใช้แล้ว
-      *
-      * ส่ง form ไปดู contract ของ Lambda จริงก่อน
-      */
-      const payload =
-      buildClaimApiPayload(
-        form
-      );
+       * STEP 1
+       * ตอนนี้ยังไม่ map ตาม API Gateway Model
+       * เพราะ Model ไม่ได้ใช้แล้ว
+       *
+       * ส่ง form ไปดู contract ของ Lambda จริงก่อน
+       */
+      const payload = buildClaimApiPayload(form);
 
-      console.log(
-        "POST /api/claims payload:",
-        payload
-      );
+      console.log("POST /api/claims payload:", payload);
 
       /*
-      * STEP 2
-      * Create Claim
-      */
-      const returnedClaim =
-        editingClaimId
-          ? apiClaims.find(
-              (item) =>
-                String(item.id) ===
-                String(editingClaimId) &&
-                item.status ===
-                  STATUS.RETURNED
-            )
-          : null;
+       * STEP 2
+       * Create Claim
+       */
+      const returnedClaim = editingClaimId
+        ? apiClaims.find(
+            (item) =>
+              String(item.id) === String(editingClaimId) &&
+              item.status === STATUS.RETURNED,
+          )
+        : null;
 
       /*
        * [V3] คำขอที่ถูกส่งกลับ → ยื่นใหม่บนคำขอเดิม (ไม่สร้างใหม่)
        * เพื่อให้ประวัติการตรวจสอบต่อเนื่องในคำขอเดียว
        */
-      const claimResponse =
-        returnedClaim
-          ? await resubmitClaim(
-              returnedClaim.id,
-              payload
-            ).then(
-              (response) =>
-                response || {
-                  claimId:
-                    returnedClaim.id,
-                }
-            )
-          : await createClaim(
-              payload
-            );
+      const claimResponse = returnedClaim
+        ? await resubmitClaim(returnedClaim.id, payload).then(
+            (response) =>
+              response || {
+                claimId: returnedClaim.id,
+              },
+          )
+        : await createClaim(payload);
 
-      console.log(
-        "POST /api/claims response:",
-        claimResponse
-      );
+      console.log("POST /api/claims response:", claimResponse);
 
       /*
-      * STEP 3
-      * ดึง claimId
-      */
-      const claimId =
-        getClaimIdFromResponse(
-          claimResponse
-        );
+       * STEP 3
+       * ดึง claimId
+       */
+      const claimId = getClaimIdFromResponse(claimResponse);
 
       if (!claimId) {
-        throw new Error(
-          "Backend สร้าง Claim แล้ว แต่ไม่ได้คืน claimId"
-        );
+        throw new Error("Backend สร้าง Claim แล้ว แต่ไม่ได้คืน claimId");
       }
 
-      console.log(
-        "Created claimId:",
-        claimId
-      );
+      console.log("Created claimId:", claimId);
 
       /*
-      * STEP 4
-      * Upload + register Evidence
-      *
-      * คำขอถูกสร้างแล้วในขั้นนี้ จึง "ห้ามโยน error" ถ้าไฟล์บางไฟล์พลาด
-      * ไม่งั้นผู้ใช้จะค้างที่ฟอร์ม กดยื่นซ้ำแล้วได้คำขอซ้ำ และไฟล์ที่ขึ้น S3 แล้ว
-      * จะไม่ถูกบันทึก metadata (หน้ารายละเอียดมองไม่เห็น)
-      * → บันทึกทุกไฟล์ที่สำเร็จ แล้วเก็บไฟล์ที่พลาดไว้ให้กดลองใหม่ในหน้ารายละเอียด
-      */
+       * STEP 4
+       * Upload + register Evidence
+       *
+       * คำขอถูกสร้างแล้วในขั้นนี้ จึง "ห้ามโยน error" ถ้าไฟล์บางไฟล์พลาด
+       * ไม่งั้นผู้ใช้จะค้างที่ฟอร์ม กดยื่นซ้ำแล้วได้คำขอซ้ำ และไฟล์ที่ขึ้น S3 แล้ว
+       * จะไม่ถูกบันทึก metadata (หน้ารายละเอียดมองไม่เห็น)
+       * → บันทึกทุกไฟล์ที่สำเร็จ แล้วเก็บไฟล์ที่พลาดไว้ให้กดลองใหม่ในหน้ารายละเอียด
+       */
       const uploadResult =
         evidenceFiles.length > 0
-          ? await uploadAndRegisterEvidence(
-              claimId,
-              evidenceFiles
-            )
+          ? await uploadAndRegisterEvidence(claimId, evidenceFiles)
           : { registered: [], failed: [] };
 
       if (evidenceFiles.length > 0) {
-        console.log(
-          "Evidence result:",
-          {
-            registered:
-              uploadResult.registered.length,
-            failed:
-              uploadResult.failed.length,
-          }
-        );
+        console.log("Evidence result:", {
+          registered: uploadResult.registered.length,
+          failed: uploadResult.failed.length,
+        });
       }
 
       setPendingEvidence((current) => {
@@ -1598,32 +1335,27 @@ export default function App() {
       });
 
       /*
-      * STEP 5
-      * สร้าง Claim สำหรับแสดงบน UI
-      * ทันทีโดยไม่ต้องรอ GET
-      */
+       * STEP 5
+       * สร้าง Claim สำหรับแสดงบน UI
+       * ทันทีโดยไม่ต้องรอ GET
+       */
       const createdClaim = {
         ...form,
 
-        id:
-          claimId,
+        id: claimId,
 
         claimId,
 
         evidence:
           uploadResult.registered.length > 0
-            ? uploadResult.registered
-                .map((item) => item.fileName)
-                .join(", ")
+            ? uploadResult.registered.map((item) => item.fileName).join(", ")
             : form.fileName || "",
 
-        evidenceFiles:
-          uploadResult.registered,
+        evidenceFiles: uploadResult.registered,
 
         status:
           (claimResponse?.status != null &&
-            normalizeStatus(claimResponse.status) !==
-              STATUS.UNKNOWN &&
+            normalizeStatus(claimResponse.status) !== STATUS.UNKNOWN &&
             normalizeStatus(claimResponse.status)) ||
           STATUS.SUBMITTED,
 
@@ -1634,49 +1366,34 @@ export default function App() {
       };
 
       /*
-      * STEP 6
-      * เพิ่ม Claim ใน state
-      */
-      setApiClaims(
-        (current) => [
-          createdClaim,
+       * STEP 6
+       * เพิ่ม Claim ใน state
+       */
+      setApiClaims((current) => [
+        createdClaim,
 
-          ...current.filter(
-            (claim) =>
-              String(
-                claim.id ??
-                claim.claimId ??
-                claim.claim_id
-              ) !==
-              String(
-                claimId
-              )
-          ),
-        ]
-      );
+        ...current.filter(
+          (claim) =>
+            String(claim.id ?? claim.claimId ?? claim.claim_id) !==
+            String(claimId),
+        ),
+      ]);
 
       /*
-      * STEP 6.1
-      * ถ้ายื่นจากแบบร่างเดิม → ลบแบบร่างนั้นทิ้ง
-      * ไม่งั้นจะมีทั้งร่างเก่าและคำขอที่ยื่นแล้วซ้อนกัน
-      */
+       * STEP 6.1
+       * ถ้ายื่นจากแบบร่างเดิม → ลบแบบร่างนั้นทิ้ง
+       * ไม่งั้นจะมีทั้งร่างเก่าและคำขอที่ยื่นแล้วซ้อนกัน
+       */
       if (editingClaimId) {
-        const isLocalDraft =
-          localDrafts.some(
-            (draft) =>
-              String(draft.id) ===
-              String(editingClaimId)
-          );
+        const isLocalDraft = localDrafts.some(
+          (draft) => String(draft.id) === String(editingClaimId),
+        );
 
         if (isLocalDraft) {
-          setState(
-            deleteLocalClaim(editingClaimId)
-          );
+          setState(deleteLocalClaim(editingClaimId));
         } else {
           const oldClaim = apiClaims.find(
-            (item) =>
-              String(item.id) ===
-              String(editingClaimId)
+            (item) => String(item.id) === String(editingClaimId),
           );
 
           // ร่างที่อยู่ใน backend → ลบผ่าน API (ถ้าลบไม่ได้ก็ไม่ให้การยื่นล้ม)
@@ -1685,74 +1402,55 @@ export default function App() {
             String(oldClaim.id) !== String(claimId)
           ) {
             try {
-              await deleteClaim(
-                oldClaim.id,
-                currentUser?.cognitoSub
-              );
+              await deleteClaim(oldClaim.id, currentUser?.cognitoSub);
 
               setApiClaims((current) =>
                 current.filter(
-                  (item) =>
-                    String(item.id) !==
-                    String(oldClaim.id)
-                )
+                  (item) => String(item.id) !== String(oldClaim.id),
+                ),
               );
             } catch (error) {
-              console.error(
-                "Submitted but old draft delete failed:",
-                error
-              );
+              console.error("Submitted but old draft delete failed:", error);
             }
           }
         }
       }
 
       /*
-      * STEP 7
-      * ลอง refresh Claim จริงจาก backend
-      *
-      * ถ้าพัง เราก็ยังมี createdClaim
-      * ให้หน้า Detail ใช้อยู่
-      */
+       * STEP 7
+       * ลอง refresh Claim จริงจาก backend
+       *
+       * ถ้าพัง เราก็ยังมี createdClaim
+       * ให้หน้า Detail ใช้อยู่
+       */
       // ไม่รอ — ไปหน้ารายละเอียดได้เลย แล้วค่อยอัปเดตรายการตามหลัง
       Promise.resolve(loadClaims()).catch((error) => {
         console.error(
           "Claim created but GET /api/claims refresh failed:",
-          error
+          error,
         );
       });
 
-      setEditingClaimId(
-        null
-      );
+      setEditingClaimId(null);
 
-      setSelectedClaimId(
-        claimId
-      );
+      setSelectedClaimId(claimId);
 
-      setView(
-        "detail"
-      );
+      setView("detail");
 
       // บางไฟล์ไม่สำเร็จ → หน้ารายละเอียดแสดงแถบแจ้งพร้อมปุ่ม "ลองอีกครั้ง"
       if (uploadResult.failed.length > 0) {
         notify(
           `ยื่นคำขอเรียบร้อยแล้ว แต่แนบไฟล์ไม่สำเร็จ ${uploadResult.failed.length} ไฟล์\n` +
             "กดปุ่ม “ลองอีกครั้ง” ในหน้ารายละเอียดคำขอได้เลย",
-          "info"
+          "info",
         );
       }
     } catch (error) {
-      console.error(
-        "Submit claim failed:",
-        error
-      );
+      console.error("Submit claim failed:", error);
 
       notify(
-        error?.data?.message ||
-          error?.message ||
-          "ไม่สามารถยื่นคำขอได้",
-        "error"
+        error?.data?.message || error?.message || "ไม่สามารถยื่นคำขอได้",
+        "error",
       );
     }
   };
@@ -1780,7 +1478,7 @@ export default function App() {
 
   const performDeleteClaim = async (claim) => {
     const isLocalDraft = localDrafts.some(
-      (draft) => String(draft.id) === String(claim.id)
+      (draft) => String(draft.id) === String(claim.id),
     );
 
     try {
@@ -1790,7 +1488,7 @@ export default function App() {
         await deleteClaim(claim.id, currentUser?.cognitoSub);
 
         setApiClaims((current) =>
-          current.filter((item) => String(item.id) !== String(claim.id))
+          current.filter((item) => String(item.id) !== String(claim.id)),
         );
       }
 
@@ -1804,7 +1502,7 @@ export default function App() {
 
       notify(
         error?.data?.message || error?.message || "ไม่สามารถลบคำขอได้",
-        "error"
+        "error",
       );
     }
   };
@@ -1837,18 +1535,9 @@ export default function App() {
       fileName: "",
     };
 
-    const savedClaim =
-      editingClaimId
-        ? updateClaimFromForm(
-            editingClaimId,
-            draftForm,
-            "Draft"
-          )
-        : addClaim(
-            draftForm,
-            "Draft",
-            currentUser?.username
-          );
+    const savedClaim = editingClaimId
+      ? updateClaimFromForm(editingClaimId, draftForm, "Draft")
+      : addClaim(draftForm, "Draft", currentUser?.username);
 
     if (!savedClaim) {
       notify("ไม่สามารถบันทึกแบบร่างได้", "error");
@@ -1859,28 +1548,19 @@ export default function App() {
     if (evidenceFiles.length > 0) {
       notify(
         "บันทึกแบบร่างแล้ว แต่ไฟล์หลักฐานยังไม่ถูกบันทึก กรุณาเลือกไฟล์ใหม่ตอนกลับมาแก้ไข",
-        "info"
+        "info",
       );
     }
 
-    const latestState =
-      loadState();
+    const latestState = loadState();
 
-    setState(
-      latestState
-    );
+    setState(latestState);
 
-    setEditingClaimId(
-      null
-    );
+    setEditingClaimId(null);
 
-    setSelectedClaimId(
-      savedClaim.id
-    );
+    setSelectedClaimId(savedClaim.id);
 
-    setView(
-      "detail"
-    );
+    setView("detail");
   };
 
   /*
@@ -1909,7 +1589,15 @@ export default function App() {
 
     switch (view) {
       case "home":
-        return <Home query={search} isLoggedIn={isLoggedIn} goCreate={goCreate} onLogin={goLoginThenCreate} rounds={rounds} />;
+        return (
+          <Home
+            query={search}
+            isLoggedIn={isLoggedIn}
+            goCreate={goCreate}
+            onLogin={goLoginThenCreate}
+            rounds={rounds}
+          />
+        );
 
       case "dashboard":
         return (
@@ -1942,13 +1630,8 @@ export default function App() {
           <MyClaims
             claims={claims}
             currentTermLabel={currentTermLabel}
-            termLabels={terms.map(
-              (term) =>
-                `${term.semester}/${term.year}`
-            )}
-            courseCodes={courses
-              .map((course) => course.code)
-              .filter(Boolean)}
+            termLabels={terms.map((term) => `${term.semester}/${term.year}`)}
+            courseCodes={courses.map((course) => course.code).filter(Boolean)}
             goDetail={goDetail}
             goCreate={goCreate}
             onDelete={handleDeleteClaim}
@@ -1988,12 +1671,7 @@ export default function App() {
         );
 
       case "auditlog":
-        return (
-          <AuditLog
-            claims={queueClaims}
-            goDetail={goReviewDetail}
-          />
-        );
+        return <AuditLog claims={queueClaims} goDetail={goReviewDetail} />;
 
       case "settings":
         return (
@@ -2008,10 +1686,10 @@ export default function App() {
         return (
           <Report
             user={currentUser}
-            claims={queueClaims}
-            loading={reviewLoading}
-            error={reviewError}
-            onReload={loadReviewClaims}
+            claims={reportClaims}
+            loading={reportLoading}
+            error={reportError}
+            onReload={loadReportClaims}
           />
         );
 
@@ -2072,17 +1750,10 @@ export default function App() {
             course={
               courses.find(
                 (course) =>
-                  String(
-                    course.sectionId
-                  ) ===
-                  String(
-                    selectedClaim?.sectionId
-                  )
+                  String(course.sectionId) === String(selectedClaim?.sectionId),
               ) ||
               courses.find(
-                (course) =>
-                  course.code ===
-                  selectedClaim?.courseCode
+                (course) => course.code === selectedClaim?.courseCode,
               )
             }
             user={currentUser}
@@ -2090,15 +1761,11 @@ export default function App() {
               setView(detailFrom === "review" ? "review" : "myclaims")
             }
             backLabel={
-              detailFrom === "review"
-                ? "กลับไปคิวตรวจสอบ"
-                : "กลับไปคำขอของฉัน"
+              detailFrom === "review" ? "กลับไปคิวตรวจสอบ" : "กลับไปคำขอของฉัน"
             }
             onEdit={goEditClaim}
             onAction={handleClaimAction}
-            pendingEvidence={
-              pendingEvidence[selectedClaim?.id] || []
-            }
+            pendingEvidence={pendingEvidence[selectedClaim?.id] || []}
             onAttachEvidence={handleAttachEvidence}
           />
         );
@@ -2127,9 +1794,7 @@ export default function App() {
         );
 
       case "contact":
-        return (
-          <Contact user={currentUser} onDone={() => setView("home")} />
-        );
+        return <Contact user={currentUser} onDone={() => setView("home")} />;
 
       default:
         return <NotFound onBack={() => setView("home")} />;
@@ -2164,8 +1829,7 @@ export default function App() {
     return (
       <Login
         notice={
-          loginNotice ||
-          (needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : "")
+          loginNotice || (needsLogin ? "กรุณาเข้าสู่ระบบก่อนใช้งานหน้านี้" : "")
         }
         onBack={() => {
           setAfterLoginView(null);
@@ -2186,7 +1850,7 @@ export default function App() {
           setView(
             wanted && canAccessView(nextUser, wanted)
               ? wanted
-              : getLandingView(nextUser)
+              : getLandingView(nextUser),
           );
 
           setAfterLoginView(null);

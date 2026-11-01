@@ -4,100 +4,56 @@ import { roundMoney, formatThaiMonth, hoursToParts } from "../utils/time";
 import { normalizeStatus } from "../data/workflow";
 import { resolveClaimCompType } from "../data/compensationTypes";
 
-function sessionToHour(
-  session
-) {
-  const hours =
-    Number(
-      session?.hours || 0
-    );
+function sessionToHour(session) {
+  const hours = Number(session?.hours || 0);
 
-  const minutes =
-    Number(
-      session?.minutes || 0
-    );
+  const minutes = Number(session?.minutes || 0);
 
-  return Number(
-    (
-      hours +
-      minutes / 60
-    ).toFixed(2)
-  );
+  return Number((hours + minutes / 60).toFixed(2));
 }
 
 export function buildClaimApiPayload(form) {
   const status = form.status;
   // console.log("Status:", status);
-  const sessions =
-    Array.isArray(
-      form?.sessions
-    )
-      ? form.sessions.filter(
-          (session) =>
-            session.date
-        )
-      : [];
+  const sessions = Array.isArray(form?.sessions)
+    ? form.sessions.filter((session) => session.date)
+    : [];
 
   /*
    * 1 Claim = หลายวันสอน (ตาราง claim_date)
    * date ส่งเป็น array เสมอ แม้มีวันเดียว: [{ date, hour }]
    */
-  if (
-    sessions.length === 0
-  ) {
-    throw new Error(
-      "กรุณาระบุวันที่สอนอย่างน้อย 1 วัน"
-    );
+  if (sessions.length === 0) {
+    throw new Error("กรุณาระบุวันที่สอนอย่างน้อย 1 วัน");
   }
 
   // ชั่วโมงของแต่ละวัน → claim_date.hour
-  const date =
-    sessions.map(
-      (session) => ({
-        date: session.date,
-        hour: sessionToHour(session),
-      })
-    );
+  const date = sessions.map((session) => ({
+    date: session.date,
+    hour: sessionToHour(session),
+  }));
 
-  if (
-    date.some(
-      (item) => item.hour <= 0
-    )
-  ) {
-    throw new Error(
-      "กรุณาระบุจำนวนชั่วโมงที่สอนให้ครบทุกวัน"
-    );
+  if (date.some((item) => item.hour <= 0)) {
+    throw new Error("กรุณาระบุจำนวนชั่วโมงที่สอนให้ครบทุกวัน");
   }
 
   // ชั่วโมงรวมทุกวัน
-  const hour =
-    Number(
-      date
-        .reduce(
-          (sum, item) =>
-            sum + item.hour,
-          0
-        )
-        .toFixed(2)
-    );
+  const hour = Number(
+    date.reduce((sum, item) => sum + item.hour, 0).toFixed(2),
+  );
 
   return {
-    academic_term:
-      Number(form.termId),
+    academic_term: Number(form.termId),
 
-    period_id:
-      Number(form.periodId),
+    period_id: Number(form.periodId),
 
-    section_id:
-      Number(form.sectionId),
+    section_id: Number(form.sectionId),
     status,
     date,
 
     hour,
 
-    note:
-      form.notes?.trim() ||
-      null,
+    note: form.notes?.trim() || null,
   };
 }
 
@@ -112,7 +68,9 @@ export const COMP_TYPES = {
 };
 
 export function getCompType(role) {
-  const key = String(role || "").trim().toUpperCase();
+  const key = String(role || "")
+    .trim()
+    .toUpperCase();
 
   if (key === "TEACHER" || key === "INSTRUCTOR" || key === "LECTURER") {
     return "TEACHER";
@@ -125,14 +83,9 @@ export function getCompType(role) {
   return "OTHER";
 }
 
-export function normalizeClaim(
-  raw
-) {
+export function normalizeClaim(raw) {
   // รองรับทั้งเลข (0,1,2,…) และข้อความ ("APPROVED") — ดู data/workflow.js
-  const status =
-    normalizeStatus(
-      raw.status
-    );
+  const status = normalizeStatus(raw.status);
 
   /*
    * date จาก GET เป็น array [{ id, claim_id, date, hour }] (ตาราง claim_date)
@@ -146,72 +99,51 @@ export function normalizeClaim(
         : []
   )
     .filter((item) => item?.date)
-    .sort((a, b) =>
-      String(a.date).localeCompare(String(b.date))
-    );
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   // ชั่วโมงรวม: ใช้ค่าจาก backend ถ้ามี ไม่งั้นรวมจากแต่ละวัน
   const hours =
     raw.hour != null
       ? Number(raw.hour)
-      : dateList.reduce(
-          (sum, item) => sum + Number(item.hour || 0),
-          0
-        );
+      : dateList.reduce((sum, item) => sum + Number(item.hour || 0), 0);
 
-  const teachingDate =
-    dateList[0]?.date || "";
+  const teachingDate = dateList[0]?.date || "";
 
   return {
     ...raw,
 
-    id:
-      raw.id,
+    id: raw.id,
 
-    claimId:
-      raw.id,
+    claimId: raw.id,
 
     status,
 
-    termId:
-      raw.academic_term,
+    termId: raw.academic_term,
 
-    semester:
-      raw.term || "",
+    semester: raw.term || "",
 
-    periodId:
-      raw.period_id,
+    periodId: raw.period_id,
 
-    sectionId:
-      raw.section_id,
+    sectionId: raw.section_id,
 
-    courseCode:
-      raw.course_code ||
-      "",
+    courseCode: raw.course_code || "",
 
-    courseName:
-      raw.course_name ||
-      raw.course_name_en ||
-      "",
+    courseName: raw.course_name || raw.course_name_en || "",
 
     // วันสอนวันแรก
     teachingDate,
 
     // เดือนที่สอน เช่น "ตุลาคม 2569" (ใช้แสดงในตารางคำขอ)
-    month:
-      formatThaiMonth(teachingDate),
+    month: formatThaiMonth(teachingDate),
 
     // วันสอนแต่ละวัน → รูปแบบเดียวกับ sessions ในฟอร์ม
-    sessions:
-      dateList.map((item) => ({
-        id:
-          `session-${item.id ?? `${raw.id}-${item.date}`}`,
+    sessions: dateList.map((item) => ({
+      id: `session-${item.id ?? `${raw.id}-${item.date}`}`,
 
-        date:
-          item.date,
+      date: item.date,
 
-        ...hoursToParts(item.hour),
-      })),
+      ...hoursToParts(item.hour),
+    })),
 
     hours,
 
@@ -221,8 +153,7 @@ export function normalizeClaim(
      *  - backend ส่ง amount/rate มา → ใช้ตามนั้น
      *  - ไม่ส่งมา → คำนวณเองจาก hour × HOURLY_RATE (พฤติกรรมเดิม)
      */
-    financialRestricted:
-      raw.financial_restricted === true,
+    financialRestricted: raw.financial_restricted === true,
 
     rate:
       raw.financial_restricted === true
@@ -236,39 +167,22 @@ export function normalizeClaim(
         ? null
         : raw.amount != null
           ? Number(raw.amount)
-          : roundMoney(
-              hours * HOURLY_RATE
-            ),
+          : roundMoney(hours * HOURLY_RATE),
 
     // [V3] ผู้ยื่นคำขอ — ใช้แสดงในคิวตรวจสอบ และกันการตรวจ/อนุมัติคำขอตัวเอง
-    ownerSub:
-      raw.owner_sub ||
-      raw.cognito_sub ||
-      raw.user_sub ||
-      "",
+    ownerSub: raw.owner_sub || raw.cognito_sub || raw.user_sub || "",
 
-    claimantName:
-      raw.claimant_name ||
-      raw.owner_name ||
-      raw.user_name ||
-      "",
+    claimantName: raw.claimant_name || raw.owner_name || raw.user_name || "",
 
     claimantEmail:
-      raw.claimant_email ||
-      raw.owner_email ||
-      raw.user_email ||
-      "",
+      raw.claimant_email || raw.owner_email || raw.user_email || "",
 
-    claimantRole:
-      raw.claimant_role ||
-      raw.owner_role ||
-      "",
+    claimantRole: raw.claimant_role || raw.owner_role || "",
 
     // [V3] server บอกว่าผู้ใช้คนนี้ทำอะไรกับคำขอนี้ได้บ้าง (ถ้าไม่ส่งมา UI คำนวณเอง)
-    allowedActions:
-      Array.isArray(raw.allowed_actions)
-        ? raw.allowed_actions
-        : null,
+    allowedActions: Array.isArray(raw.allowed_actions)
+      ? raw.allowed_actions
+      : null,
 
     // ผู้ตรวจสอบกด /pass (สถานะ 2) — reviewed_by เป็น UUID จึงใช้แค่ชื่อที่ backend join มา
     reviewedAt: raw.reviewed_at || raw.review_passed_at || null,
@@ -276,41 +190,29 @@ export function normalizeClaim(
 
     // [V3] เหตุผลล่าสุดจากผู้ตรวจ/ผู้อนุมัติ (ส่งกลับ / ไม่อนุมัติ)
     decisionComment:
-      raw.decision_comment ||
-      raw.return_comment ||
-      raw.last_comment ||
-      "",
+      raw.decision_comment || raw.return_comment || raw.last_comment || "",
 
-    decisionBy:
-      raw.decision_by ||
-      "",
+    decisionBy: raw.decision_by || "",
 
     // วันที่จ่ายเงิน (backend ใส่ให้เมื่อสถานะเปลี่ยนเป็น Paid)
-    paidAt:
-      raw.paid_at || null,
+    paidAt: raw.paid_at || null,
 
     // บัญชีที่รับเงิน: เก็บเฉพาะแบบปิดบังบางส่วน (ปิดบังอีกชั้นที่นี่แม้ backend ส่งเลขเต็มมา)
-    paidBankName:
-      raw.payment_bank_name || raw.bank_name || "",
+    paidBankName: raw.payment_bank_name || raw.bank_name || "",
 
-    paidAccountMasked:
-      maskAccount(
-        raw.payment_account_masked ||
+    paidAccountMasked: maskAccount(
+      raw.payment_account_masked ||
         raw.payment_account_no ||
         raw.bank_account_no ||
-        ""
-      ),
+        "",
+    ),
 
     /*
      * ประเภทค่าตอบแทนแบบหยาบ (อาจารย์ / TA) — ใช้กับตัวกรองบทบาทเดิม
      */
-    compType:
-      getCompType(
-        raw.claimant_role ||
-        raw.owner_role ||
-        raw.position ||
-        raw.role
-      ),
+    compType: getCompType(
+      raw.claimant_role || raw.owner_role || raw.position || raw.role,
+    ),
 
     /*
      * [V4] ประเภทค่าตอบแทนแบบละเอียด (4 แบบใน data/compensationTypes.js)
@@ -327,32 +229,32 @@ export function normalizeClaim(
         role: raw.role,
       });
 
+      // ใช้ชื่อประเภทค่าตอบแทนจาก Backend ก่อน
+      const backendName = String(raw.compensation_type || "").trim();
+
+      const compTypeName = backendName || detail.name;
+
       return {
-        compTypeDetail: detail,
+        compTypeDetail: {
+          ...detail,
+          name: compTypeName,
+        },
         compTypeId: detail.id,
-        compTypeName: detail.name,
+        compTypeName,
       };
     })(),
 
-    periodMonth:
-      raw.period_month ?? null,
+    periodMonth: raw.period_month ?? null,
 
-    updatedAt:
-      raw.updated_at,
+    updatedAt: raw.updated_at,
 
-    notes:
-      raw.note || "",
+    notes: raw.note || "",
 
-    createdAt:
-      raw.created_at,
+    createdAt: raw.created_at,
 
-    submittedAt:
-      raw.submitted_at,
+    submittedAt: raw.submitted_at,
 
-    round:
-      raw.period_month
-        ? `เดือน ${raw.period_month}`
-        : "",
+    round: raw.period_month ? `เดือน ${raw.period_month}` : "",
   };
 }
 
@@ -377,29 +279,16 @@ export function buildClaimCode({
 
   // "1/2569" → "1/69"
   if (termLabel) {
-    parts.push(
-      String(termLabel).replace(
-        /\/\d{2}(\d{2})$/,
-        "/$1"
-      )
-    );
+    parts.push(String(termLabel).replace(/\/\d{2}(\d{2})$/, "/$1"));
   }
 
   if (periodMonth) {
-    parts.push(
-      `R${String(periodMonth).padStart(2, "0")}`
-    );
+    parts.push(`R${String(periodMonth).padStart(2, "0")}`);
   }
 
-  const submitted =
-    submittedAt
-      ? new Date(submittedAt)
-      : null;
+  const submitted = submittedAt ? new Date(submittedAt) : null;
 
-  if (
-    submitted &&
-    !Number.isNaN(submitted.getTime())
-  ) {
+  if (submitted && !Number.isNaN(submitted.getTime())) {
     const dd = String(submitted.getDate()).padStart(2, "0");
     const mm = String(submitted.getMonth() + 1).padStart(2, "0");
     const yy = String((submitted.getFullYear() + 543) % 100).padStart(2, "0");
@@ -418,19 +307,12 @@ export function buildClaimCode({
   return parts.join("-");
 }
 
-export function normalizeClaimsResponse(
-  data
-) {
-  const rows =
-    Array.isArray(data)
-      ? data
-      : Array.isArray(
-          data?.claims
-        )
-        ? data.claims
-        : [];
+export function normalizeClaimsResponse(data) {
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.claims)
+      ? data.claims
+      : [];
 
-  return rows.map(
-    normalizeClaim
-  );
+  return rows.map(normalizeClaim);
 }

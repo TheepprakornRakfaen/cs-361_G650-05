@@ -142,6 +142,27 @@ export function getClaims(scope) {
   });
 }
 
+/**
+ * [V4] Report Generation & Export
+ * เฉพาะ APPROVER และ ADMIN
+ * Backend ต้องตรวจสิทธิ์ DATA_EXPORT เอง
+ */
+export function getReportClaims(filters = {}) {
+  const params = new URLSearchParams({
+    scope: "report",
+  });
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, value);
+    }
+  });
+
+  return apiRequest(`/api/claims?${params.toString()}`, {
+    method: "GET",
+  });
+}
+
 export function createClaim(payload) {
   return apiRequest("/api/claims", {
     method: "POST",
@@ -259,7 +280,7 @@ export function submitClaimAction(claimId, action, comment) {
     return submitClaimAction(
       claimId,
       "REVIEW_PASS",
-      `${ESCALATE_TAG} ${comment?.trim() || ""}`
+      `${ESCALATE_TAG} ${comment?.trim() || ""}`,
     );
   }
 
@@ -295,13 +316,10 @@ export function batchReviewPass(claimIds = [], comment = "") {
  * Body เหมือน POST /api/claims (academic_term, period_id, section_id, status, date, note)
  */
 export function resubmitClaim(claimId, payload) {
-  return apiRequest(
-    `/api/claims/${encodeURIComponent(claimId)}/resend`,
-    {
-      method: "POST",
-      body: payload,
-    },
-  );
+  return apiRequest(`/api/claims/${encodeURIComponent(claimId)}/resend`, {
+    method: "POST",
+    body: payload,
+  });
 }
 
 /*
