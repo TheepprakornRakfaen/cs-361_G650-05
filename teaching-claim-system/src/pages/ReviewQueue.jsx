@@ -160,9 +160,21 @@ export default function ReviewQueue({
   const anomalyMap = useMemo(() => {
     const duplicateIndex = buildDuplicateIndex(queue);
     const map = new Map();
+
     queue.forEach((c) => {
-      map.set(c.id, detectClaimAnomalies(c, queue, [], null, { duplicateIndex }));
+      map.set(
+        c.id,
+        c.anomalyDetection ??
+          detectClaimAnomalies(
+            c,
+            queue,
+            [],
+            null,
+            { duplicateIndex }
+          )
+      );
     });
+
     return map;
   }, [queue]);
 
@@ -755,7 +767,7 @@ export default function ReviewQueue({
                 const submitted = claim.submittedAt || claim.createdAt;
                 const waiting = isPending(claim.status) ? businessDaysSince(submitted) : null;
                 const sla = SLA_STYLE[slaLevel(waiting)];
-                const check = anomalyMap.get(claim.id);
+                const check = claim.anomalyDetection ?? anomalyMap.get(claim.id);
 
                 return (
                   <tr
