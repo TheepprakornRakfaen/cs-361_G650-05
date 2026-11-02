@@ -82,6 +82,223 @@ const parseBody = (raw) => {
   }
 };
 
+const STATUS_LABEL = {
+  0: "Draft",
+  1: "Submitted",
+  2: "Reviewed",
+  3: "Approved",
+  4: "Rejected",
+  5: "Returned",
+  6: "Paid",
+};
+
+async function writeAuditLog(
+  client,
+  {
+    claimId,
+    action,
+    actorSub,
+    groups = [],
+    fromStatus = null,
+    toStatus,
+    comment = null,
+  },
+) {
+  let actorName = "ระบบ";
+  let actorRole = "SYSTEM";
+
+  if (actorSub) {
+    const {
+      rows: [actor],
+    } = await client.query(
+      `SELECT name FROM app_user WHERE cognito_sub = $1::uuid`,
+      [actorSub],
+    );
+
+    actorName = actor?.name || "";
+    actorRole = groups.join(",");
+  }
+
+  const statusLabel = (status) =>
+    status === null || status === undefined
+      ? null
+      : STATUS_LABEL[status] || String(status);
+
+  const result = await client.query(
+    `INSERT INTO audit_log (
+      claim_id,
+      action,
+      actor_sub,
+      actor_name,
+      actor_role,
+      from_status,
+      to_status,
+      comment
+    )
+    VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8)`,
+    [
+      claimId,
+      action,
+      actorSub || null,
+      actorName,
+      actorRole,
+      statusLabel(fromStatus),
+      statusLabel(toStatus),
+      comment,
+    ],
+  );
+
+  console.log("[AUDIT_LOG_INSERTED]", {
+    claimId,
+    action,
+    rowCount: result.rowCount,
+  });
+}
+
+const CLAIM_SORT_COLUMNS = {
+  created_at: "c.created_at",
+  submitted_at: "c.submitted_at",
+  status: "c.status",
+  hour: "c.hour",
+  amount: "(c.hour * ct.hourly_rate)",
+  claimant_name: "u.name",
+  course_code: "co.code",
+  period_month: "p.month",
+};
+
+function parseClaimQuery(raw) {
+  const allowed = new Set([
+    "scope",
+    "q",
+    "claimant",
+    "type_id",
+    "type_code",
+    "term_id",
+    "period_id",
+    "status",
+    "date_from",
+    "date_to",
+    "sort_by",
+    "sort_order",
+    "page",
+    "page_size",
+    "limit",
+    "offset",
+  ]);
+
+  try {
+    for (const key of Object.keys(raw)) {
+      if (!allowed.has(key)) {
+        throw new Error(`ไม่รองรับ parameter: ${key}`);
+      }
+    }
+
+    const str = (key, max = 120) => {
+      if (raw[key] === undefined) return null;
+      if (typeof raw[key] !== "string" || raw[key].length > max) {
+        throw new Error(`${key} ไม่ถูกต้อง`);
+      }
+      return raw[key].trim() || null;
+    };
+
+    const num = (key, min, max) => {
+      if (raw[key] === undefined) return null;
+      if (typeof raw[key] !== "string" || !/^(0|[1-9]\d*)$/.test(raw[key])) {
+        throw new Error(`${key} ต้องเป็นจำนวนเต็ม`);
+      }
+      const n = Number(raw[key]);
+      if (!Number.isSafeInteger(n) || n < min || n > max) {
+        throw new Error(`${key} ไม่อยู่ในช่วงที่กำหนด`);
+      }
+      return n;
+    };
+
+    const date = (key) => {
+      const value = str(key, 10);
+      if (!value) return null;
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new Error(`${key} ต้องเป็น YYYY-MM-DD`);
+      }
+
+      const d = new Date(`${value}T00:00:00Z`);
+      if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value) {
+        throw new Error(`${key} เป็นวันที่ไม่ถูกต้อง`);
+      }
+      return value;
+    };
+
+    const sortBy = str("sort_by", 40) || "created_at";
+    const sortOrder = (str("sort_order", 4) || "desc").toLowerCase();
+
+    if (!Object.hasOwn(CLAIM_SORT_COLUMNS, sortBy)) {
+      throw new Error("sort_by ไม่ถูกต้อง");
+    }
+    if (!["asc", "desc"].includes(sortOrder)) {
+      throw new Error("sort_order ไม่ถูกต้อง");
+    }
+
+    const status = num("status", 0, 7);
+    if (status !== null && ![0, 1, 2, 3, 4, 5, 7].includes(status)) {
+      throw new Error("status ไม่ถูกต้อง");
+    }
+
+    const dateFrom = date("date_from");
+    const dateTo = date("date_to");
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      throw new Error("date_from ต้องไม่เกิน date_to");
+    }
+
+    const usesPage = raw.page !== undefined || raw.page_size !== undefined;
+
+    const usesOffset = raw.limit !== undefined || raw.offset !== undefined;
+
+    if (usesPage && usesOffset) {
+      throw new Error("ห้ามใช้ page/page_size ร่วมกับ limit/offset");
+    }
+
+    let pagination = null;
+
+    if (usesPage) {
+      const page = num("page", 1, 100000) ?? 1;
+      const size = num("page_size", 1, 100) ?? 10;
+
+      pagination = {
+        mode: "page",
+        page,
+        limit: size,
+        offset: (page - 1) * size,
+      };
+    } else if (usesOffset) {
+      pagination = {
+        mode: "offset",
+        limit: num("limit", 1, 100) ?? 50,
+        offset: num("offset", 0, 2147483647) ?? 0,
+      };
+    }
+
+    return {
+      data: {
+        q: str("q"),
+        claimant: str("claimant"),
+        typeId: num("type_id", 1, 2147483647),
+        typeCode: str("type_code", 64),
+        termId: num("term_id", 1, 2147483647),
+        periodId: num("period_id", 1, 2147483647),
+        status,
+        dateFrom,
+        dateTo,
+        sortBy,
+        sortOrder,
+        pagination,
+      },
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 export const handler = async (event) => {
   const claims = event.requestContext?.authorizer?.claims;
   if (!claims?.sub) return respond(401, { message: "ต้องเข้าสู่ระบบก่อน" });
@@ -90,48 +307,47 @@ export const handler = async (event) => {
     // GET /api/claims
     if (event.httpMethod === "GET") {
       const params = event.queryStringParameters || {};
-      const scope = params.scope;
+      const scope = params.scope || "mine";
 
-      // ตรวจสิทธิ์แยกตาม scope ก่อนเรียกฐานข้อมูล
+      // ตรวจสิทธิ์ก่อนค้นหาข้อมูล
       if (scope === "review") {
-        // ADMIN ดูคิวได้อย่างเดียว (ตรวจ/อนุมัติไม่ได้ — ClaimWorkflowAPI ตรวจ group แยก)
         if (!isReviewer(claims) && !hasAnyGroup(claims, ["ADMIN"])) {
-          return respond(403, { message: "คุณไม่มีสิทธิ์ดูคิวตรวจสอบ" });
+          return respond(403, {
+            message: "ไม่มีสิทธิ์ดูคิวตรวจสอบ",
+          });
         }
       } else if (scope === "report") {
         if (!canReport(claims)) {
-          return respond(403, { message: "คุณไม่มีสิทธิ์ดูรายงาน" });
+          return respond(403, {
+            message: "ไม่มีสิทธิ์ดูรายงาน",
+          });
         }
-      } else if (!isClaimant(claims)) {
-        return respond(403, { message: "คุณไม่มีสิทธิ์ดูรายการคำร้องส่วนนี้" });
-      }
-
-      // ถ้าไม่ส่ง limit/offset ให้คง response แบบเดิมเพื่อไม่ให้ Frontend เดิมเสีย
-      const hasPagination =
-        params.limit !== undefined || params.offset !== undefined;
-      const limit = params.limit === undefined ? 50 : Number(params.limit);
-      const offset = params.offset === undefined ? 0 : Number(params.offset);
-
-      if (
-        hasPagination &&
-        (!Number.isInteger(limit) ||
-          limit < 1 ||
-          limit > 100 ||
-          !Number.isInteger(offset) ||
-          offset < 0)
-      ) {
+      } else if (scope === "mine") {
+        if (!isClaimant(claims)) {
+          return respond(403, {
+            message: "ไม่มีสิทธิ์ดูรายการคำร้อง",
+          });
+        }
+      } else {
         return respond(400, {
-          message: "limit ต้องอยู่ระหว่าง 1-100 และ offset ต้องไม่ติดลบ",
+          message: "scope ไม่ถูกต้อง",
         });
       }
 
-      // review/report เห็นรายการทั้งหมดที่ไม่ใช่ draft; claimant เห็นเฉพาะของตัวเอง
+      const parsed = parseClaimQuery(params);
+
+      if (parsed.error) {
+        return respond(400, {
+          message: parsed.error,
+        });
+      }
+
+      // review/report เห็นทุกคน ยกเว้น Draft
+      // mine เห็นเฉพาะคำร้องของตัวเอง
       const cognitoSub =
         scope === "review" || scope === "report" ? null : claims.sub;
-      return await queryClaims(
-        cognitoSub,
-        hasPagination ? { limit, offset } : null,
-      );
+
+      return await queryClaims(cognitoSub, parsed.data);
     }
 
     // POST /api/claims/{id}/resend
@@ -143,6 +359,7 @@ export const handler = async (event) => {
         return respond(403, { message: "คุณไม่มีสิทธิ์ส่งคำร้อง" });
       return await resendClaim(
         claims.sub,
+        getGroups(claims),
         event.pathParameters?.id,
         event.body,
       );
@@ -152,7 +369,7 @@ export const handler = async (event) => {
     if (event.httpMethod === "POST" && event.resource === "/api/claims") {
       if (!isClaimant(claims))
         return respond(403, { message: "คุณไม่มีสิทธิ์สร้างคำร้อง" });
-      return await createClaim(claims.sub, event.body);
+      return await createClaim(claims.sub, getGroups(claims), event.body);
     }
 
     // DELETE /api/claims
@@ -182,75 +399,199 @@ export const handler = async (event) => {
 // GET: cognitoSub = null -> ทุกคน (ยกเว้นร่าง), มีค่า -> เฉพาะของตัวเอง
 // ส่งเฉพาะฟิลด์ที่ services/claimMapper.js ใช้
 // ---------------------------------------------------------------------
-async function queryClaims(cognitoSub, pagination = null) {
-  const paginationSql = pagination ? "LIMIT $2 OFFSET $3" : "";
-  const queryParams = pagination
-    ? [cognitoSub, pagination.limit, pagination.offset]
-    : [cognitoSub];
+async function queryClaims(cognitoSub, opts) {
+  const values = [cognitoSub];
+  const where = [
+    `(($1::uuid IS NULL AND c.status <> 0)
+      OR c.claimant_id = $1::uuid)`,
+  ];
 
-  const { rows } = await pool.query(
-    `SELECT c.id,
-            u.name                       AS claimant_name,
-            c.status,
-            COALESCE(d.dates, '[]')      AS date,
-            c.hour::float                AS hour,
-            c.type_id,
-            ct.code                      AS type_code,
-            ct.name                      AS compensation_type,
-            ct.hourly_rate::float        AS rate,
-            (c.hour * ct.hourly_rate)::float AS amount,
-            c.note,
-            c.submitted_at,
-            c.created_at,
-            c.section_id,
-            co.code                      AS course_code,
-            co.name_th                   AS course_name,
-            co.name_en                   AS course_name_en,
-            s.term_id                    AS academic_term,
-            t.semester || '/' || t.year  AS term,
-            c.period_id,
-            p.month                      AS period_month
-       FROM claim c
-       JOIN app_user           u  ON u.cognito_sub = c.claimant_id
-       JOIN compensation_type  ct ON ct.id = c.type_id
-       JOIN section            s  ON s.id  = c.section_id
-       JOIN course             co ON co.id = s.course_id
-       JOIN academic_term      t  ON t.id  = s.term_id
-       JOIN claim_period       p  ON p.id  = c.period_id
-       LEFT JOIN LATERAL (
-            SELECT json_agg(json_build_object(
-                     'date', to_char(cd.teach_date, 'YYYY-MM-DD')
-                   ) ORDER BY cd.teach_date) AS dates
-              FROM claim_date cd
-             WHERE cd.claim_id = c.id
-       ) d ON true
-      WHERE (($1::uuid IS NULL AND c.status <> 0)
-          OR c.claimant_id = $1::uuid)
-      ORDER BY c.created_at DESC, c.id DESC
-      ${paginationSql}`,
-    queryParams,
-  );
+  // ใช้ Parameterized SQL เพื่อป้องกัน SQL Injection
+  const bind = (value) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
 
-  // เมื่อไม่ได้ขอ pagination ให้คง response format เดิมไว้เพื่อ backward compatibility
-  if (!pagination) {
-    return respond(200, { count: rows.length, claims: rows });
+  // Search: Claim ID, ผู้ยื่น, วิชา, Note, ประเภท
+  if (opts.q) {
+    const p = bind(opts.q);
+    where.push(`
+      STRPOS(LOWER(CONCAT_WS(' ',
+        c.id::text, u.name, co.code,
+        co.name_th, co.name_en, c.note,
+        ct.code, ct.name
+      )), LOWER(${p}::text)) > 0
+    `);
   }
 
-  const { rows: totalRows } = await pool.query(
-    `SELECT COUNT(*)::int AS total
-       FROM claim c
-      WHERE (($1::uuid IS NULL AND c.status <> 0)
-          OR c.claimant_id = $1::uuid)`,
-    [cognitoSub],
+  // Filter ผู้ยื่น
+  if (opts.claimant) {
+    const p = bind(opts.claimant);
+    if (UUID_RE.test(opts.claimant)) {
+      where.push(`c.claimant_id = ${p}::uuid`);
+    } else {
+      where.push(`
+        STRPOS(LOWER(u.name), LOWER(${p}::text)) > 0
+      `);
+    }
+  }
+
+  // Compensation Type
+  if (opts.typeId !== null) {
+    where.push(`c.type_id = ${bind(opts.typeId)}::int`);
+  }
+  if (opts.typeCode) {
+    where.push(`
+      LOWER(ct.code) = LOWER(${bind(opts.typeCode)}::text)
+    `);
+  }
+
+  // Academic Term
+  if (opts.termId !== null) {
+    where.push(`s.term_id = ${bind(opts.termId)}::int`);
+  }
+
+  // Submission Period
+  if (opts.periodId !== null) {
+    where.push(`c.period_id = ${bind(opts.periodId)}::int`);
+  }
+
+  // Claim Status
+  if (opts.status !== null) {
+    where.push(`c.status = ${bind(opts.status)}::smallint`);
+  }
+
+  // Date Range: อ้างอิงวันที่สอน
+  if (opts.dateFrom || opts.dateTo) {
+    const dateWhere = ["cd.claim_id = c.id"];
+
+    if (opts.dateFrom) {
+      dateWhere.push(`cd.teach_date >= ${bind(opts.dateFrom)}::date`);
+    }
+    if (opts.dateTo) {
+      dateWhere.push(`cd.teach_date <= ${bind(opts.dateTo)}::date`);
+    }
+
+    where.push(`
+      EXISTS (
+        SELECT 1 FROM claim_date cd
+        WHERE ${dateWhere.join(" AND ")}
+      )
+    `);
+  }
+
+  const joins = `
+    FROM claim c
+    JOIN app_user u
+      ON u.cognito_sub = c.claimant_id
+    JOIN compensation_type ct
+      ON ct.id = c.type_id
+    JOIN section s
+      ON s.id = c.section_id
+    JOIN course co
+      ON co.id = s.course_id
+    JOIN academic_term t
+      ON t.id = s.term_id
+    JOIN claim_period p
+      ON p.id = c.period_id
+  `;
+
+  const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  // Sorting ใช้เฉพาะชื่อ Column จาก Whitelist
+  const orderSql = `
+    ORDER BY ${CLAIM_SORT_COLUMNS[opts.sortBy]}
+      ${opts.sortOrder.toUpperCase()} NULLS LAST,
+      c.id DESC
+  `;
+
+  let paginationSql = "";
+  const dataParams = [...values];
+
+  if (opts.pagination) {
+    const limitParam = dataParams.push(opts.pagination.limit);
+    const offsetParam = dataParams.push(opts.pagination.offset);
+
+    paginationSql = `
+      LIMIT $${limitParam}::int
+      OFFSET $${offsetParam}::bigint
+    `;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       c.id,
+       u.name AS claimant_name,
+       c.status,
+       COALESCE(d.dates, '[]') AS date,
+       c.hour::float AS hour,
+       ct.hourly_rate::float AS rate,
+       (c.hour * ct.hourly_rate)::float AS amount,
+       c.note,
+       c.submitted_at,
+       c.created_at,
+       c.section_id,
+       co.code AS course_code,
+       co.name_th AS course_name,
+       co.name_en AS course_name_en,
+       s.term_id AS academic_term,
+       t.semester || '/' || t.year AS term,
+       c.period_id,
+       p.month AS period_month
+     ${joins}
+     LEFT JOIN LATERAL (
+       SELECT json_agg(
+         json_build_object(
+           'date', to_char(cd.teach_date, 'YYYY-MM-DD')
+         ) ORDER BY cd.teach_date
+       ) AS dates
+       FROM claim_date cd
+       WHERE cd.claim_id = c.id
+     ) d ON true
+     ${whereSql}
+     ${orderSql}
+     ${paginationSql}`,
+    dataParams,
   );
 
-  return respond(200, {
+  // ไม่ส่ง Pagination: คงรูปแบบเดิม
+  if (!opts.pagination) {
+    return respond(200, {
+      count: rows.length,
+      claims: rows,
+    });
+  }
+
+  // นับจำนวนที่ตรงกับ Filters ทั้งหมด
+  const { rows: countRows } = await pool.query(
+    `SELECT COUNT(*)::int AS total
+     ${joins}
+     ${whereSql}`,
+    values,
+  );
+
+  const total = countRows[0].total;
+  const pg = opts.pagination;
+
+  const result = {
     count: rows.length,
-    total: totalRows[0].total,
-    limit: pagination.limit,
-    offset: pagination.offset,
+    total,
+    limit: pg.limit,
+    offset: pg.offset,
     claims: rows,
-  });
+  };
+
+  // Metadata สำหรับ page/page_size
+  if (pg.mode === "page") {
+    result.pagination = {
+      page: pg.page,
+      page_size: pg.limit,
+      total,
+      total_pages: Math.ceil(total / pg.limit),
+    };
+  }
+
+  return respond(200, result);
 }
 
 // ---------------------------------------------------------------------
@@ -415,7 +756,7 @@ async function reserveHours(client, sectionId, cognitoSub, hour) {
 //   type_id = compensation_type.id (ไม่ส่ง -> TEACHING)
 // Response: { id, status, hour, submitted_at, created_at }
 // ---------------------------------------------------------------------
-async function createClaim(cognitoSub, rawBody) {
+async function createClaim(cognitoSub, groups, rawBody) {
   const body = parseBody(rawBody);
   if (!body) return respond(400, { message: "รูปแบบ JSON ไม่ถูกต้อง" });
 
@@ -464,6 +805,15 @@ async function createClaim(cognitoSub, rawBody) {
       return respond(400, { message: "ชั่วโมงเกินที่เหลือของ section" });
     }
 
+    await writeAuditLog(client, {
+      claimId: created.id,
+      action: status === 0 ? "CREATE" : "SUBMIT",
+      actorSub: cognitoSub,
+      groups,
+      fromStatus: null,
+      toStatus: status,
+    });
+
     await client.query("COMMIT");
     return respond(201, { ...created, hour: data.hour });
   } catch (err) {
@@ -479,7 +829,7 @@ async function createClaim(cognitoSub, rawBody) {
 // Body: { academic_term, period_id, section_id, date: [...], note }
 // Response: { id, status, hour, submitted_at, created_at }
 // ---------------------------------------------------------------------
-async function resendClaim(cognitoSub, claimId, rawBody) {
+async function resendClaim(cognitoSub, groups, claimId, rawBody) {
   if (!UUID_RE.test(claimId ?? ""))
     return respond(400, { message: "claim id ไม่ถูกต้อง" });
 
@@ -543,6 +893,15 @@ async function resendClaim(cognitoSub, claimId, rawBody) {
       await client.query("ROLLBACK");
       return respond(400, { message: "ชั่วโมงเกินที่เหลือของ section" });
     }
+
+    await writeAuditLog(client, {
+      claimId: updated.id,
+      action: "RESUBMIT",
+      actorSub: cognitoSub,
+      groups,
+      fromStatus: 5,
+      toStatus: 1,
+    });
 
     await client.query("COMMIT");
     return respond(200, { ...updated, hour: data.hour });

@@ -1,8 +1,4 @@
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   ArrowLeft,
@@ -32,24 +28,15 @@ import {
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import StatusPill from "../components/StatusPill";
-import {
-  sessionMinutes,
-  formatDuration,
-  formatThaiDate,
-} from "../utils/time";
+import { sessionMinutes, formatDuration, formatThaiDate } from "../utils/time";
 import { downloadSignFormPdf } from "../utils/signForm";
 import { detectClaimAnomalies } from "../utils/anomalyDetector";
 
-import {
-  getClaimEvidence,
-  getClaimHistory,
-} from "../services/api";
+import { getClaimEvidence, getClaimHistory } from "../services/api";
 
 import WorkflowStepper from "../components/WorkflowStepper";
 import ReviewActionPanel from "../components/ReviewActionPanel";
-import AuditTimeline, {
-  normalizeHistory,
-} from "../components/AuditTimeline";
+import AuditTimeline, { normalizeHistory } from "../components/AuditTimeline";
 import Restricted from "../components/Restricted";
 import { DEV_AUTH_BYPASS } from "../services/devAuth";
 import {
@@ -61,11 +48,7 @@ import {
   isOwnClaim,
   findEscalation,
 } from "../data/workflow";
-import {
-  PERMISSION as P,
-  can,
-  maskEmail,
-} from "../data/roles";
+import { PERMISSION as P, can, maskEmail } from "../data/roles";
 
 /*
  * GET /api/claims/{id}/evidence อาจส่ง field เป็น snake_case หรือ camelCase
@@ -80,44 +63,25 @@ function normalizeEvidence(item) {
       .pop() ||
     "ไฟล์แนบ";
 
-  const contentType =
-    item.content_type ||
-    item.contentType ||
-    "";
+  const contentType = item.content_type || item.contentType || "";
 
   const lower = fileName.toLowerCase();
 
   const isImage =
-    contentType.startsWith("image/") ||
-    /\.(png|jpe?g)$/.test(lower);
+    contentType.startsWith("image/") || /\.(png|jpe?g)$/.test(lower);
 
-  const isPdf =
-    contentType === "application/pdf" ||
-    lower.endsWith(".pdf");
+  const isPdf = contentType === "application/pdf" || lower.endsWith(".pdf");
 
   const type =
-    item.evidence_type ||
-    item.evidenceType ||
-    item.category ||
-    "supporting";
+    item.evidence_type || item.evidenceType || item.category || "supporting";
 
   return {
     // signed_form = เอกสารลงนาม · supporting = หลักฐานประกอบ
     isSigned: type === "signed_form",
-    id:
-      item.id ||
-      item.evidence_id ||
-      item.evidenceId ||
-      fileName,
+    id: item.id || item.evidence_id || item.evidenceId || fileName,
     fileName,
-    fileSize: Number(
-      item.file_size || item.fileSize || 0
-    ),
-    url:
-      item.download_url ||
-      item.downloadUrl ||
-      item.url ||
-      "",
+    fileSize: Number(item.file_size || item.fileSize || 0),
+    url: item.download_url || item.downloadUrl || item.url || "",
     isImage,
     isPdf,
   };
@@ -125,15 +89,9 @@ function normalizeEvidence(item) {
 
 // "Failed to fetch" = request ไปไม่ถึง/โดน CORS → แปลเป็นข้อความที่ผู้ใช้เข้าใจ
 function evidenceErrorText(error) {
-  const message =
-    error?.data?.message ||
-    error?.message ||
-    "";
+  const message = error?.data?.message || error?.message || "";
 
-  if (
-    message === "Failed to fetch" ||
-    message.includes("NetworkError")
-  ) {
+  if (message === "Failed to fetch" || message.includes("NetworkError")) {
     return "เชื่อมต่อเซิร์ฟเวอร์หลักฐานไม่ได้";
   }
 
@@ -155,8 +113,7 @@ function EvidencePreview({ item, onClose }) {
     };
 
     window.addEventListener("keydown", onKey);
-    return () =>
-      window.removeEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
@@ -224,10 +181,7 @@ function EvidencePreview({ item, onClose }) {
               className="w-full h-[78vh] border-0"
             />
           ) : (
-            <p
-              className="text-sm p-10"
-              style={{ color: C.sub }}
-            >
+            <p className="text-sm p-10" style={{ color: C.sub }}>
               ดูตัวอย่างไฟล์นี้ไม่ได้ กด “เปิดแท็บใหม่” เพื่อดาวน์โหลด
             </p>
           )}
@@ -261,7 +215,7 @@ export default function ClaimDetail({
 
   const anomalyCheck = React.useMemo(
     () => detectClaimAnomalies(claim, claims, course ? [course] : []),
-    [claim, claims, course]
+    [claim, claims, course],
   );
 
   const [copied, setCopied] = useState(false);
@@ -271,23 +225,13 @@ export default function ClaimDetail({
   const [historyForbidden, setHistoryForbidden] = useState(false);
   const [historyReload, setHistoryReload] = useState(0);
 
-  const [
-    evidenceItems,
-    setEvidenceItems,
-  ] = useState([]);
+  const [evidenceItems, setEvidenceItems] = useState([]);
 
-  const [
-    evidenceLoading,
-    setEvidenceLoading,
-  ] = useState(false);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
 
-  const [
-    evidenceError,
-    setEvidenceError,
-  ] = useState("");
+  const [evidenceError, setEvidenceError] = useState("");
 
-  const [previewItem, setPreviewItem] =
-    useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
 
   // ไฟล์ที่ผู้ตรวจสอบเปิดดูแล้ว — ใช้เตือนก่อนอนุมัติ และติ๊กถูกที่ไฟล์
   const [viewedIds, setViewedIds] = useState(() => new Set());
@@ -298,8 +242,7 @@ export default function ClaimDetail({
   };
 
   // เพิ่มค่าเพื่อโหลดหลักฐานใหม่ (ปุ่ม "ลองใหม่" / URL หมดอายุ)
-  const [evidenceReload, setEvidenceReload] =
-    useState(0);
+  const [evidenceReload, setEvidenceReload] = useState(0);
 
   const [attaching, setAttaching] = useState(false);
   const [attachMessage, setAttachMessage] = useState("");
@@ -310,19 +253,17 @@ export default function ClaimDetail({
     let active = true;
 
     async function loadEvidence() {
-      const claimId =
-        claim?.claimId ||
-        claim?.id;
+      const claimId = claim?.claimId || claim?.id;
 
       /*
-      * localStorage Draft เก่าอาจใช้
-      * CL-xxxx แทน UUID
-      */
+       * localStorage Draft เก่าอาจใช้
+       * CL-xxxx แทน UUID
+       */
       // โหมดทดลอง: คำขอตัวอย่างใช้ id แบบข้อความ จึงไม่ต้องเช็ก UUID
       const isUuid =
         (DEV_AUTH_BYPASS && Boolean(claimId)) ||
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-          String(claimId || "")
+          String(claimId || ""),
         );
 
       if (!isUuid || !canViewEvidence) {
@@ -334,50 +275,31 @@ export default function ClaimDetail({
       setEvidenceError("");
 
       try {
-        const data =
-          await getClaimEvidence(
-            claimId
-          );
+        const data = await getClaimEvidence(claimId);
 
         if (!active) {
           return;
         }
 
-        const items =
-          Array.isArray(
-            data?.evidence
-          )
-            ? data.evidence.map(normalizeEvidence)
-            : [];
+        const items = Array.isArray(data?.evidence)
+          ? data.evidence.map(normalizeEvidence)
+          : [];
 
-        setEvidenceItems(
-          items
-        );
+        setEvidenceItems(items);
 
-        console.log(
-          "GET Claim Evidence:",
-          {
-            claimId,
-            count:
-              data?.count,
-            hasEvidence:
-              data?.hasEvidence,
-            evidence:
-              items,
-          }
-        );
+        console.log("GET Claim Evidence:", {
+          claimId,
+          count: data?.count,
+          hasEvidence: data?.hasEvidence,
+          evidence: items,
+        });
       } catch (error) {
-        console.error(
-          "Load evidence error:",
-          error
-        );
+        console.error("Load evidence error:", error);
 
         if (active) {
           setEvidenceItems([]);
 
-          setEvidenceError(
-            evidenceErrorText(error)
-          );
+          setEvidenceError(evidenceErrorText(error));
         }
       } finally {
         if (active) {
@@ -391,13 +313,14 @@ export default function ClaimDetail({
     return () => {
       active = false;
     };
-  }, [
-    claim?.id,
-    claim?.claimId,
-    evidenceReload,
-    canViewEvidence,
-  ]);
+  }, [claim?.id, claim?.claimId, evidenceReload, canViewEvidence]);
 
+  console.log("[DEBUG CLAIM HISTORY]", {
+    claimId: claim?.claimId || claim?.id,
+    user,
+    userRoles: user?.roles,
+    canViewAudit,
+  });
   /*
    * [V3] ประวัติการดำเนินการ — โหลดใหม่เมื่อสถานะเปลี่ยน (หลังตรวจ/อนุมัติ)
    */
@@ -409,7 +332,7 @@ export default function ClaimDetail({
     const isUuid =
       (DEV_AUTH_BYPASS && Boolean(claimId)) ||
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        String(claimId || "")
+        String(claimId || ""),
       );
 
     setHistoryForbidden(false);
@@ -442,9 +365,7 @@ export default function ClaimDetail({
         if (error?.status === 403) {
           setHistoryForbidden(true);
         } else {
-          setHistoryError(
-            error?.message || "ไม่สามารถโหลดประวัติได้"
-          );
+          setHistoryError(error?.message || "ไม่สามารถโหลดประวัติได้");
         }
       })
       .finally(() => {
@@ -454,20 +375,17 @@ export default function ClaimDetail({
     return () => {
       active = false;
     };
-  }, [
-    claim?.id,
-    claim?.claimId,
-    claim?.status,
-    historyReload,
-    canViewAudit,
-  ]);
-  
+  }, [claim?.id, claim?.claimId, claim?.status, historyReload, canViewAudit]);
+
   if (!claim) {
     return (
       <div className="w-full">
         <SectionCard className="p-10 text-center">
           {loading ? (
-            <p className="flex items-center justify-center gap-2 text-sm font-medium" style={{ color: C.sub }}>
+            <p
+              className="flex items-center justify-center gap-2 text-sm font-medium"
+              style={{ color: C.sub }}
+            >
               <Loader2 size={16} className="animate-spin" />
               กำลังโหลดคำขอ...
             </p>
@@ -530,11 +448,11 @@ export default function ClaimDetail({
       setAttachMessage(
         result.failed.length === 0
           ? `แนบไฟล์สำเร็จ ${result.registered.length} ไฟล์`
-          : `แนบสำเร็จ ${result.registered.length} ไฟล์ ไม่สำเร็จ ${result.failed.length} ไฟล์`
+          : `แนบสำเร็จ ${result.registered.length} ไฟล์ ไม่สำเร็จ ${result.failed.length} ไฟล์`,
       );
     } catch (error) {
       setAttachMessage(
-        error?.data?.message || error?.message || "แนบไฟล์ไม่สำเร็จ"
+        error?.data?.message || error?.message || "แนบไฟล์ไม่สำเร็จ",
       );
     } finally {
       setAttaching(false);
@@ -555,7 +473,7 @@ export default function ClaimDetail({
   // คำขอแบบใหม่มีหลายวัน (sessions) คำขอเก่ามีแค่ teachingDate
   const sessions = Array.isArray(claim.sessions)
     ? [...claim.sessions].sort((a, b) =>
-        String(a.date).localeCompare(String(b.date))
+        String(a.date).localeCompare(String(b.date)),
       )
     : [];
 
@@ -567,86 +485,68 @@ export default function ClaimDetail({
     canViewFinance &&
     amount !== null &&
     (own || !claim.ownerSub) &&
-    (EDITABLE_STATUSES.includes(status) || ATTACHABLE_STATUSES.includes(status));
+    (EDITABLE_STATUSES.includes(status) ||
+      ATTACHABLE_STATUSES.includes(status));
 
+  const renderItems = (list) =>
+    list.map((item) => {
+      const FileIcon = item.isImage
+        ? ImageIcon
+        : item.isPdf
+          ? FileText
+          : Paperclip;
 
-  const renderItems = (list) => list.map((item) => {
-                  const FileIcon = item.isImage
-                    ? ImageIcon
-                    : item.isPdf
-                      ? FileText
-                      : Paperclip;
-  
-                  return (
-                    <button
-                      type="button"
-                      key={item.id}
-                      disabled={!item.url}
-                      onClick={() => openPreview(item)}
-                      className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        borderColor: C.border,
-                      }}
-                      title={
-                        item.url
-                          ? "กดเพื่อดูไฟล์"
-                          : "ไม่มีลิงก์ดาวน์โหลด"
-                      }
-                    >
-                      <span
-                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                        style={{
-                          background: C.tealSoft,
-                          color: C.tealDark,
-                        }}
-                      >
-                        <FileIcon size={18} />
-                      </span>
-  
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className="block text-sm font-semibold truncate"
-                          style={{ color: C.ink }}
-                        >
-                          {item.fileName}
-                        </span>
-  
-                        <span
-                          className="block text-xs"
-                          style={{ color: C.sub }}
-                        >
-                          {item.isPdf
-                            ? "PDF"
-                            : item.isImage
-                              ? "รูปภาพ"
-                              : "ไฟล์"}
-                          {item.fileSize > 0 &&
-                            ` · ${(
-                              item.fileSize /
-                              1024 /
-                              1024
-                            ).toFixed(2)} MB`}
-                        </span>
-                      </span>
-  
-                      {viewedIds.has(item.id) && (
-                        <span
-                          className="flex items-center gap-1 text-xs font-semibold shrink-0"
-                          style={{ color: C.green }}
-                        >
-                          <CheckCircle2 size={14} />
-                          เปิดดูแล้ว
-                        </span>
-                      )}
-  
-                      <Eye
-                        size={16}
-                        className="shrink-0"
-                        style={{ color: C.tealDark }}
-                      />
-                    </button>
-                  );
-                });
+      return (
+        <button
+          type="button"
+          key={item.id}
+          disabled={!item.url}
+          onClick={() => openPreview(item)}
+          className="flex items-center gap-3 p-3 rounded-xl border text-left transition-colors hover:bg-[#F4F8FB] disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            borderColor: C.border,
+          }}
+          title={item.url ? "กดเพื่อดูไฟล์" : "ไม่มีลิงก์ดาวน์โหลด"}
+        >
+          <span
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: C.tealSoft,
+              color: C.tealDark,
+            }}
+          >
+            <FileIcon size={18} />
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <span
+              className="block text-sm font-semibold truncate"
+              style={{ color: C.ink }}
+            >
+              {item.fileName}
+            </span>
+
+            <span className="block text-xs" style={{ color: C.sub }}>
+              {item.isPdf ? "PDF" : item.isImage ? "รูปภาพ" : "ไฟล์"}
+              {item.fileSize > 0 &&
+                ` · ${(item.fileSize / 1024 / 1024).toFixed(2)} MB`}
+            </span>
+          </span>
+
+          {viewedIds.has(item.id) && (
+            <span
+              className="flex items-center gap-1 text-xs font-semibold shrink-0"
+              style={{ color: C.green }}
+            >
+              <CheckCircle2 size={14} />
+              เปิดดูแล้ว
+            </span>
+          )}
+
+          <Eye size={16} className="shrink-0" style={{ color: C.tealDark }} />
+        </button>
+      );
+    });
 
   const copyClaimCode = async () => {
     try {
@@ -730,9 +630,7 @@ export default function ClaimDetail({
             {canEdit && (
               <button
                 type="button"
-                onClick={() =>
-                  onEdit?.(claim.id)
-                }
+                onClick={() => onEdit?.(claim.id)}
                 className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
                 style={{
                   borderColor: C.border,
@@ -740,9 +638,7 @@ export default function ClaimDetail({
                 }}
               >
                 <Pencil size={13} />
-                {status === STATUS.DRAFT
-                  ? "แก้ไขร่าง"
-                  : "แก้ไขและยื่นใหม่"}
+                {status === STATUS.DRAFT ? "แก้ไขร่าง" : "แก้ไขและยื่นใหม่"}
               </button>
             )}
 
@@ -761,9 +657,7 @@ export default function ClaimDetail({
           >
             {claim.courseCode}
 
-            {course?.name
-              ? ` — ${course.name}`
-              : ""}
+            {course?.name ? ` — ${course.name}` : ""}
           </span>
 
           {claim.month && (
@@ -784,10 +678,7 @@ export default function ClaimDetail({
           className="rounded-2xl p-5 md:p-6 mb-8 border"
           style={{ borderColor: C.border }}
         >
-          <p
-            className="text-sm font-semibold mb-6"
-            style={{ color: C.ink }}
-          >
+          <p className="text-sm font-semibold mb-6" style={{ color: C.ink }}>
             สถานะคำขอ
           </p>
 
@@ -799,10 +690,8 @@ export default function ClaimDetail({
           <div
             className="flex gap-3 rounded-2xl p-4 mb-8 border"
             style={{
-              background:
-                status === STATUS.REJECTED ? "#FDF1F1" : "#FFF7EE",
-              borderColor:
-                status === STATUS.REJECTED ? "#F3C9C9" : "#F6D9BC",
+              background: status === STATUS.REJECTED ? "#FDF1F1" : "#FFF7EE",
+              borderColor: status === STATUS.REJECTED ? "#F3C9C9" : "#F6D9BC",
             }}
             role="note"
           >
@@ -810,8 +699,7 @@ export default function ClaimDetail({
               size={18}
               className="shrink-0 mt-0.5"
               style={{
-                color:
-                  status === STATUS.REJECTED ? C.red : C.orange,
+                color: status === STATUS.REJECTED ? C.red : C.orange,
               }}
             />
 
@@ -831,7 +719,9 @@ export default function ClaimDetail({
 
               {status === STATUS.REJECTED && own && (
                 <p className="text-xs mt-2 leading-5" style={{ color: C.sub }}>
-                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขคำขอเดิมไม่ได้ หากต้องการเบิกรายการนี้ กรุณายื่นคำขอใหม่พร้อมหลักฐานที่ถูกต้อง
+                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขคำขอเดิมไม่ได้
+                  หากต้องการเบิกรายการนี้
+                  กรุณายื่นคำขอใหม่พร้อมหลักฐานที่ถูกต้อง
                 </p>
               )}
             </div>
@@ -845,7 +735,11 @@ export default function ClaimDetail({
             style={{ background: "#F3FAFB", borderColor: "#C9E4E8" }}
             role="note"
           >
-            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: "#0F6F7C" }} />
+            <Banknote
+              size={18}
+              className="shrink-0 mt-0.5"
+              style={{ color: "#0F6F7C" }}
+            />
 
             <p className="text-sm leading-6" style={{ color: C.ink }}>
               คำขออนุมัติแล้ว อยู่ระหว่างรอจ่ายเงิน เมื่อครบกำหนดเวลา
@@ -860,7 +754,11 @@ export default function ClaimDetail({
             style={{ background: "#F1F6FE", borderColor: "#C3D7F4" }}
             role="note"
           >
-            <Banknote size={18} className="shrink-0 mt-0.5" style={{ color: STATUS_STYLE.Paid.fg }} />
+            <Banknote
+              size={18}
+              className="shrink-0 mt-0.5"
+              style={{ color: STATUS_STYLE.Paid.fg }}
+            />
 
             <p className="text-sm leading-6" style={{ color: C.ink }}>
               <b>จ่ายเงินแล้ว</b>
@@ -869,8 +767,11 @@ export default function ClaimDetail({
                 : ""}
               {claim.paidAccountMasked && (own || can(user, P.PII_VIEW)) && (
                 <>
-                  {" "}เข้าบัญชี
-                  {claim.paidBankName ? ` ${claim.paidBankName}` : ""} เลขที่{" "}
+                  {" "}
+                  เข้าบัญชี
+                  {claim.paidBankName
+                    ? ` ${claim.paidBankName}`
+                    : ""} เลขที่{" "}
                   <b className="figure">{claim.paidAccountMasked}</b>
                 </>
               )}
@@ -894,12 +795,15 @@ export default function ClaimDetail({
               />
               <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-extrabold text-slate-900">
-                  ระบบตรวจพบข้อผิดปกติหรือข้อมูลที่ต้องตรวจสอบ ({anomalyCheck.anomalies.length} รายการ)
+                  ระบบตรวจพบข้อผิดปกติหรือข้อมูลที่ต้องตรวจสอบ (
+                  {anomalyCheck.anomalies.length} รายการ)
                 </h4>
                 <ul className="mt-2 space-y-1.5 text-xs text-slate-700">
                   {anomalyCheck.anomalies.map((a, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "error" ? "bg-rose-500" : "bg-amber-500"}`} />
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "error" ? "bg-rose-500" : "bg-amber-500"}`}
+                      />
                       <div>
                         <span className="font-bold">{a.title}: </span>
                         <span>{a.message}</span>
@@ -909,7 +813,8 @@ export default function ClaimDetail({
                 </ul>
                 {can(user, P.CLAIM_REVIEW) && (
                   <p className="text-[11px] text-slate-500 mt-2">
-                    คำแนะนำสำหรับเจ้าหน้าที่: หากข้อมูลไม่ถูกต้อง สามารถกด “ส่งกลับให้แก้ไข” ด้านล่าง เพื่อให้ผู้ยื่นดำเนินการแก้ไข
+                    คำแนะนำสำหรับเจ้าหน้าที่: หากข้อมูลไม่ถูกต้อง สามารถกด
+                    “ส่งกลับให้แก้ไข” ด้านล่าง เพื่อให้ผู้ยื่นดำเนินการแก้ไข
                   </p>
                 )}
               </div>
@@ -919,7 +824,10 @@ export default function ClaimDetail({
           !own && (
             <div className="rounded-2xl p-4 mb-8 border bg-emerald-50/60 border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
               <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-              <span>✓ ผ่านการตรวจสอบความถูกต้องเบื้องต้น (ไม่พบคำขอซ้ำ ข้อมูลครบถ้วน และอยู่ในโควตา)</span>
+              <span>
+                ✓ ผ่านการตรวจสอบความถูกต้องเบื้องต้น (ไม่พบคำขอซ้ำ ข้อมูลครบถ้วน
+                และอยู่ในโควตา)
+              </span>
             </div>
           )
         )}
@@ -933,15 +841,16 @@ export default function ClaimDetail({
           }
           reviewed={isReviewed(claim)}
           reviewedBy={claim.reviewedBy}
-          escalation={status === STATUS.REVIEWED ? findEscalation(history) : null}
+          escalation={
+            status === STATUS.REVIEWED ? findEscalation(history) : null
+          }
           evidence={{
             canView: canViewEvidence,
             loading: evidenceLoading,
             total: evidenceItems.length,
             signedCount: signedItems.length,
-            viewed: evidenceItems.filter((item) =>
-              viewedIds.has(item.id)
-            ).length,
+            viewed: evidenceItems.filter((item) => viewedIds.has(item.id))
+              .length,
           }}
         />
 
@@ -992,51 +901,36 @@ export default function ClaimDetail({
                   >
                     {formatThaiDate(session.date)}
                     <span className="font-normal" style={{ color: C.sub }}>
-                      {" "}· {formatDuration(sessionMinutes(session))}
+                      {" "}
+                      · {formatDuration(sessionMinutes(session))}
                     </span>
                   </p>
                 ))}
               </div>
             ) : (
-              <p
-                className="font-semibold mt-0.5"
-                style={{ color: C.ink }}
-              >
+              <p className="font-semibold mt-0.5" style={{ color: C.ink }}>
                 {formatThaiDate(claim.teachingDate)}
               </p>
             )}
           </div>
 
           <div>
-            <p style={{ color: C.sub }}>
-              เวลาสอนรวม
-            </p>
+            <p style={{ color: C.sub }}>เวลาสอนรวม</p>
 
-            <p
-              className="font-semibold mt-0.5"
-              style={{ color: C.ink }}
-            >
+            <p className="font-semibold mt-0.5" style={{ color: C.ink }}>
               {formatDuration(
                 sessions.length > 0
                   ? sessions.reduce((sum, s) => sum + sessionMinutes(s), 0)
-                  : Number(claim.hours || 0) * 60
+                  : Number(claim.hours || 0) * 60,
               )}
             </p>
           </div>
 
           <div>
-            <p style={{ color: C.sub }}>
-              อัตราค่าตอบแทน
-            </p>
+            <p style={{ color: C.sub }}>อัตราค่าตอบแทน</p>
 
-            <p
-              className="font-semibold mt-0.5"
-              style={{ color: C.ink }}
-            >
-              <Restricted
-                allowed={canViewFinance}
-                value={claim.rate}
-              >
+            <p className="font-semibold mt-0.5" style={{ color: C.ink }}>
+              <Restricted allowed={canViewFinance} value={claim.rate}>
                 ฿{Number(claim.rate || 0).toLocaleString()}
                 {" / ชั่วโมง"}
               </Restricted>
@@ -1044,18 +938,13 @@ export default function ClaimDetail({
           </div>
 
           <div>
-            <p style={{ color: C.sub }}>
-              จำนวนเงินรวม
-            </p>
+            <p style={{ color: C.sub }}>จำนวนเงินรวม</p>
 
             <p
               className="font-extrabold mt-0.5 figure"
               style={{ color: C.tealDark }}
             >
-              <Restricted
-                allowed={canViewFinance}
-                value={amount}
-              >
+              <Restricted allowed={canViewFinance} value={amount}>
                 ฿{Number(amount).toLocaleString()}
               </Restricted>
             </p>
@@ -1065,10 +954,7 @@ export default function ClaimDetail({
         {/* Notes */}
         {claim.notes && (
           <div className="mb-8">
-            <p
-              className="text-sm mb-1"
-              style={{ color: C.sub }}
-            >
+            <p className="text-sm mb-1" style={{ color: C.sub }}>
               รายละเอียดเพิ่มเติม
             </p>
 
@@ -1084,10 +970,7 @@ export default function ClaimDetail({
         {/* Evidence */}
         <div id="evidence-section">
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-            <p
-              className="text-sm font-semibold"
-              style={{ color: C.ink }}
-            >
+            <p className="text-sm font-semibold" style={{ color: C.ink }}>
               หลักฐานที่แนบ
               {evidenceItems.length > 0 && ` (${evidenceItems.length} ไฟล์)`}
             </p>
@@ -1104,7 +987,7 @@ export default function ClaimDetail({
                     const files = Array.from(e.target.files || []);
                     e.target.value = "";
                     attach(
-                      files.map((file) => ({ file, category: "supporting" }))
+                      files.map((file) => ({ file, category: "supporting" })),
                     );
                   }}
                 />
@@ -1119,7 +1002,7 @@ export default function ClaimDetail({
                     const files = Array.from(e.target.files || []);
                     e.target.value = "";
                     attach(
-                      files.map((file) => ({ file, category: "signed_form" }))
+                      files.map((file) => ({ file, category: "signed_form" })),
                     );
                   }}
                 />
@@ -1156,7 +1039,11 @@ export default function ClaimDetail({
           </div>
 
           {attachMessage && (
-            <p className="text-xs mb-2" style={{ color: C.sub }} aria-live="polite">
+            <p
+              className="text-xs mb-2"
+              style={{ color: C.sub }}
+              aria-live="polite"
+            >
               {attachMessage}
             </p>
           )}
@@ -1172,10 +1059,14 @@ export default function ClaimDetail({
                 style={{ color: C.red }}
               >
                 <AlertTriangle size={15} />
-                แนบไฟล์ไม่สำเร็จ {pendingEvidence.length} ไฟล์ — คำขอถูกยื่นเรียบร้อยแล้ว
+                แนบไฟล์ไม่สำเร็จ {pendingEvidence.length} ไฟล์ —
+                คำขอถูกยื่นเรียบร้อยแล้ว
               </p>
 
-              <ul className="mt-2 text-xs flex flex-col gap-1" style={{ color: C.ink }}>
+              <ul
+                className="mt-2 text-xs flex flex-col gap-1"
+                style={{ color: C.ink }}
+              >
                 {pendingEvidence.map((item) => (
                   <li key={item.fileName}>
                     {item.fileName}
@@ -1233,9 +1124,7 @@ export default function ClaimDetail({
 
               <button
                 type="button"
-                onClick={() =>
-                  setEvidenceReload((n) => n + 1)
-                }
+                onClick={() => setEvidenceReload((n) => n + 1)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
                 style={{
                   borderColor: C.border,
@@ -1297,10 +1186,7 @@ export default function ClaimDetail({
 
         {/* [V3] ประวัติการดำเนินการ */}
         {canViewAudit && (
-          <div
-            className="mt-8 pt-8 border-t"
-            style={{ borderColor: C.border }}
-          >
+          <div className="mt-8 pt-8 border-t" style={{ borderColor: C.border }}>
             <p
               className="flex items-center gap-2 text-sm mb-4 font-semibold"
               style={{ color: C.ink }}
