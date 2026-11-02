@@ -42,41 +42,36 @@ import {
 
 // สไตล์ต่อบทบาทในการ์ดสไลด์ของ "ผู้มีสิทธิ์ยื่นคำขอเบิก"
 // key ตาม role เพื่อให้สี/ไอคอนของแต่ละบทบาทคงที่ ไม่ซ้ำกัน ไม่ผูกกับลำดับ
+// ใส่รูปได้ด้วย image: "/images/roles/xxx.webp" (ตอนนี้ยังไม่มีไฟล์ จึงใช้พื้นไล่สี + ไอคอน)
 const ROLE_STYLES = {
   "อาจารย์ / ผู้สอน": {
     icon: GraduationCap,
     gradient: "linear-gradient(135deg, #7FD6E0, #4FB3D9)",
-    image: "/images/roles/teacher.jpg",
   },
 
   "ผู้ช่วยสอน (TA)": {
     icon: UserCog,
     gradient: "linear-gradient(135deg, #FFD98A, #FFB45E)",
-    image: "/images/roles/ta.jpg",
   },
 
   "อาจารย์ผู้รับผิดชอบวิชา": {
     icon: ShieldCheck,
     gradient: "linear-gradient(135deg, #BDB6FF, #8E9BFF)",
-    image: "/images/roles/course-owner.jpg",
   },
 
   "อาจารย์ผู้บรรยาย": {
     icon: Presentation,
     gradient: "linear-gradient(135deg, #9CD0FF, #5DA9F0)",
-    image: "/images/roles/lecturer.jpg",
   },
 
   "ผู้ช่วยกิจกรรม": {
     icon: UserPlus,
     gradient: "linear-gradient(135deg, #FFB8D2, #F58FB5)",
-    image: "/images/roles/activity-assistant.jpg",
   },
 
   "ผู้ช่วยอาจารย์ผู้บรรยาย": {
     icon: Mic,
     gradient: "linear-gradient(135deg, #95E3C4, #52C7A0)",
-    image: "/images/roles/lecturer-assistant.jpg",
   },
 };
 
@@ -278,15 +273,15 @@ function RoundStatus({ rounds }) {
           {hasOpen && (
             <span
               className="absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping"
-              style={{ background: "#1E8E4F" }}
+              style={{ background: C.green }}
             />
           )}
           <span
             className="relative inline-flex w-2.5 h-2.5 rounded-full"
-            style={{ background: hasOpen ? "#1E8E4F" : C.sub }}
+            style={{ background: hasOpen ? C.green : C.sub }}
           />
         </span>
-        <p className="text-xs font-bold" style={{ color: hasOpen ? "#1E8E4F" : C.sub }}>
+        <p className="text-xs font-bold" style={{ color: hasOpen ? C.green : C.sub }}>
           {hasOpen ? "รอบที่เปิดรับตอนนี้" : "ยังไม่มีรอบที่เปิดรับ"}
         </p>
       </div>
@@ -414,7 +409,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
         {/* พื้นที่สำหรับรูปภาพเว็บไซต์ — สไลด์เปลี่ยนรูปอัตโนมัติทุก 5 วิ + เลื่อนเองได้ */}
         <HeroCarousel
           images={[
-            "/images/TU.jpg",
+            "/images/TU.webp",
             // เพิ่มรูปเพิ่มเติมได้ตรงนี้ เช่น
             // "/images/hero-2.jpg",
             // "/images/hero-3.jpg",
@@ -785,7 +780,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
                       className="absolute inset-0"
                       style={{
                         background:
-                          "linear-gradient(to top, rgba(20,55,100,0.42) 0%, rgba(20,55,100,0.05) 60%, rgba(255,255,255,0.10) 100%)",
+                          "linear-gradient(to top, rgba(15,45,85,0.62) 0%, rgba(15,45,85,0.18) 55%, rgba(255,255,255,0) 100%)",
                       }}
                     />
 
@@ -804,7 +799,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
 
                     {/* ชื่อบทบาทวางบนภาพ */}
                     <div className="absolute left-5 right-5 bottom-4">
-                      <p className="font-bold text-base text-white leading-6" style={{ textShadow: "0 1px 6px rgba(15,50,100,0.45)" }}>
+                      <p className="font-bold text-base text-white leading-6" style={{ textShadow: "0 1px 8px rgba(10,35,70,0.6)" }}>
                         {u.role}
                       </p>
                     </div>
@@ -866,13 +861,13 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
               <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x"
                 style={{ borderColor: "#C8E3E7" }}
               >
-                {TEACHING_RATE.values.map((v) => (
-                  <div key={v} className="px-4 py-3 text-center">
-                    <p className="text-xs mb-1.5" style={{ color: C.sub }}>
-                      อัตราค่าตอบแทน
+                {TEACHING_RATE.details.map(({ rate, label }) => (
+                  <div key={rate} className="px-4 py-3 text-center">
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>
+                      {label}
                     </p>
                     <p className="figure text-3xl md:text-4xl font-extrabold" style={{ color: C.tealDark }}>
-                      {v.toLocaleString()}
+                      {rate.toLocaleString()}
                       <span className="text-xs font-semibold ml-1.5">บาท/ชม.</span>
                     </p>
                   </div>

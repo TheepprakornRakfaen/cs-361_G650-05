@@ -7,9 +7,16 @@ import {
   Download,
   ChevronRight,
   AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Filter,
+  FileQuestion,
+  ArrowRight,
+  ShieldAlert,
+  BarChart3,
 } from "lucide-react";
 
-import { C, STATUS_STYLE } from "../theme";
+import { C, STATUS_STYLE, ESCALATED_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
@@ -21,6 +28,7 @@ import {
   PERMISSION as P,
   can,
   maskEmail,
+  getQueueLabel,
 } from "../data/roles";
 import { downloadCsv } from "../utils/csv";
 import {
@@ -29,6 +37,11 @@ import {
   businessDaysSince,
   slaLevel,
 } from "../utils/sla";
+import { detectClaimAnomalies, buildDuplicateIndex } from "../utils/anomalyDetector";
+
+// ตัวกรองพิเศษ: คำขอที่ผู้ตรวจสอบขอให้ผู้อนุมัติตรวจสอบหลักฐาน (ยังเป็นสถานะ 2 · claim.escalation มาจาก App)
+const ESCALATED = "ESCALATED";
+const cardStyle = (key) => (key === ESCALATED ? ESCALATED_STYLE : STATUS_STYLE[key]);
 
 const SUMMARY = [
   STATUS.SUBMITTED,
@@ -63,10 +76,10 @@ const pillClass =
   "rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none";
 
 /*
- * [V3] คิวตรวจสอบ / อนุมัติ
- *  - เจ้าหน้าที่/ผู้อนุมัติ/ผู้ดูแล: เปิดมาที่ "รอตรวจสอบ" เรียงรอนานสุดก่อน
- *  - คอลัมน์ "รอมาแล้ว" นับวันทำการ เทียบกับกำหนด 10 วันทำการ
- * รายการที่เห็นถูกจำกัดโดย backend ตาม role อยู่แล้ว หน้านี้เป็นเพียงตัวกรองเพื่อการแสดงผล
+ * [V4] คิวตรวจสอบและอนุมัติ (Verification & Reporting - FR7 & TC2)
+ *  - ค้นหา กรอง จัดกลุ่ม แยกรายการที่ถูกต้องออกจากรายการที่ต้องแก้ไข
+ *  - ระบบตรวจสอบความผิดปกติอัตโนมัติ (คำขอซ้ำ, ข้อมูลไม่ครบ, ทับซ้อน, เกินโควตา)
+ *  - ผู้อนุมัติเห็นป้ายคำขอที่ผู้ตรวจสอบขอให้ตรวจสอบหลักฐาน
  */
 export default function ReviewQueue({
   user,
@@ -75,10 +88,9 @@ export default function ReviewQueue({
   error = "",
   onReload,
   goDetail,
-  // สถานะที่ให้กรองไว้ตอนเปิดหน้า (มาจากการ์ดในหน้าภาพรวมระบบ)
+  goReport,
   initialStatus = null,
 }) {
-  // เปิดมาที่งานของตัวเอง: ผู้อนุมัติ → "ตรวจแล้ว รออนุมัติ", ผู้ตรวจสอบ → "รอตรวจสอบ"
   const defaultStatus = can(user, P.CLAIM_APPROVE)
     ? STATUS.REVIEWED
     : can(user, P.CLAIM_REVIEW)
@@ -88,14 +100,18 @@ export default function ReviewQueue({
   const [statusFilter, setStatusFilter] = useState(initialStatus || defaultStatus);
   const [termFilter, setTermFilter] = useState("All");
   const [courseFilter, setCourseFilter] = useState("All");
+  const [roleFilter, setRoleFilter] = useState("All"); // All | TEACHER | TA
+  const [claimantFilter, setClaimantFilter] = useState("All");
+  const [anomalyFilter, setAnomalyFilter] = useState("All"); // All | anomalies | clean
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
   const canExport = can(user, P.DATA_EXPORT);
+  const isApprover = can(user, P.CLAIM_APPROVE);
+  const readyStatus = isApprover ? STATUS.REVIEWED : STATUS.SUBMITTED;
 
-  // แบบร่างของผู้อื่นไม่เกี่ยวกับคิว
   const queue = useMemo(
     () => claims.filter((c) => QUEUE_STATUSES.includes(c.status)),
     [claims]
@@ -122,15 +138,39 @@ export default function ReviewQueue({
     [queue, termFilter]
   );
 
-  // ภาค + รายวิชา (ใช้ทั้งการ์ดนับและตาราง)
+  const claimantOptions = useMemo(
+    () =>
+      [...new Set(queue.map((c) => c.claimantName).filter(Boolean))].sort(),
+    [queue]
+  );
+
+  // Compute anomaly check for each claim in queue
+  // [V4 scaling] สร้างดัชนีคำขอซ้ำครั้งเดียว แล้วส่งให้ทุกคำขอใช้ร่วมกัน
+  // เปลี่ยนการตรวจทั้งคิวจาก O(n²) เป็น O(n) รองรับคำขอจำนวนมากได้ลื่นขึ้น
+  const anomalyMap = useMemo(() => {
+    const duplicateIndex = buildDuplicateIndex(queue);
+    const map = new Map();
+    queue.forEach((c) => {
+      map.set(c.id, detectClaimAnomalies(c, queue, [], null, { duplicateIndex }));
+    });
+    return map;
+  }, [queue]);
+
   const scoped = useMemo(
     () =>
-      queue.filter(
-        (c) =>
-          (termFilter === "All" || c.termLabel === termFilter) &&
-          (courseFilter === "All" || c.courseCode === courseFilter)
-      ),
-    [queue, termFilter, courseFilter]
+      queue.filter((c) => {
+        if (termFilter !== "All" && c.termLabel !== termFilter) return false;
+        if (courseFilter !== "All" && c.courseCode !== courseFilter) return false;
+        if (claimantFilter !== "All" && c.claimantName !== claimantFilter) return false;
+        if (roleFilter !== "All") {
+          const r = String(c.claimantRole || "").toUpperCase();
+          if (roleFilter === "TA" && !r.includes("TA")) return false;
+          if (roleFilter === "TEACHER" && (r.includes("TA") || (!r.includes("TEACHER") && !r.includes("INSTRUCTOR"))))
+            return false;
+        }
+        return true;
+      }),
+    [queue, termFilter, courseFilter, claimantFilter, roleFilter]
   );
 
   const counts = useMemo(() => {
@@ -141,7 +181,27 @@ export default function ReviewQueue({
     return result;
   }, [scoped]);
 
-  // คำขอที่ยังพิจารณาไม่เสร็จ (รอตรวจ/รออนุมัติ) และเกินกำหนด 10 วันทำการ
+  // Statistics for anomalies (TC2)
+  const anomalyStats = useMemo(() => {
+    const withIssues = scoped.filter((c) => anomalyMap.get(c.id)?.hasIssues);
+    const cleanSubmitted = scoped.filter(
+      (c) => anomalyMap.get(c.id)?.clean && c.status === readyStatus
+    );
+    const duplicates = withIssues.filter((c) =>
+      anomalyMap.get(c.id)?.anomalies.some((a) => a.type === "DUPLICATE")
+    );
+    const missingEv = withIssues.filter((c) =>
+      anomalyMap.get(c.id)?.anomalies.some((a) => a.type === "MISSING_EVIDENCE")
+    );
+
+    return {
+      totalIssues: withIssues.length,
+      cleanCount: cleanSubmitted.length,
+      duplicatesCount: duplicates.length,
+      missingEvCount: missingEv.length,
+    };
+  }, [scoped, anomalyMap, readyStatus]);
+
   const overdueCount = useMemo(
     () =>
       scoped.filter(
@@ -156,7 +216,20 @@ export default function ReviewQueue({
     const keyword = query.trim().toLowerCase();
 
     return scoped
-      .filter((c) => statusFilter === "All" || c.status === statusFilter)
+      .filter((c) =>
+        statusFilter === ESCALATED
+          ? c.escalation
+          : statusFilter === "All" || c.status === statusFilter
+      )
+      .filter((c) => {
+        if (anomalyFilter === "anomalies") {
+          return anomalyMap.get(c.id)?.hasIssues;
+        }
+        if (anomalyFilter === "clean") {
+          return anomalyMap.get(c.id)?.clean;
+        }
+        return true;
+      })
       .filter(
         (c) =>
           !keyword ||
@@ -164,18 +237,26 @@ export default function ReviewQueue({
             .map((v) => String(v || "").toLowerCase())
             .some((v) => v.includes(keyword))
       )
-      // เก่าสุดก่อน = งานที่รอนานที่สุดอยู่บน
       .sort(
         (a, b) =>
           new Date(a.submittedAt || a.createdAt || 0).getTime() -
           new Date(b.submittedAt || b.createdAt || 0).getTime()
       );
-  }, [scoped, statusFilter, query]);
+  }, [scoped, statusFilter, anomalyFilter, query, anomalyMap]);
 
-  // เปลี่ยนตัวกรอง → กลับหน้าแรก
+  const escalatedCount = useMemo(
+    () => scoped.filter((c) => c.escalation).length,
+    [scoped]
+  );
+
+  // การ์ด "ขอให้ตรวจสอบหลักฐาน" ต่อจาก "ตรวจแล้ว รออนุมัติ" (ทุกบทบาทที่เห็นคิว)
+  const statusCards = SUMMARY.flatMap((key) =>
+    key === STATUS.REVIEWED ? [key, ESCALATED] : [key]
+  );
+
   useEffect(() => {
     setPage(1);
-  }, [query, statusFilter, termFilter, courseFilter]);
+  }, [query, statusFilter, termFilter, courseFilter, claimantFilter, roleFilter, anomalyFilter]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -187,58 +268,78 @@ export default function ReviewQueue({
   const readOnly = !can(user, P.CLAIM_REVIEW) && !can(user, P.CLAIM_APPROVE);
 
   const filtersActive =
-    query || statusFilter !== defaultStatus || termFilter !== "All" || courseFilter !== "All";
+    query ||
+    statusFilter !== defaultStatus ||
+    termFilter !== "All" ||
+    courseFilter !== "All" ||
+    claimantFilter !== "All" ||
+    roleFilter !== "All" ||
+    anomalyFilter !== "All";
 
   const resetFilters = () => {
     setQuery("");
     setStatusFilter(defaultStatus);
     setTermFilter("All");
     setCourseFilter("All");
+    setClaimantFilter("All");
+    setRoleFilter("All");
+    setAnomalyFilter("All");
   };
 
   const exportCsv = () => {
     downloadCsv(
-      `claims-${new Date().toISOString().slice(0, 10)}.csv`,
+      `claims-verification-${new Date().toISOString().slice(0, 10)}.csv`,
       [
         "รหัสคำขอ",
         "ผู้ยื่น",
+        "บทบาท",
         "อีเมล",
         "รายวิชา",
         "ภาค",
-        "เดือนที่สอน",
         "ชั่วโมง",
         ...(canSeeFinance ? ["จำนวนเงิน"] : []),
         "วันที่ยื่น",
         "รอมาแล้ว (วันทำการ)",
+        "ผลการตรวจสอบความถูกต้อง",
         "สถานะ",
       ],
-      rows.map((c) => [
-        c.code || c.id,
-        c.claimantName,
-        canSeePii ? c.claimantEmail : maskEmail(c.claimantEmail),
-        c.courseCode,
-        c.termLabel,
-        c.month,
-        c.hours,
-        ...(canSeeFinance ? [c.amount ?? ""] : []),
-        formatDate(c.submittedAt || c.createdAt),
-        isPending(c.status)
-          ? businessDaysSince(c.submittedAt || c.createdAt) ?? ""
-          : "",
-        STATUS_STYLE[c.status]?.label || c.status,
-      ])
+      rows.map((c) => {
+        const check = anomalyMap.get(c.id);
+        const anomalyText = check?.clean
+          ? "ผ่านเกณฑ์ครบถ้วน"
+          : check?.anomalies.map((a) => a.title).join("; ") || "-";
+
+        return [
+          c.code || c.id,
+          c.claimantName,
+          c.claimantRole || "อาจารย์/TA",
+          canSeePii ? c.claimantEmail : maskEmail(c.claimantEmail),
+          c.courseCode,
+          c.termLabel,
+          c.hours,
+          ...(canSeeFinance ? [c.amount ?? ""] : []),
+          formatDate(c.submittedAt || c.createdAt),
+          isPending(c.status)
+            ? businessDaysSince(c.submittedAt || c.createdAt) ?? ""
+            : "",
+          anomalyText,
+          STATUS_STYLE[c.status]?.label || c.status,
+        ];
+      })
     );
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         icon={ClipboardCheck}
-        title={readOnly ? "คำขอทั้งหมด" : "คิวตรวจสอบและอนุมัติ"}
+        title={readOnly ? "คำขอทั้งหมด" : `คิว${getQueueLabel(user)}`}
         description={
           readOnly
             ? "ดูสถานะและประวัติการดำเนินการของคำขอ (อ่านอย่างเดียว)"
-            : `เลือกคำขอเพื่อตรวจสอบเอกสาร · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
+            : can(user, P.CLAIM_APPROVE)
+              ? `พิจารณาอนุมัติคำขอที่ผ่านการตรวจสอบแล้ว หรือส่งกลับให้ผู้ยื่นแก้ไข · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
+              : `ตรวจสอบความถูกต้องของคำขอ คัดแยกรายการที่ผิดปกติ ส่งต่อผู้อนุมัติ · กำหนดพิจารณาภายใน ${SLA_BUSINESS_DAYS} วันทำการ`
         }
         action={
           <div className="flex items-center gap-2">
@@ -257,31 +358,88 @@ export default function ReviewQueue({
               รีเฟรช
             </button>
 
-{canExport && (
-            <button
-              type="button"
-              onClick={exportCsv}
-              disabled={rows.length === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-              style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
-              title="ส่งออกรายการตามตัวกรองปัจจุบัน"
-            >
-              <Download size={15} />
-              ส่งออก CSV
-            </button>
-)}
+            {canExport && (
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={rows.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+                style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
+                title="ส่งออกรายการตามตัวกรองปัจจุบัน"
+              >
+                <Download size={15} />
+                ส่งออก CSV
+              </button>
+            )}
           </div>
         }
       />
 
-      {/* Toolbar — รูปแบบเดียวกับหน้า "คำขอของฉัน" */}
-      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 mb-6">
+      {/* Anomaly & Verification Breakdown Banner (TC2 & FR7) */}
+      <SectionCard hoverable={false} className="p-5">
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+          <div>
+            <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+              <ShieldAlert size={17} style={{ color: C.teal }} />
+              <span>การคัดกรองความผิดปกติของคำขอ</span>
+            </h4>
+            <p className="text-xs text-slate-500 mt-1">
+              ระบบตรวจสอบคำขอซ้ำซ้อน รายการทับซ้อน เอกสารไม่ครบถ้วน และการเบิกเกินโควตาอัตโนมัติ
+            </p>
+          </div>
+
+          {/* Quick Filter Buttons: All | Issues | Clean */}
+          <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+            <button
+              type="button"
+              onClick={() => setAnomalyFilter("All")}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                anomalyFilter === "All"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              ทั้งหมด ({scoped.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAnomalyFilter("anomalies")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                anomalyFilter === "anomalies"
+                  ? "bg-rose-600 text-white shadow-sm"
+                  : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+              }`}
+            >
+              <AlertTriangle size={13} />
+              <span>ตรวจพบข้อผิดปกติ / ต้องแก้ไข ({anomalyStats.totalIssues})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAnomalyFilter("clean")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                anomalyFilter === "clean"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+              }`}
+            >
+              <CheckCircle2 size={13} />
+              <span>
+                ข้อมูลครบถ้วน{isApprover ? "พร้อมอนุมัติ" : "พร้อมส่งต่อ"} ({anomalyStats.cleanCount})
+              </span>
+            </button>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* Toolbar: Search & Select Filters (FR8) */}
+      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3">
         <div
-          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 min-w-[14rem] max-w-md"
+          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 min-w-[14rem] max-w-md shadow-sm"
           style={{ borderColor: C.border }}
         >
           <Search size={16} style={{ color: C.sub }} />
-
           <input
             type="text"
             value={query}
@@ -299,11 +457,11 @@ export default function ReviewQueue({
             setTermFilter(e.target.value);
             setCourseFilter("All");
           }}
-          className={`${pillClass} min-w-[9rem]`}
+          className={`${pillClass} min-w-[8rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามภาค"
         >
-          <option value="All">ทุกภาค</option>
+          <option value="All">ทุกภาคการศึกษา</option>
           {termOptions.map((label) => (
             <option key={label} value={label}>
               ภาค {label}
@@ -314,7 +472,7 @@ export default function ReviewQueue({
         <Select
           value={courseFilter}
           onChange={(e) => setCourseFilter(e.target.value)}
-          className={`${pillClass} min-w-[9rem]`}
+          className={`${pillClass} min-w-[8rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามรายวิชา"
         >
@@ -327,16 +485,43 @@ export default function ReviewQueue({
         </Select>
 
         <Select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className={`${pillClass} min-w-[8rem]`}
+          style={{ borderColor: C.border, color: C.ink }}
+          aria-label="กรองตามบทบาท"
+        >
+          <option value="All">ทุกประเภทผู้ยื่น</option>
+          <option value="TEACHER">อาจารย์ผู้สอน</option>
+          <option value="TA">ผู้ช่วยสอน (TA)</option>
+        </Select>
+
+        <Select
+          value={claimantFilter}
+          onChange={(e) => setClaimantFilter(e.target.value)}
+          className={`${pillClass} min-w-[9rem]`}
+          style={{ borderColor: C.border, color: C.ink }}
+          aria-label="กรองตามผู้ยื่น"
+        >
+          <option value="All">ผู้ยื่นทุกคน</option>
+          {claimantOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Select>
+
+        <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className={`${pillClass} min-w-[10rem]`}
+          className={`${pillClass} min-w-[9rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามสถานะ"
         >
           <option value="All">ทุกสถานะ</option>
-          {SUMMARY.map((key) => (
+          {statusCards.map((key) => (
             <option key={key} value={key}>
-              {STATUS_STYLE[key].label}
+              {cardStyle(key).label}
             </option>
           ))}
         </Select>
@@ -345,18 +530,22 @@ export default function ReviewQueue({
           <button
             type="button"
             onClick={resetFilters}
-            className="text-sm font-semibold px-2"
-            style={{ color: C.tealDark }}
+            className="text-xs font-bold px-3 py-2 rounded-full border bg-white hover:bg-slate-50 text-teal-800"
+            style={{ borderColor: C.border }}
           >
             ล้างตัวกรอง
           </button>
         )}
       </div>
 
-      {/* สรุปตามสถานะ — กดเพื่อกรอง (รูปแบบเดียวกับหน้า "คำขอของฉัน") */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-        {SUMMARY.map((key) => {
-          const style = STATUS_STYLE[key];
+      {/* Status Summary KPI Cards */}
+      <div
+        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${
+          statusCards.length > 6 ? "xl:grid-cols-7" : "xl:grid-cols-6"
+        }`}
+      >
+        {statusCards.map((key) => {
+          const style = cardStyle(key);
           const active = statusFilter === key;
 
           return (
@@ -365,31 +554,28 @@ export default function ReviewQueue({
               type="button"
               onClick={() => setStatusFilter(active ? "All" : key)}
               aria-pressed={active}
-              className="rounded-2xl p-5 text-left transition-transform hover:-translate-y-0.5"
+              className="rounded-2xl p-4 text-left transition-transform hover:-translate-y-0.5 border"
               style={{
                 background: style.bg,
+                borderColor: active ? style.fg : "transparent",
                 outline: active ? `2px solid ${style.fg}` : "none",
               }}
             >
-              <p className="font-bold" style={{ color: style.fg }}>
+              <p className="font-bold text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
                 {style.label}
               </p>
-
-              <p
-                className="text-3xl font-extrabold mt-1 figure"
-                style={{ color: style.fg }}
-              >
-                {counts[key] || 0}
+              <p className="text-2xl font-extrabold mt-1 figure" style={{ color: style.fg }}>
+                {key === ESCALATED ? escalatedCount : counts[key] || 0}
               </p>
             </button>
           );
         })}
       </div>
 
-      {/* เตือนคำขอที่เกินกำหนด */}
+      {/* Overdue Warning */}
       {!readOnly && overdueCount > 0 && (
         <div
-          className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-4 text-sm border"
+          className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm border"
           style={{
             background: SLA_STYLE.overdue.bg,
             color: SLA_STYLE.overdue.fg,
@@ -399,54 +585,35 @@ export default function ReviewQueue({
         >
           <AlertTriangle size={17} className="shrink-0" />
           <span>
-            มีคำขอรอตรวจสอบเกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
+            มีคำขอ{isApprover ? "รออนุมัติ" : "รอตรวจสอบ"}เกินกำหนด {SLA_BUSINESS_DAYS} วันทำการ{" "}
             <b>{overdueCount} รายการ</b> (แสดงอยู่ด้านบนของตาราง)
           </span>
         </div>
       )}
 
-      {error && (
-        <div
-          className="flex items-center gap-3 flex-wrap px-4 py-3 rounded-2xl mb-4 text-sm"
-          style={{ background: C.roseSoft, color: "#C23B3B" }}
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-
-      <SectionCard hoverable={false} className="overflow-hidden">
+      {/* Main Table */}
+      <SectionCard hoverable={false} className="overflow-hidden p-0 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm [&_th:first-child]:pl-5 [&_td:first-child]:pl-5">
             <thead>
-              <tr className="text-left" style={{ color: C.sub }}>
-                {[
-                  ["รหัสคำขอ", ""],
-                  ["ผู้ยื่น", ""],
-                  ["รายวิชา", ""],
-                  ["ยื่นเมื่อ / รอมาแล้ว", ""],
-                  ["จำนวนเงิน", "text-right"],
-                  ["สถานะ", ""],
-                  ["", ""],
-                ].map(([h, align], i) => (
-                  <th
-                    key={h || `col-${i}`}
-                    className={`px-5 py-4 font-semibold whitespace-nowrap ${align}`}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr style={{ background: "#F6F9FB", color: C.sub }}>
+                <th className="px-3 py-4 font-semibold text-left">รหัสคำขอ</th>
+                <th className="px-3 py-4 font-semibold text-left">ผู้ยื่น & บทบาท</th>
+                <th className="px-3 py-4 font-semibold text-left">รายวิชา</th>
+                <th className="px-3 py-4 font-semibold text-left">ผลตรวจสอบความถูกต้อง</th>
+                <th className="px-3 py-4 font-semibold text-left">ยื่นเมื่อ / รอมาแล้ว</th>
+                <th className="px-3 py-4 font-semibold text-right">จำนวนเงิน</th>
+                <th className="px-3 py-4 font-semibold text-left">สถานะ</th>
+                <th className="pr-3 py-4"></th>
               </tr>
             </thead>
 
-            <tbody>
+            <tbody className="divide-y" style={{ borderColor: C.border }}>
               {pageRows.map((claim) => {
                 const submitted = claim.submittedAt || claim.createdAt;
-                const waiting =
-                  isPending(claim.status)
-                    ? businessDaysSince(submitted)
-                    : null;
+                const waiting = isPending(claim.status) ? businessDaysSince(submitted) : null;
                 const sla = SLA_STYLE[slaLevel(waiting)];
+                const check = anomalyMap.get(claim.id);
 
                 return (
                   <tr
@@ -456,77 +623,113 @@ export default function ReviewQueue({
                       if (e.key === "Enter") goDetail?.(claim.id);
                     }}
                     tabIndex={0}
-                    className="group border-t cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"
-                    style={{ borderColor: C.border }}
+                    className="group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"
                   >
-                    <td
-                      className="px-5 py-4 font-semibold whitespace-nowrap"
-                      style={{ color: C.ink }}
-                    >
-                      #{claim.code || claim.id}
+                    <td className="px-3 py-4 font-semibold min-w-[8.5rem] max-w-[11rem]" style={{ color: C.ink }}>
+                      <p className="font-extrabold text-[13px] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>#{claim.code || claim.id}</p>
                     </td>
 
-                    <td className="px-5 py-4 min-w-[10rem]">
-                      <p className="font-medium" style={{ color: C.ink }}>
-                        {claim.claimantName || "-"}
-                      </p>
-
+                    <td className="px-3 py-4 min-w-[10rem]">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-slate-900">{claim.claimantName || "-"}</p>
+                        {claim.claimantRole && (
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                            style={{
+                              background: claim.claimantRole.includes("TA") ? C.tealSoft : C.violetSoft,
+                              color: claim.claimantRole.includes("TA") ? C.tealDark : C.violet,
+                            }}
+                          >
+                            {claim.claimantRole.includes("TA") ? "TA" : "อาจารย์"}
+                          </span>
+                        )}
+                      </div>
                       {claim.claimantEmail && (
-                        <p className="text-xs" style={{ color: C.sub }}>
-                          {canSeePii
-                            ? claim.claimantEmail
-                            : maskEmail(claim.claimantEmail)}
+                        <p className="text-xs text-slate-500 font-mono">
+                          {canSeePii ? claim.claimantEmail : maskEmail(claim.claimantEmail)}
                         </p>
                       )}
                     </td>
 
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <p className="font-semibold" style={{ color: C.ink }}>
-                        {claim.courseCode || "-"}
-                      </p>
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <p className="font-bold text-slate-800">{claim.courseCode || "-"}</p>
                       {claim.courseName && (
-                        <p
-                          className="text-xs max-w-[9rem] truncate"
-                          style={{ color: C.sub }}
-                        >
-                          {claim.courseName}
-                        </p>
+                        <p className="text-xs text-slate-500 max-w-[8.5rem] truncate">{claim.courseName}</p>
                       )}
                     </td>
 
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <p style={{ color: C.sub }}>{formatDate(submitted)}</p>
+                    {/* Verification & Anomaly Badge (FR7 & TC2) */}
+                    <td className="px-3 py-4">
+                      {check?.clean ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 size={13} />
+                          <span>ข้อมูลถูกต้อง</span>
+                        </span>
+                      ) : check?.hasErrors ? (
+                        <div className="flex flex-col gap-1">
+                          {check.anomalies.map((a, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                              title={a.message}
+                            >
+                              <AlertTriangle size={11} className="shrink-0" />
+                              <span className="truncate max-w-[9.5rem]">{a.title}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {check?.anomalies.map((a, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                              title={a.message}
+                            >
+                              <AlertTriangle size={11} className="shrink-0" />
+                              <span className="truncate max-w-[9.5rem]">{a.title}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <p className="text-xs text-slate-500">{formatDate(submitted)}</p>
                       {waiting !== null && (
                         <span
                           className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
                           style={{ background: sla.bg, color: sla.fg }}
-                          title={`นับเฉพาะวันทำการ · กำหนด ${SLA_BUSINESS_DAYS} วันทำการ`}
                         >
                           รอ {waiting} วันทำการ
                         </span>
                       )}
                     </td>
 
-                    <td
-                      className="px-5 py-4 whitespace-nowrap figure text-right font-semibold"
-                      style={{ color: C.ink }}
-                    >
-                      <Restricted
-                        allowed={canSeeFinance}
-                        value={claim.amount}
-                      >
+                    <td className="px-3 py-4 whitespace-nowrap figure text-right font-extrabold text-slate-900">
+                      <Restricted allowed={canSeeFinance} value={claim.amount}>
                         ฿{Number(claim.amount || 0).toLocaleString()}
                       </Restricted>
                     </td>
 
-                    <td className="px-5 py-4">
+                    <td className="px-3 py-4">
                       <StatusPill status={claim.status} />
+                      {claim.escalation && (
+                        <span
+                          className="flex w-fit items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap"
+                          style={{ background: ESCALATED_STYLE.bg, borderColor: ESCALATED_STYLE.border, color: ESCALATED_STYLE.fg }}
+                          title={claim.escalation?.comment || ""}
+                        >
+                          <FileQuestion size={11} />
+                          ขอให้ตรวจสอบหลักฐาน
+                        </span>
+                      )}
                     </td>
 
-                    <td className="pr-4 py-4">
+                    <td className="pr-3 py-4 text-right">
                       <ChevronRight
                         size={16}
-                        className="transition-transform group-hover:translate-x-0.5"
+                        className="transition-transform group-hover:translate-x-1 inline-block"
                         style={{ color: C.sub }}
                       />
                     </td>
@@ -536,17 +739,13 @@ export default function ReviewQueue({
 
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <p
-                      className="text-sm font-medium"
-                      style={{ color: C.ink }}
-                    >
-                      {loading ? "กำลังโหลด..." : "ไม่มีคำขอในรายการนี้"}
+                  <td colSpan={8} className="px-6 py-12 text-center">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {loading ? "กำลังโหลดข้อมูลคำขอ..." : "ไม่พบคำขอตามเงื่อนไขที่เลือก"}
                     </p>
-
                     {!loading && (
-                      <p className="text-xs mt-1" style={{ color: C.sub }}>
-                        ลองเปลี่ยนคำค้นหาหรือตัวกรอง
+                      <p className="text-xs mt-1 text-slate-500">
+                        ลองเปลี่ยนคำค้นหา หรือรีเซ็ตตัวกรองเพื่อดูรายการทั้งหมด
                       </p>
                     )}
                   </td>

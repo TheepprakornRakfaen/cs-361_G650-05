@@ -124,9 +124,9 @@ export const ROLE_DESCRIPTION = {
   [ROLE.TA]:
     "สร้างและยื่นคำขอตามงานที่ได้รับมอบหมาย พร้อมแนบหลักฐาน ติดตามสถานะ และแก้ไขเมื่อถูกส่งกลับ",
   [ROLE.REVIEWER]:
-    "ตรวจสอบความครบถ้วน ความถูกต้อง สิทธิ์ และเอกสารประกอบ แล้วส่งต่อผู้อนุมัติ หรือส่งกลับให้ผู้ยื่นแก้ไข (ไม่มีสิทธิ์อนุมัติ)",
+    "ตรวจสอบความครบถ้วน ความถูกต้อง สิทธิ์ และเอกสารประกอบ แล้วส่งต่อผู้อนุมัติ ส่งต่อให้ผู้อนุมัติตรวจสอบหลักฐานเมื่อไม่แน่ใจ หรือส่งกลับให้ผู้ยื่นแก้ไข (ไม่มีสิทธิ์อนุมัติ)",
   [ROLE.APPROVER]:
-    "พิจารณาอนุมัติ ไม่อนุมัติ หรือส่งกลับคำขอที่ผ่านการตรวจสอบแล้ว พร้อมดูประวัติการดำเนินการทั้งระบบและส่งออกรายงาน",
+    "พิจารณาอนุมัติ ไม่อนุมัติ หรือส่งกลับคำขอที่ผ่านการตรวจสอบแล้ว รวมถึงตรวจหลักฐานที่ผู้ตรวจสอบส่งมาให้ช่วยดู พร้อมดูประวัติการดำเนินการทั้งระบบและส่งออกรายงาน",
   [ROLE.ADMIN]:
     "ดูข้อมูลสรุปและประวัติทั้งระบบ จัดการบทบาท/สิทธิ์และการตั้งค่า โดยไม่เข้าถึงเอกสารแนบหรือข้อมูลส่วนบุคคล",
 };
@@ -195,6 +195,14 @@ export function hasAnyRole(user, ...roles) {
 export const canDecideClaims = (user) =>
   can(user, P.CLAIM_REVIEW) || can(user, P.CLAIM_APPROVE);
 
+// ชื่อเมนู/หัวข้อหน้าคิวคำขอ ตามสิ่งที่ผู้ใช้ทำได้จริง
+export function getQueueLabel(user) {
+  // ผู้อนุมัติมีสิทธิ์ส่งกลับ (CLAIM_REVIEW) ด้วย จึงเช็กสิทธิ์อนุมัติก่อน
+  if (can(user, P.CLAIM_APPROVE)) return "อนุมัติ";
+  if (can(user, P.CLAIM_REVIEW)) return "ตรวจสอบ";
+  return "คำขอทั้งหมด";
+}
+
 // เป็นผู้ยื่นคำขอ (อาจารย์ / TA)
 export const isClaimant = (user) => can(user, P.CLAIM_CREATE);
 
@@ -212,11 +220,20 @@ export const VIEW_PERMISSION = {
   create: P.CLAIM_CREATE,
   rounds: P.CLAIM_CREATE,
   "claim-create": P.CLAIM_CREATE,
-  admin: P.CLAIM_VIEW_ALL,
+  // คิวตรวจสอบ/อนุมัติ: ผู้ตรวจสอบ + ผู้อนุมัติ (ผู้ดูแลระบบดูภาพรวมแทน)
   review: P.CLAIM_VIEW_ALL,
-  report: P.CLAIM_VIEW_ALL, // รายงานสรุปยอดเบิก
-  auditlog: P.AUDIT_VIEW_ALL,
-  settings: P.SETTINGS_MANAGE,
+  /*
+   * ภาพรวมระบบ: ผู้ตรวจสอบ + ผู้อนุมัติ + ผู้บริหาร เห็นได้ (ทุกคนที่ทำงานในคิวคำขอ)
+   * ส่วนในหน้าที่เกินสิทธิ์ (กิจกรรม audit, ปุ่มจัดการระบบ) ซ่อนเองตามสิทธิ์ย่อยอยู่แล้ว
+   */
+  admin: P.CLAIM_VIEW_ALL, // ภาพรวมระบบ
+  /*
+   * รายงาน/ประวัติทั้งระบบ — ตามตารางบทบาท: ผู้ตรวจสอบไม่เห็น
+   * ผู้อนุมัติ + ผู้บริหาร เท่านั้น (ทั้งคู่มี DATA_EXPORT / AUDIT_VIEW_ALL)
+   */
+  report: P.DATA_EXPORT, // รายงานสรุปยอดเบิก + ส่งออก
+  auditlog: P.AUDIT_VIEW_ALL, // ประวัติการดำเนินการทั้งระบบ
+  settings: P.SETTINGS_MANAGE, // จัดการระบบและสิทธิ์
 };
 
 export function canAccessView(user, view) {
@@ -227,8 +244,10 @@ export function canAccessView(user, view) {
 
 // หน้าแรกหลังล็อกอิน ตามบทบาท
 export function getLandingView(user) {
+  // ผู้ที่ทำงานในคิวคำขอของผู้อื่น (ไม่ใช่ผู้ยื่น)
   if (canAccessQueue(user) && !isClaimant(user)) {
-    return "admin";
+    // ผู้บริหาร/ผู้อนุมัติเห็นภาพรวมระบบ ส่วนผู้ตรวจสอบเริ่มที่คิวตรวจสอบ
+    return canAccessView(user, "admin") ? "admin" : "review";
   }
 
   return "home";
@@ -251,6 +270,22 @@ export function maskAccount(value) {
   if (digits.length < 4) return "";
 
   return `${"x".repeat(Math.max(digits.length - 4, 3))}${digits.slice(-4)}`;
+}
+
+/*
+ * ซ่อนเลขบัญชีแบบธนาคาร เหลือ 4 ตัวท้าย และคั่นเป็นกลุ่มอ่านง่าย
+ * เช่น 1234567890 → xxx-x-x7890-x (กรณีทั่วไปคืน xxxxxx7890)
+ * ใช้สำหรับ "ข้อมูลส่วนตัว" ของเจ้าของบัญชีเอง (ยังคงปิดบังเพื่อกันการแอบมอง)
+ */
+export function maskBankAccount(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+
+  if (digits.length < 4) return "";
+
+  const last4 = digits.slice(-4);
+  const hidden = "x".repeat(Math.max(digits.length - 4, 3));
+
+  return `${hidden}${last4}`;
 }
 
 /*

@@ -54,7 +54,7 @@ function Cell({ state }) {
   return (
     <span
       className="inline-flex items-center gap-1 text-xs font-semibold"
-      style={{ color: state === "own" ? C.ember : "#1E8E4F" }}
+      style={{ color: state === "own" ? C.ember : C.green }}
       aria-label={state === "own" ? "เฉพาะของตนเอง" : "มีสิทธิ์"}
     >
       <Check size={16} />

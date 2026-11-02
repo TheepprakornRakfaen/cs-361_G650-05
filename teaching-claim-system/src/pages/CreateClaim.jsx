@@ -32,8 +32,8 @@ import {
   roundMoney,
 } from "../utils/time";
 import { HOURLY_RATE } from "../data/rates";
-import { downloadSignForm, printSignForm } from "../utils/signForm";
-import { getClaimEvidence } from "../services/api";
+import { downloadSignFormPdf, printSignForm } from "../utils/signForm";
+import { getClaimEvidence, getCompensationTypes } from "../services/api";
 import { getCompType } from "../services/claimMapper";
 import { STATUS } from "../data/workflow";
 
@@ -313,6 +313,10 @@ export default function CreateClaim({
 
       rate: Number(firstCourse?.rate || 0),
 
+      // compensation_type.id จาก backend — ว่างไว้ก่อน แล้วเลือก TEACHING ให้เมื่อโหลดรายการเสร็จ
+      compTypeId:
+        initialClaim?.typeId != null ? String(initialClaim.typeId) : "",
+
       sessions: [emptySession()],
 
       notes: "",
@@ -337,6 +341,44 @@ export default function CreateClaim({
 
   // จำนวนเอกสารลงนามที่มีในระบบแล้ว (กรณีแก้ไขคำขอที่ถูกส่งกลับ ไม่ต้องแนบซ้ำถ้ายังใช้ได้)
   const [existingSignedCount, setExistingSignedCount] = useState(0);
+
+  /*
+   * ประเภทค่าตอบแทนจาก backend (GET /api/compensation-types) เท่านั้น
+   * ระหว่างโหลด/โหลดไม่ได้ = [] (ไม่ส่ง type_id → backend ใช้ TEACHING)
+   */
+  const [apiCompTypes, setApiCompTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    getCompensationTypes()
+      .then((data) => {
+        const types = Array.isArray(data?.types) ? data.types : [];
+
+        if (!active || types.length === 0) return;
+
+        setApiCompTypes(types);
+
+        // ค่าที่เลือกไว้ไม่อยู่ในรายการจริง → เลือก TEACHING (หรือตัวแรก)
+        setForm((current) =>
+          types.some((t) => String(t.id) === String(current.compTypeId))
+            ? current
+            : {
+                ...current,
+                compTypeId: String(
+                  (types.find((t) => t.code === "TEACHING") || types[0]).id
+                ),
+              }
+        );
+      })
+      .catch((error) => {
+        console.warn("Load compensation types failed:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const id = initialClaim?.id;
@@ -392,8 +434,18 @@ export default function CreateClaim({
         form.courseCode
     );
 
-  // อัตราคงที่ต่อชั่วโมง (ดู HOURLY_RATE ใน rates.js)
-  const rate = HOURLY_RATE;
+  const availableCompTypes = apiCompTypes.map((t) => ({
+    id: String(t.id),
+    code: t.code,
+    name: t.name,
+    defaultRate: Number(t.hourly_rate),
+  }));
+  const currentCompType = availableCompTypes.find(
+    (t) => t.id === String(form.compTypeId)
+  );
+
+  // อัตราตามประเภทค่าตอบแทนที่เลือก หรือตามการมอบหมายรายวิชา (FR2 & FR4)
+  const rate = currentCompType?.defaultRate || Number(course?.rate) || HOURLY_RATE;
 
   const quota = Number(course?.quota) || 45;
 
@@ -463,6 +515,8 @@ export default function CreateClaim({
     return {
       ...form,
       rate,
+      compTypeId: form.compTypeId,
+      compTypeName: currentCompType?.name || "",
       sessions: form.sessions
         .filter((session) => session.date || session.hours || session.minutes)
         .map(({ date, hours, minutes }) => ({
@@ -1024,7 +1078,7 @@ export default function CreateClaim({
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
                     style={{
-                      background: "#FCE9EA",
+                      background: C.roseSoft,
                       color: C.rose,
                     }}
                   >
@@ -1088,7 +1142,7 @@ export default function CreateClaim({
                 ) : (
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
-                    style={{ background: "#FEF6D8", color: "#9A7B06" }}
+                    style={{ background: C.amberSoft, color: C.amber }}
                   >
                     <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                     <span>
@@ -1097,6 +1151,26 @@ export default function CreateClaim({
                     </span>
                   </div>
                 )}
+              </Field>
+
+              {/* [V4] ประเภทค่าตอบแทน (Compensation Types - FR2) */}
+              <Field label="ประเภทค่าตอบแทน" required>
+                <Select
+                  className="fld"
+                  value={form.compTypeId || ""}
+                  onChange={(e) => set("compTypeId", e.target.value)}
+                >
+                  {availableCompTypes.length === 0 && (
+                    <option value="" disabled>
+                      กำลังโหลดประเภทค่าตอบแทน...
+                    </option>
+                  )}
+                  {availableCompTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} (฿{t.defaultRate}/ชม.)
+                    </option>
+                  ))}
+                </Select>
               </Field>
 
               {/* ตำแหน่งและอัตรามาจากการมอบหมายงาน ผู้ใช้แก้เองไม่ได้ */}
@@ -1367,20 +1441,20 @@ export default function CreateClaim({
                     ? "TA ดาวน์โหลดเอกสารนี้ → พิมพ์ → นำไปให้อาจารย์ผู้สอนลงนามรับรอง → สแกนแล้วแนบกลับด้านล่าง"
                     : "ดาวน์โหลดเอกสารนี้ → พิมพ์ → ลงนาม (และให้ผู้มีอำนาจลงนามรับรอง) → สแกนแล้วแนบกลับด้านล่าง"}
                   {" "}
-                  ข้อมูลในเอกสารมาจากคำขอนี้ หากแก้ไขวันสอน/ชั่วโมงภายหลัง ต้องดาวน์โหลดและลงนามใหม่
+                  หรือกด “เปิดเพื่อพิมพ์” เพื่อใช้ฉบับที่กรอกข้อมูลจากคำขอนี้ไว้ให้แล้ว หากแก้ไขวันสอน/ชั่วโมงภายหลัง ต้องลงนามใหม่
                 </p>
 
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => downloadSignForm(buildSignFormData())}
+                    onClick={downloadSignFormPdf}
                     className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                     }}
                   >
                     <Download size={15} />
-                    ดาวน์โหลดเอกสารลงนาม
+                    ดาวน์โหลดเอกสารลงนาม (PDF)
                   </button>
 
                   <button
@@ -1390,7 +1464,7 @@ export default function CreateClaim({
                     style={{ borderColor: C.teal, color: C.tealDark }}
                   >
                     <Printer size={15} />
-                    เปิดเพื่อพิมพ์ / บันทึก PDF
+                    เปิดเพื่อพิมพ์ (กรอกข้อมูลให้แล้ว)
                   </button>
                 </div>
               </div>
@@ -1694,7 +1768,7 @@ export default function CreateClaim({
                 <div
                   className="flex items-start gap-2 text-xs rounded-xl px-4 py-3"
                   style={{
-                    background: "#FCE9EA",
+                    background: C.roseSoft,
                     color: C.rose,
                   }}
                 >

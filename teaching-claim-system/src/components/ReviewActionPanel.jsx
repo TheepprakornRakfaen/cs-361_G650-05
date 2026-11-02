@@ -7,14 +7,16 @@ import {
   Loader2,
   X,
   Info,
+  FileQuestion,
 } from "lucide-react";
 import { C } from "../theme";
 
 const TONE = {
   teal: { bg: C.teal, icon: ClipboardCheck },
-  green: { bg: "#1E8E4F", icon: CheckCircle2 },
-  red: { bg: "#C23B3B", icon: XCircle },
+  green: { bg: C.green, icon: CheckCircle2 },
+  red: { bg: C.red, icon: XCircle },
   amber: { bg: "#D9772B", icon: RotateCcw },
+  plum: { bg: C.plum, icon: FileQuestion },
 };
 
 function ConfirmDialog({
@@ -139,7 +141,7 @@ function ConfirmDialog({
         {blockReason && (
           <p
             className="flex items-start gap-2 text-sm mt-2 px-3 py-2 rounded-xl"
-            style={{ background: C.roseSoft, color: "#C23B3B" }}
+            style={{ background: C.roseSoft, color: C.red }}
             role="alert"
           >
             <Info size={15} className="mt-0.5 shrink-0" />
@@ -150,7 +152,7 @@ function ConfirmDialog({
         {warning && (
           <p
             className="flex items-start gap-2 text-sm mt-2 px-3 py-2 rounded-xl"
-            style={{ background: "#FDEBDD", color: "#B4531A" }}
+            style={{ background: C.orangeSoft, color: C.orange }}
           >
             <Info size={15} className="mt-0.5 shrink-0" />
             {warning}
@@ -160,7 +162,7 @@ function ConfirmDialog({
         {error && (
           <p
             className="text-sm mt-2 px-3 py-2 rounded-xl"
-            style={{ background: C.roseSoft, color: "#C23B3B" }}
+            style={{ background: C.roseSoft, color: C.red }}
             role="alert"
           >
             {error}
@@ -209,6 +211,8 @@ export default function ReviewActionPanel({
   // ผ่านการตรวจสอบ (ส่งต่อผู้อนุมัติ) แล้วหรือยัง — ใช้เตือนผู้อนุมัติ/แสดงข้อความ
   reviewed = false,
   reviewedBy = "",
+  // ผู้ตรวจสอบส่งต่อแบบไม่แน่ใจหลักฐาน — { comment, actorName } จาก findEscalation
+  escalation = null,
 }) {
   const [active, setActive] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -250,7 +254,7 @@ export default function ReviewActionPanel({
       : "";
 
   const approveWarning =
-    active?.key === "APPROVE" || active?.key === "REVIEW_PASS"
+    active?.key === "APPROVE" || active?.key === "REVIEW_PASS" || active?.key === "REVIEW_ESCALATE"
       ? evidenceWarning
       : "";
 
@@ -258,7 +262,7 @@ export default function ReviewActionPanel({
    * ต้องมีเอกสารลงนามแนบในระบบก่อนผ่านขั้นตรวจสอบ/อนุมัติ/การเงินรับเอกสาร
    * (ถ้าไม่มี ให้ส่งกลับให้ผู้ยื่นแนบเพิ่ม) backend ต้องบังคับกฎนี้ด้วย
    */
-  const GATED = ["REVIEW_PASS", "APPROVE"];
+  const GATED = ["REVIEW_PASS", "REVIEW_ESCALATE", "APPROVE"];
 
   const signedBlock =
     GATED.includes(active?.key) &&
@@ -304,10 +308,32 @@ export default function ReviewActionPanel({
         </div>
       )}
 
-      {reviewed && actions.length > 0 && (
+      {escalation && actions.length > 0 && (
+        <div
+          className="flex gap-2.5 rounded-xl px-4 py-3 mb-3 text-sm border"
+          style={{ background: C.plumSoft, borderColor: C.plumBorder, color: C.plumInk }}
+        >
+          <FileQuestion size={17} className="shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="font-semibold">
+              ผู้ตรวจสอบขอให้ตรวจสอบหลักฐาน{escalation.actorName ? ` (${escalation.actorName})` : ""}
+            </p>
+            {escalation.comment && (
+              <p className="mt-1 leading-6 whitespace-pre-wrap break-words">
+                {escalation.comment}
+              </p>
+            )}
+            <p className="text-xs mt-1.5" style={{ color: C.plum }}>
+              หากหลักฐานไม่ถูกต้อง กด "ไม่อนุมัติ" พร้อมเหตุผล ระบบจะแจ้งกลับผู้ยื่นให้ยื่นคำขอใหม่
+            </p>
+          </div>
+        </div>
+      )}
+
+      {reviewed && !escalation && actions.length > 0 && (
         <p
           className="flex items-center gap-2 text-sm mb-3"
-          style={{ color: "#1E8E4F" }}
+          style={{ color: C.green }}
         >
           <CheckCircle2 size={15} />
           ตรวจสอบแล้ว{reviewedBy ? `โดย ${reviewedBy}` : ""} · รอผู้อนุมัติพิจารณา

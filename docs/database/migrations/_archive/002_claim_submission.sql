@@ -54,6 +54,13 @@ CREATE TABLE claim_period (
   UNIQUE (term_id, month)
 );
 
+-- ประเภทค่าตอบแทน (เช่น TEACHING) — seed ใน 005
+CREATE TABLE compensation_type (
+  id    SERIAL PRIMARY KEY,
+  code  TEXT NOT NULL UNIQUE,
+  name  TEXT NOT NULL
+);
+
 -- คำร้อง  status: 0 = ร่าง, 1 = ยื่นแล้ว, 2 = ยกเลิก
 CREATE TABLE claim (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

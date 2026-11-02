@@ -17,6 +17,8 @@ export const EDITABLE_FIELDS = [
   "phone",
   "faculty",
   "department",
+  "bankName",
+  "bankAccount",
 ];
 
 export function loadProfileEdits(username) {
@@ -38,7 +40,9 @@ export function saveProfileEdits(username, edits) {
 
   const data = {};
   EDITABLE_FIELDS.forEach((field) => {
-    data[field] = String(edits[field] ?? "").trim();
+    const value = String(edits[field] ?? "").trim();
+    // เลขบัญชีเก็บเฉพาะตัวเลข (ตัดช่องว่าง/ขีดออก)
+    data[field] = field === "bankAccount" ? value.replace(/\D/g, "") : value;
   });
 
   localStorage.setItem(storageKey(username), JSON.stringify(data));
@@ -86,6 +90,13 @@ export function validateProfile(form) {
 
   if (phone && !/^0\d{8,9}$/.test(phone)) {
     errors.phone = "เบอร์โทรต้องขึ้นต้นด้วย 0 และมี 9–10 หลัก";
+  }
+
+  // เลขบัญชีธนาคาร: ตัวเลข 10–15 หลัก (รองรับทุกธนาคาร) ไม่บังคับกรอก
+  const bankAccount = String(form.bankAccount || "").replace(/\D/g, "");
+
+  if (bankAccount && !/^\d{10,15}$/.test(bankAccount)) {
+    errors.bankAccount = "เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก";
   }
 
   // คณะ / สาขา ต้องเป็นตัวเลือกจากรายการ และสาขาต้องอยู่ในคณะที่เลือก

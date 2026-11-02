@@ -42,7 +42,7 @@ export default function RoleAccessSummary({ user }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <p className="text-xs font-bold mb-2" style={{ color: "#1E8E4F" }}>
+          <p className="text-xs font-bold mb-2" style={{ color: C.green }}>
             ทำได้
           </p>
 
@@ -56,7 +56,7 @@ export default function RoleAccessSummary({ user }) {
                 <Check
                   size={15}
                   className="mt-0.5 shrink-0"
-                  style={{ color: "#1E8E4F" }}
+                  style={{ color: C.green }}
                 />
                 <span>
                   {item.label}

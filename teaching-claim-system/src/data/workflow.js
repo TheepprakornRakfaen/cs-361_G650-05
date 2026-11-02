@@ -1,7 +1,6 @@
 /*
  * [V3] สถานะคำขอและขั้นตอน workflow (ฝั่ง UI)
- *
- * ไฟล์นี้เดิมว่างเปล่า (0 ไบต์) ทำให้ build ไม่ผ่าน — เติมให้ครบตาม export ที่ไฟล์อื่น import อยู่
+
  * สิทธิ์ของแต่ละบทบาทอยู่ใน data/roles.js ที่นี่ใช้ตัดสินแค่ "ขั้นตอนถัดไปของสถานะนี้"
  *
  * ⚠️ UI ซ่อนปุ่มเพื่อความสะดวกเท่านั้น backend ต้องตรวจสิทธิ์และลำดับสถานะทุกครั้ง
@@ -14,7 +13,7 @@ export const STATUS = {
   REVIEWED: "Reviewed", // ผู้ตรวจสอบผ่านแล้ว รอผู้อนุมัติ
   APPROVED: "Approved", // อนุมัติแล้ว รอจ่ายเงิน (ระบบเปลี่ยนเป็น Paid เองเมื่อครบกำหนดเวลา)
   PAID: "Paid", // จ่ายเงินแล้ว (สิ้นสุดกระบวนการ)
-  // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา ผู้ยื่นแก้ไข/ยื่นซ้ำไม่ได้)
+  // ไม่อนุมัติ — ผู้อนุมัติปฏิเสธคำขอ (สิ้นสุดการพิจารณา แก้คำขอเดิมไม่ได้ ผู้ยื่นต้องยื่นคำขอใหม่)
   REJECTED: "Rejected",
   RETURNED: "Returned", // ส่งคืนให้ผู้ยื่นแก้ไข
   UNKNOWN: "Unknown",
@@ -24,7 +23,7 @@ export const STATUS = {
  * รหัสตัวเลขที่ backend ใช้ (migration 010):
  * 0 = แบบร่าง, 1 = รอตรวจ, 2 = ตรวจแล้วรออนุมัติ
  * 3 = อนุมัติ, 4 = ไม่อนุมัติ, 5 = ส่งคืนแก้ไข
- * 7 = จ่ายเงินแล้ว (backend เปลี่ยนจาก 3 ให้อัตโนมัติ)
+ * 6 = จ่ายเงินแล้ว (backend เปลี่ยนจาก 3 ให้อัตโนมัติ)
  * รหัสที่ไม่รู้จักจะเป็น Unknown
  */
 const NUMERIC_STATUS = {
@@ -34,7 +33,7 @@ const NUMERIC_STATUS = {
   3: STATUS.APPROVED,
   4: STATUS.REJECTED,
   5: STATUS.RETURNED,
-  7: STATUS.PAID,
+  6: STATUS.PAID,
 };
 
 // ชื่อสถานะแบบข้อความอื่นๆ ที่ backend อาจส่งมา
@@ -194,6 +193,19 @@ const ACTION = {
     commentLabel: "หมายเหตุถึงผู้อนุมัติ (ไม่บังคับ)",
     confirmButton: "ยืนยันส่งต่อ",
   },
+  // ผู้ตรวจสอบไม่แน่ใจว่าหลักฐานถูกต้อง → ส่งต่อให้ผู้อนุมัติตรวจอีกชั้น (สถานะ 2 + ป้าย "ขอให้ตรวจสอบหลักฐาน")
+  // ผู้อนุมัติดูแล้วไม่ถูกต้อง → ไม่อนุมัติ แจ้งกลับผู้ยื่นให้ยื่นใหม่
+  REVIEW_ESCALATE: {
+    key: "REVIEW_ESCALATE",
+    label: "ส่งต่อให้ผู้อนุมัติตรวจสอบหลักฐาน",
+    tone: "plum",
+    requireComment: true,
+    confirmTitle: "ส่งต่อให้ผู้อนุมัติตรวจสอบหลักฐาน",
+    confirmText:
+      "ใช้เมื่อไม่แน่ใจว่าหลักฐานถูกต้องหรือไม่ คำขอจะถูกส่งต่อให้ผู้อนุมัติพร้อมป้าย \"ขอให้ตรวจสอบหลักฐาน\" หากผู้อนุมัติเห็นว่าไม่ถูกต้อง จะไม่อนุมัติและแจ้งกลับผู้ยื่นให้ยื่นใหม่",
+    commentLabel: "ประเด็นที่ไม่แน่ใจ",
+    confirmButton: "ยืนยันส่งต่อ",
+  },
   // อนุมัติ → คำขอไปอยู่ในกลุ่ม "อนุมัติแล้ว" ทันที
   APPROVE: {
     key: "APPROVE",
@@ -213,7 +225,7 @@ const ACTION = {
     requireComment: true,
     confirmTitle: "ยืนยันการไม่อนุมัติ",
     confirmText:
-      "คำขอจะสิ้นสุดการพิจารณา ผู้ยื่นจะแก้ไขหรือยื่นซ้ำไม่ได้ ระบบเก็บประวัติและเหตุผลไว้ให้ตรวจสอบย้อนหลัง",
+      "คำขอจะสิ้นสุดการพิจารณาและแจ้งกลับผู้ยื่น ผู้ยื่นแก้ไขคำขอเดิมไม่ได้ ต้องยื่นคำขอใหม่ ระบบเก็บประวัติและเหตุผลไว้ให้ตรวจสอบย้อนหลัง",
     commentLabel: "เหตุผลที่ไม่อนุมัติ",
     confirmButton: "ยืนยันไม่อนุมัติ",
   },
@@ -273,7 +285,7 @@ export function getAllowedActions(claim, user) {
   if (claim.status === STATUS.SUBMITTED) {
     if (canReview && !canApprove) {
       return {
-        actions: [ACTION.REVIEW_PASS, ACTION.RETURN],
+        actions: [ACTION.REVIEW_PASS, ACTION.REVIEW_ESCALATE, ACTION.RETURN],
         blockedReason: "",
       };
     }
@@ -340,9 +352,41 @@ const AUDIT_ALIAS = {
   CANCELED: "CANCEL",
 };
 
-export function getAuditMeta(action) {
+/*
+ * backend ยังไม่มีสถานะแยกสำหรับ "ขอให้ผู้อนุมัติตรวจสอบหลักฐาน"
+ * จึงส่งเป็น REVIEW_PASS (→ สถานะ 2) แล้วติดป้ายไว้หน้าหมายเหตุ ฝั่งผู้อนุมัติอ่านป้ายนี้จากประวัติ
+ */
+export const ESCALATE_TAG = "[ขอให้ตรวจสอบหลักฐาน]";
+
+export const isEscalateComment = (comment) =>
+  String(comment || "").trim().startsWith(ESCALATE_TAG);
+
+export const stripEscalateTag = (comment) =>
+  isEscalateComment(comment)
+    ? String(comment).trim().slice(ESCALATE_TAG.length).trim()
+    : comment || "";
+
+const ESCALATE_META = { label: "ส่งต่อผู้อนุมัติ · ขอให้ตรวจสอบหลักฐาน", tone: "plum" };
+
+// ประวัติล่าสุดที่ผู้ตรวจสอบส่งต่อแบบขอให้ตรวจหลักฐาน → { comment, actorName, createdAt } หรือ null
+export function findEscalation(history = []) {
+  const passes = history
+    .filter((h) => getAuditMeta(h.action) === AUDIT_ACTION_META.REVIEW_PASS)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const latest = passes[0];
+
+  return latest && isEscalateComment(latest.comment)
+    ? { ...latest, comment: stripEscalateTag(latest.comment) }
+    : null;
+}
+
+export function getAuditMeta(action, comment) {
   const raw = String(action || "").trim();
   const key = raw.toUpperCase().replace(/[\s-]+/g, "_");
+
+  if ((AUDIT_ALIAS[key] || key) === "REVIEW_PASS" && isEscalateComment(comment)) {
+    return ESCALATE_META;
+  }
 
   return (
     AUDIT_ACTION_META[AUDIT_ALIAS[key] || key] || {

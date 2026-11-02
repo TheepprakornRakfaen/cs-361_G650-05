@@ -37,8 +37,8 @@ import {
   formatDuration,
   formatThaiDate,
 } from "../utils/time";
-import { downloadSignForm } from "../utils/signForm";
-import { getCompType } from "../services/claimMapper";
+import { downloadSignFormPdf } from "../utils/signForm";
+import { detectClaimAnomalies } from "../utils/anomalyDetector";
 
 import {
   getClaimEvidence,
@@ -51,6 +51,7 @@ import AuditTimeline, {
   normalizeHistory,
 } from "../components/AuditTimeline";
 import Restricted from "../components/Restricted";
+import { DEV_AUTH_BYPASS } from "../services/devAuth";
 import {
   ATTACHABLE_STATUSES,
   EDITABLE_STATUSES,
@@ -58,6 +59,7 @@ import {
   getAllowedActions,
   isReviewed,
   isOwnClaim,
+  findEscalation,
 } from "../data/workflow";
 import {
   PERMISSION as P,
@@ -237,6 +239,7 @@ function EvidencePreview({ item, onClose }) {
 
 export default function ClaimDetail({
   claim,
+  claims = [],
   course,
   user,
   goBack,
@@ -248,11 +251,18 @@ export default function ClaimDetail({
   pendingEvidence = [],
   // (claimId, File[] | pendingItems[]) => Promise<{ registered, failed }>
   onAttachEvidence,
+  // กำลังโหลดรายการคำขอ (เช่น รีเฟรชหน้ารายละเอียด) → แสดงกำลังโหลดแทน "ไม่พบข้อมูล"
+  loading = false,
 }) {
   const canViewEvidence = can(user, P.EVIDENCE_VIEW);
   const canViewFinance = can(user, P.FINANCE_VIEW);
   const canViewPii = can(user, P.PII_VIEW);
   const canViewAudit = can(user, P.AUDIT_VIEW);
+
+  const anomalyCheck = React.useMemo(
+    () => detectClaimAnomalies(claim, claims, course ? [course] : []),
+    [claim, claims, course]
+  );
 
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState([]);
@@ -308,7 +318,9 @@ export default function ClaimDetail({
       * localStorage Draft เก่าอาจใช้
       * CL-xxxx แทน UUID
       */
+      // โหมดทดลอง: คำขอตัวอย่างใช้ id แบบข้อความ จึงไม่ต้องเช็ก UUID
       const isUuid =
+        (DEV_AUTH_BYPASS && Boolean(claimId)) ||
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
           String(claimId || "")
         );
@@ -395,6 +407,7 @@ export default function ClaimDetail({
     const claimId = claim?.claimId || claim?.id;
 
     const isUuid =
+      (DEV_AUTH_BYPASS && Boolean(claimId)) ||
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         String(claimId || "")
       );
@@ -453,12 +466,28 @@ export default function ClaimDetail({
     return (
       <div className="w-full">
         <SectionCard className="p-10 text-center">
-          <p
-            className="text-sm font-medium"
-            style={{ color: C.ink }}
-          >
-            ไม่พบข้อมูลคำขอ
-          </p>
+          {loading ? (
+            <p className="flex items-center justify-center gap-2 text-sm font-medium" style={{ color: C.sub }}>
+              <Loader2 size={16} className="animate-spin" />
+              กำลังโหลดคำขอ...
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-medium" style={{ color: C.ink }}>
+                ไม่พบข้อมูลคำขอ
+              </p>
+              {goBack && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold"
+                  style={{ background: C.tealSoft, color: C.tealDark }}
+                >
+                  {backLabel || "ย้อนกลับ"}
+                </button>
+              )}
+            </>
+          )}
         </SectionCard>
       </div>
     );
@@ -533,27 +562,6 @@ export default function ClaimDetail({
   const signedItems = evidenceItems.filter((item) => item.isSigned);
   const supportItems = evidenceItems.filter((item) => !item.isSigned);
 
-  // เอกสารลงนามสร้างจากข้อมูลคำขอที่ยื่นจริง (มีเลขที่คำขอกำกับ)
-  const signFormData = {
-    claimantName: claim.claimantName || user?.name || "",
-    claimantRole:
-      getCompType(claim.claimantRole || user?.roleKey) === "TA"
-        ? "ผู้ช่วยสอน (TA)"
-        : getCompType(claim.claimantRole || user?.roleKey) === "TEACHER"
-          ? "อาจารย์ผู้สอน"
-          : user?.role || "",
-    roleKey: getCompType(claim.claimantRole || user?.roleKey),
-    courseCode: claim.courseCode,
-    courseName: course?.name || claim.courseName || "",
-    sectionNo: course?.section_no || "",
-    semester: claim.termLabel || claim.semester || "",
-    round: claim.round || claim.month || "",
-    sessions,
-    rate: claim.rate,
-    notes: claim.notes,
-    claimCode: claim.code || claim.id,
-  };
-
   // เจ้าของคำขอที่ยังแก้ไข/แนบได้ ดาวน์โหลดแบบฟอร์มไปลงนามได้
   const canDownloadForm =
     canViewFinance &&
@@ -624,7 +632,7 @@ export default function ClaimDetail({
                       {viewedIds.has(item.id) && (
                         <span
                           className="flex items-center gap-1 text-xs font-semibold shrink-0"
-                          style={{ color: "#1E8E4F" }}
+                          style={{ color: C.green }}
                         >
                           <CheckCircle2 size={14} />
                           เปิดดูแล้ว
@@ -684,7 +692,7 @@ export default function ClaimDetail({
               title="คัดลอกรหัสคำขอ"
               aria-label="คัดลอกรหัสคำขอ"
               className="no-print shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[#EEF4F8]"
-              style={{ color: copied ? "#1E8E4F" : C.sub }}
+              style={{ color: copied ? C.green : C.sub }}
             >
               {copied ? <Check size={15} /> : <Copy size={15} />}
             </button>
@@ -707,7 +715,7 @@ export default function ClaimDetail({
             {canDownloadForm && (
               <button
                 type="button"
-                onClick={() => downloadSignForm(signFormData)}
+                onClick={downloadSignFormPdf}
                 className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
                 style={{
                   borderColor: C.border,
@@ -803,7 +811,7 @@ export default function ClaimDetail({
               className="shrink-0 mt-0.5"
               style={{
                 color:
-                  status === STATUS.REJECTED ? "#C23B3B" : "#B4531A",
+                  status === STATUS.REJECTED ? C.red : C.orange,
               }}
             />
 
@@ -823,7 +831,7 @@ export default function ClaimDetail({
 
               {status === STATUS.REJECTED && own && (
                 <p className="text-xs mt-2 leading-5" style={{ color: C.sub }}>
-                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขหรือยื่นซ้ำไม่ได้ หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่
+                  คำขอนี้สิ้นสุดการพิจารณาแล้ว แก้ไขคำขอเดิมไม่ได้ หากต้องการเบิกรายการนี้ กรุณายื่นคำขอใหม่พร้อมหลักฐานที่ถูกต้อง
                 </p>
               )}
             </div>
@@ -870,6 +878,52 @@ export default function ClaimDetail({
           </div>
         )}
 
+        {/* [V4] การตรวจพบข้อผิดปกติและความถูกต้อง (Verification & Anomaly Alert - FR7) */}
+        {anomalyCheck?.hasIssues ? (
+          <div
+            className="rounded-2xl p-5 mb-8 border"
+            style={{
+              background: anomalyCheck.hasErrors ? "#FFF5F5" : "#FFFBF0",
+              borderColor: anomalyCheck.hasErrors ? "#FBC4C4" : "#FDE68A",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                size={20}
+                className={`shrink-0 mt-0.5 ${anomalyCheck.hasErrors ? "text-rose-600" : "text-amber-600"}`}
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-extrabold text-slate-900">
+                  ระบบตรวจพบข้อผิดปกติหรือข้อมูลที่ต้องตรวจสอบ ({anomalyCheck.anomalies.length} รายการ)
+                </h4>
+                <ul className="mt-2 space-y-1.5 text-xs text-slate-700">
+                  {anomalyCheck.anomalies.map((a, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "error" ? "bg-rose-500" : "bg-amber-500"}`} />
+                      <div>
+                        <span className="font-bold">{a.title}: </span>
+                        <span>{a.message}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {can(user, P.CLAIM_REVIEW) && (
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    คำแนะนำสำหรับเจ้าหน้าที่: หากข้อมูลไม่ถูกต้อง สามารถกด “ส่งกลับให้แก้ไข” ด้านล่าง เพื่อให้ผู้ยื่นดำเนินการแก้ไข
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          !own && (
+            <div className="rounded-2xl p-4 mb-8 border bg-emerald-50/60 border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span>✓ ผ่านการตรวจสอบความถูกต้องเบื้องต้น (ไม่พบคำขอซ้ำ ข้อมูลครบถ้วน และอยู่ในโควตา)</span>
+            </div>
+          )
+        )}
+
         {/* [V3] ปุ่มพิจารณา (แสดงเฉพาะผู้มีสิทธิ์ในสถานะนั้น) */}
         <ReviewActionPanel
           actions={actions}
@@ -879,6 +933,7 @@ export default function ClaimDetail({
           }
           reviewed={isReviewed(claim)}
           reviewedBy={claim.reviewedBy}
+          escalation={status === STATUS.REVIEWED ? findEscalation(history) : null}
           evidence={{
             canView: canViewEvidence,
             loading: evidenceLoading,
@@ -1114,7 +1169,7 @@ export default function ClaimDetail({
             >
               <p
                 className="flex items-center gap-2 text-sm font-semibold"
-                style={{ color: "#C23B3B" }}
+                style={{ color: C.red }}
               >
                 <AlertTriangle size={15} />
                 แนบไฟล์ไม่สำเร็จ {pendingEvidence.length} ไฟล์ — คำขอถูกยื่นเรียบร้อยแล้ว
@@ -1135,7 +1190,7 @@ export default function ClaimDetail({
                   disabled={attaching}
                   onClick={() => attach(pendingEvidence)}
                   className="mt-3 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                  style={{ background: "#C23B3B" }}
+                  style={{ background: C.red }}
                 >
                   {attaching ? (
                     <Loader2 size={13} className="animate-spin" />
@@ -1207,7 +1262,7 @@ export default function ClaimDetail({
                     {renderItems(signedItems)}
                   </div>
                 ) : (
-                  <p className="text-sm" style={{ color: "#C23B3B" }}>
+                  <p className="text-sm" style={{ color: C.red }}>
                     ยังไม่มีเอกสารลงนาม
                   </p>
                 )}

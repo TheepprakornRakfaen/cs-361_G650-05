@@ -154,7 +154,20 @@ function safeFileName(data) {
   return `แบบขอเบิก-${base || "คำขอ"}.html`;
 }
 
-// ดาวน์โหลดเป็นไฟล์
+// แบบฟอร์มทางการ (PDF เปล่า) ให้ผู้ยื่นพิมพ์แล้วกรอก/ลงนามเอง
+export const SIGN_FORM_PDF = "/documents/teaching-claim-form.pdf";
+
+export function downloadSignFormPdf() {
+  const link = document.createElement("a");
+
+  link.href = SIGN_FORM_PDF;
+  link.download = "แบบขอเบิกค่าตอบแทนการสอน.pdf";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+// ดาวน์โหลดเป็นไฟล์ HTML ที่กรอกข้อมูลคำขอไว้แล้ว
 export function downloadSignForm(data) {
   const blob = new Blob([buildSignFormHtml(data)], {
     type: "text/html;charset=utf-8",

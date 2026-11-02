@@ -12,9 +12,10 @@ import {
   History,
   ClipboardCheck,
   XCircle,
+  FileQuestion,
 } from "lucide-react";
 
-import { C, STATUS_STYLE } from "../theme";
+import { C, STATUS_STYLE, ESCALATED_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
 import RoleBadge from "../components/RoleBadge";
 import { STATUS, getAuditMeta, isPending, isApprovedOrBeyond } from "../data/workflow";
@@ -26,6 +27,7 @@ import {
   businessDaysSince,
   slaLevel,
 } from "../utils/sla";
+
 
 const baht = (n) => `฿${Number(n || 0).toLocaleString()}`;
 
@@ -61,9 +63,11 @@ export default function AdminOverview({
   goReview,
   goDetail,
   goAuditLog,
+  goSettings,
 }) {
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeeAudit = can(user, P.AUDIT_VIEW_ALL);
+  const canManageSettings = can(user, P.SETTINGS_MANAGE);
 
   const [activity, setActivity] = useState([]);
 
@@ -100,6 +104,8 @@ export default function AdminOverview({
       pending: pending.length,
       submitted: claims.filter((c) => c.status === STATUS.SUBMITTED).length,
       reviewed: claims.filter((c) => c.status === STATUS.REVIEWED).length,
+      // ผู้ตรวจสอบไม่แน่ใจหลักฐาน ส่งต่อให้ผู้อนุมัติตรวจ (claim.escalation มาจาก App)
+      escalated: claims.filter((c) => c.status === STATUS.REVIEWED && c.escalation).length,
       returned: claims.filter((c) => c.status === STATUS.RETURNED).length,
       approved: claims.filter((c) => c.status === STATUS.APPROVED).length,
       paid: claims.filter((c) => c.status === STATUS.PAID).length,
@@ -149,6 +155,7 @@ export default function AdminOverview({
   const cards = [
     { key: STATUS.SUBMITTED, label: "รอตรวจสอบ", value: stats.submitted, icon: Clock3, style: STATUS_STYLE.Submitted, hint: "รอผู้ตรวจสอบ" },
     { key: STATUS.REVIEWED, label: "รออนุมัติ", value: stats.reviewed, icon: ClipboardCheck, style: STATUS_STYLE.Reviewed, hint: "ตรวจแล้ว รอผู้อนุมัติ" },
+    { key: "ESCALATED", label: "ขอให้ตรวจสอบหลักฐาน", value: stats.escalated, icon: FileQuestion, style: ESCALATED_STYLE, hint: "ผู้ตรวจสอบไม่แน่ใจ ส่งให้ผู้อนุมัติตรวจ" },
     { key: "overdue", label: "เกินกำหนด", value: stats.overdue, icon: AlertTriangle, style: SLA_STYLE.overdue, hint: `รอเกิน ${SLA_BUSINESS_DAYS} วันทำการ` },
     { key: STATUS.RETURNED, label: "ส่งคืนแก้ไข", value: stats.returned, icon: RotateCcw, style: STATUS_STYLE.Returned, hint: "รอผู้ยื่นแก้ไข" },
     { key: STATUS.APPROVED, label: "อนุมัติแล้ว รอจ่าย", value: stats.approved, icon: CheckCircle2, style: STATUS_STYLE.Approved, hint: "รอระบบจ่ายเงิน" },
@@ -224,6 +231,41 @@ export default function AdminOverview({
           )}
         </div>
       </div>
+
+      {/* [V4] ทางลัดศูนย์จัดการระบบสำหรับผู้ดูแลระบบ (Admin Management Quick Link) */}
+      {canManageSettings && (
+        <div
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 mb-8 rounded-3xl border bg-white shadow-sm"
+          style={{ borderColor: C.border }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: C.tealSoft, color: C.tealDark }}
+            >
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-900">
+                ศูนย์จัดการระบบสำหรับผู้ดูแลระบบ
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                จัดการประเภทค่าตอบแทน, ข้อมูลรายวิชา, กฎและเงื่อนไข, ผู้ใช้งานและสิทธิ์, งบประมาณ, นำเข้าข้อมูล
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => goSettings?.()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold text-white shadow-sm shrink-0 hover:opacity-90 transition-opacity"
+            style={{ background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})` }}
+          >
+            <span>เปิดหน้าจัดการระบบ</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ===== การ์ดสถานะ ===== */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
@@ -322,8 +364,19 @@ export default function AdminOverview({
                         </span>
 
                         <span className="flex-1 min-w-0">
-                          <span className="block font-semibold text-sm truncate" style={{ color: C.ink }}>
-                            #{claim.code || claim.id}
+                          <span className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-sm truncate" style={{ color: C.ink }}>
+                              #{claim.code || claim.id}
+                            </span>
+                            {claim.escalation && (
+                              <span
+                                className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ background: ESCALATED_STYLE.bg, color: ESCALATED_STYLE.fg }}
+                              >
+                                <FileQuestion size={11} />
+                                ขอให้ตรวจสอบหลักฐาน
+                              </span>
+                            )}
                           </span>
                           <span className="block text-xs truncate" style={{ color: C.sub }}>
                             {claim.claimantName || "-"} · {claim.courseCode || "-"}
@@ -343,7 +396,7 @@ export default function AdminOverview({
               </ul>
             ) : (
               <div className="px-6 py-10 text-center">
-                <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: "#1E8E4F" }} />
+                <CheckCircle2 size={28} className="mx-auto mb-2" style={{ color: C.green }} />
                 <p className="text-sm font-semibold" style={{ color: C.ink }}>
                   {loading ? "กำลังโหลด..." : "ไม่มีคำขอที่รอตรวจสอบ"}
                 </p>
@@ -374,7 +427,7 @@ export default function AdminOverview({
               {activity.length > 0 ? (
                 <ol className="relative">
                   {activity.map((log, i) => {
-                    const meta = getAuditMeta(log.action);
+                    const meta = getAuditMeta(log.action, log.comment);
                     const to = STATUS_STYLE[log.to_status || log.toStatus];
 
                     return (
@@ -428,7 +481,7 @@ export default function AdminOverview({
                 {[
                   ["รายวิชา", ""],
                   ["คำขอทั้งหมด", "text-right"],
-                  ["รอตรวจสอบ", "text-right"],
+                  ["รอพิจารณา", "text-right"],
                   ["อนุมัติแล้ว", "text-right"],
                   ["ชั่วโมงรวม", "text-right"],
                   ...(canSeeFinance ? [["ยอดอนุมัติ", "text-right"]] : []),
