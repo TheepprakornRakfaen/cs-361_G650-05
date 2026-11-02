@@ -25,6 +25,8 @@ import {
   Search,
   ExternalLink,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -89,12 +91,113 @@ import {
 
 const baht = (n) => `฿${Number(n || 0).toLocaleString("th-TH")}`;
 
+// แถวต่อหน้าของตารางรายวิชา / รอบการยื่น
+const PAGE_SIZE = 10;
+
+/*
+ * แถวของหน้าปัจจุบัน + จำนวนทั้งหมด
+ * API ส่ง total มา = backend แบ่งหน้าให้แล้ว (list คือหน้านั้นพอดี)
+ * ไม่มี total (Lambda รุ่นเก่า / โหมดทดลอง / รายการในเครื่อง) = กรองแล้วตัดหน้าเอง
+ */
+function toPage(data, list, offset, matches = () => true) {
+  if (data?.total !== undefined && data?.total !== null) {
+    return { rows: list, total: Number(data.total) };
+  }
+  const filtered = list.filter(matches);
+  return { rows: filtered.slice(offset, offset + PAGE_SIZE), total: filtered.length };
+}
+
+// ค้นแบบเดียวกับ backend (?q=) — รหัส / ชื่อไทย / ชื่ออังกฤษ ไม่สนตัวพิมพ์
+const matchesCourse = (c, q) => {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return [c.course_code, c.course_name_th, c.course_name_en].some((v) =>
+    String(v ?? "").toLowerCase().includes(needle)
+  );
+};
+
+// ตัวกรองสถานะผู้สอน (?staff=) — ค่าตรงกับ STAFF_FILTERS ใน Lambda ClaimsPeriodTermCourses
+const STAFF_FILTER_OPTIONS = [
+  { value: "", label: "ทุกสถานะผู้สอน" },
+  { value: "none", label: "ยังไม่มีผู้สอน" },
+  { value: "assigned", label: "มีผู้สอนแล้ว" },
+  { value: "used", label: "เบิกชั่วโมงแล้ว" },
+  { value: "full", label: "ใช้ครบโควตา" },
+];
+
+// แบบเดียวกับ backend — ใช้ตอนกรองในเครื่อง (staff_count/max_hour/hour = รวมทั้ง section)
+const matchesStaffFilter = (c, filter) => {
+  const count = Number(c.staff_count ?? 0);
+  const max = Number(c.max_hour ?? 0);
+  const used = Number(c.hour ?? 0);
+  switch (filter) {
+    case "none": return count === 0;
+    case "assigned": return count > 0;
+    case "used": return used > 0;
+    case "full": return max > 0 && used >= max;
+    default: return true;
+  }
+};
+
+// แถบเปลี่ยนหน้า: "แสดง 11–20 จาก 37" + ก่อนหน้า / เลขหน้า / ถัดไป
+function Pager({ page, total, onChange }) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (total <= PAGE_SIZE) return null;
+
+  // เลขหน้ารอบ ๆ หน้าปัจจุบัน + หน้าแรก/สุดท้าย ที่เหลือย่อเป็น …
+  const nums = [...new Set([1, page - 1, page, page + 1, pages])]
+    .filter((n) => n >= 1 && n <= pages)
+    .sort((a, b) => a - b);
+
+  const btn = "min-w-8 h-8 px-2 rounded-full text-xs font-bold flex items-center justify-center";
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t text-xs text-slate-500">
+      <span>
+        แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} จาก {total} รายการ
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+          className={`${btn} hover:bg-slate-100 disabled:opacity-30`}
+          title="หน้าก่อนหน้า"
+        >
+          <ChevronLeft size={15} />
+        </button>
+        {nums.map((n, i) => (
+          <span key={n} className="flex items-center gap-1">
+            {i > 0 && n - nums[i - 1] > 1 && <span className="px-1">…</span>}
+            <button
+              type="button"
+              onClick={() => onChange(n)}
+              className={`${btn} ${n === page ? "bg-slate-900 text-white" : "hover:bg-slate-100 text-slate-700"}`}
+            >
+              {n}
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          disabled={page >= pages}
+          onClick={() => onChange(page + 1)}
+          className={`${btn} hover:bg-slate-100 disabled:opacity-30`}
+          title="หน้าถัดไป"
+        >
+          <ChevronRight size={15} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const THAI_MONTHS = [
   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ];
 
-export default function AdminManagement({ user, claims = [], onReload }) {
+export default function AdminManagement({ user, claims = [], onReload, terms: appTerms = [] }) {
   const [activeTab, setActiveTab] = useState("overview"); // overview | compTypes | masterData | rules | users | dataExchange
   const [masterSubTab, setMasterSubTab] = useState("courses"); // courses | terms | staff
 
@@ -168,16 +271,21 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     rate: 600,
   });
 
-  // ภาคการศึกษาจาก DB (GET /api/term ล่าสุดก่อน) สำหรับ dropdown ในฟอร์มรายวิชา
-  const [academicTerms, setAcademicTerms] = useState([]);
+  /*
+   * ภาคการศึกษาจาก DB (ล่าสุดก่อน) สำหรับ dropdown / การ์ดภาค
+   * ใช้ชุดที่ App โหลดไว้แล้ว (prop terms) — ยิง GET /api/term เองเฉพาะตอนยังไม่มี
+   */
+  const [fetchedTerms, setFetchedTerms] = useState([]);
+  const academicTerms = appTerms.length ? appTerms : fetchedTerms;
 
   useEffect(() => {
+    if (appTerms.length) return;
     let active = true;
 
     getTerms()
       .then((data) => {
         const list = Array.isArray(data?.terms) ? data.terms : [];
-        if (active) setAcademicTerms(list);
+        if (active) setFetchedTerms(list);
       })
       .catch((error) => {
         console.warn("Load terms failed:", error);
@@ -186,30 +294,72 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [appTerms.length]);
 
   /*
-   * รายวิชา/section จริงจาก DB (GET /api/courses?all=true)
-   * null = ยังโหลดไม่ได้ → แสดงรายการในเครื่องแบบเดิม
+   * รายวิชา/section จริงจาก DB (GET /api/courses?all=true) แบ่งหน้าละ PAGE_SIZE
+   * กรองภาค + ค้นรหัส/ชื่อวิชาที่ backend (term_id, q) เพื่อให้ค้นได้ทุกหน้า ไม่ใช่แค่หน้าที่โหลด
+   * dbCourses = แถวของหน้าปัจจุบัน · null = ยังโหลดไม่ได้ → แสดงรายการในเครื่องแบบเดิม
    * โควตา/ชั่วโมง = ผลรวมจาก section_staff ของทุกคนใน section
    */
   const [dbCourses, setDbCourses] = useState(null);
+  const [dbCoursesTotal, setDbCoursesTotal] = useState(0);
   const [coursesVersion, setCoursesVersion] = useState(0);
   const reloadDbCourses = () => setCoursesVersion((v) => v + 1);
+  const [coursePage, setCoursePage] = useState(1);
+  const [courseTermFilter, setCourseTermFilter] = useState("");
+  const [courseSearch, setCourseSearch] = useState(""); // ที่พิมพ์อยู่
+  const [courseQuery, setCourseQuery] = useState(""); // ที่ส่งไป backend (หน่วง 300ms)
+  const [courseStaffFilter, setCourseStaffFilter] = useState("");
 
   // ข้อความผลการบันทึกไป DB ของแท็บข้อมูลพื้นฐาน { type: "ok" | "error", text }
   const [masterMsg, setMasterMsg] = useState(null);
 
+  // พิมพ์ค้นหา → รอหยุดพิมพ์ก่อนค่อยยิง API แล้วกลับไปหน้า 1
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCourseQuery(courseSearch.trim());
+      setCoursePage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [courseSearch]);
+
   useEffect(() => {
     let active = true;
+    const offset = (coursePage - 1) * PAGE_SIZE;
 
-    getCourses(null, { all: true })
+    getCourses(courseTermFilter, {
+      all: true,
+      limit: PAGE_SIZE,
+      offset,
+      q: courseQuery,
+      staff: courseStaffFilter,
+    })
       .then((data) => {
         const list = Array.isArray(data?.courses) ? data.courses : [];
         if (!active) return;
 
+        const { rows, total } = toPage(
+          data,
+          list,
+          offset,
+          (c) =>
+            matchesCourse(c, courseQuery) &&
+            matchesStaffFilter(
+              { staff_count: c.staff_count, max_hour: c.section_max_hour, hour: c.section_used_hour },
+              courseStaffFilter
+            )
+        );
+
+        // ลบแถวสุดท้ายของหน้าสุดท้าย → หน้านั้นว่าง ถอยไปหน้าก่อนหน้า
+        if (!rows.length && total > 0 && coursePage > 1) {
+          setCoursePage(Math.ceil(total / PAGE_SIZE));
+          return;
+        }
+
+        setDbCoursesTotal(total);
         setDbCourses(
-          list.map((c) => ({
+          rows.map((c) => ({
             section_id: c.section_id,
             course_code: c.course_code,
             course_name_th: c.course_name_th,
@@ -232,13 +382,16 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     return () => {
       active = false;
     };
-  }, [coursesVersion]);
+  }, [coursesVersion, coursePage, courseTermFilter, courseQuery, courseStaffFilter]);
 
   /*
    * ผู้สอนประจำ section (section_staff) — แท็บย่อย "ผู้สอนประจำ section"
    * staffSectionId = section ที่เลือกดู · staffForm = ฟอร์มเพิ่ม/แก้ผู้สอน
    */
   const [staffSectionId, setStaffSectionId] = useState("");
+  // dropdown section โหลดทีละภาค (ไม่ผูกกับหน้าของตารางรายวิชา) — "" = ภาคล่าสุด
+  const [staffTermId, setStaffTermId] = useState("");
+  const [staffSections, setStaffSections] = useState([]);
   const [sectionStaff, setSectionStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -262,14 +415,16 @@ export default function AdminManagement({ user, claims = [], onReload }) {
       .finally(() => setStaffLoading(false));
   };
 
+  // รายชื่อผู้ใช้ใช้ทั้งแท็บผู้สอนประจำ section และแท็บผู้ใช้งานและสิทธิ์ (โหมดทดลองใช้ MOCK_USERS)
   useEffect(() => {
-    if (masterSubTab !== "staff" || adminUsers.length) return;
+    const needed = masterSubTab === "staff" || (activeTab === "users" && !getDevUser());
+    if (!needed || adminUsers.length) return;
     getAdminUsers()
       .then((data) => setAdminUsers(Array.isArray(data?.users) ? data.users : []))
       .catch((error) => {
         setMasterMsg({ type: "error", text: `โหลดรายชื่อผู้ใช้ไม่สำเร็จ: ${error.message}` });
       });
-  }, [masterSubTab, adminUsers.length]);
+  }, [masterSubTab, activeTab, adminUsers.length]);
 
   useEffect(() => {
     if (masterSubTab !== "staff") return;
@@ -279,8 +434,28 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [masterSubTab, staffSectionId]);
 
-  const openStaffOf = (sectionId) => {
-    setStaffSectionId(String(sectionId));
+  const staffTerm = staffTermId || (academicTerms[0]?.id ?? "");
+
+  useEffect(() => {
+    if (masterSubTab !== "staff" || !staffTerm) return;
+    let active = true;
+
+    getCourses(staffTerm, { all: true })
+      .then((data) => {
+        if (active) setStaffSections(Array.isArray(data?.courses) ? data.courses : []);
+      })
+      .catch((error) => {
+        setMasterMsg({ type: "error", text: `โหลด section ไม่สำเร็จ: ${error.message}` });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [masterSubTab, staffTerm, coursesVersion]);
+
+  const openStaffOf = (course) => {
+    setStaffTermId(String(course.term_id));
+    setStaffSectionId(String(course.section_id));
     setMasterSubTab("staff");
   };
 
@@ -324,10 +499,15 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     });
   };
 
-  // DB + รายวิชาที่เพิ่มเองในหน้านี้ (id = Date.now() ยังไม่ลง DB) — ไม่รวมรายวิชาตัวอย่างเดิม
-  const courseRows = dbCourses
-    ? [...dbCourses, ...courses.filter((c) => Number(c.section_id) > 1e12)]
-    : courses;
+  // โหลดจาก DB ไม่ได้ → รายการในเครื่อง กรอง/ตัดหน้าเองแบบเดียวกัน
+  const localCoursePage = toPage(
+    null,
+    courses.filter((c) => !courseTermFilter || String(c.term_id) === String(courseTermFilter)),
+    (coursePage - 1) * PAGE_SIZE,
+    (c) => matchesCourse(c, courseQuery) && matchesStaffFilter(c, courseStaffFilter)
+  );
+  const courseRows = dbCourses ?? localCoursePage.rows;
+  const courseTotal = dbCourses ? dbCoursesTotal : localCoursePage.total;
 
   const termLabelOf = (termId) => {
     const t = academicTerms.find((item) => String(item.id) === String(termId));
@@ -336,17 +516,25 @@ export default function AdminManagement({ user, claims = [], onReload }) {
 
   /*
    * ภาคการศึกษา & รอบการยื่น จาก DB (GET /api/term, GET /api/period?all=true)
+   * รอบการยื่นแบ่งหน้าที่ backend + กรองตามภาค (กดการ์ดภาค)
    * สถานะคำนวณจากวันที่ — โหลดไม่ได้ → ใช้รายการในเครื่องแบบเดิม
    */
   const [dbPeriods, setDbPeriods] = useState(null);
+  const [dbPeriodsTotal, setDbPeriodsTotal] = useState(0);
+  const [periodPage, setPeriodPage] = useState(1);
+  const [periodTermFilter, setPeriodTermFilter] = useState("");
 
   useEffect(() => {
     let active = true;
+    const offset = (periodPage - 1) * PAGE_SIZE;
 
-    getPeriods(null, { all: true })
+    getPeriods(periodTermFilter, { all: true, limit: PAGE_SIZE, offset })
       .then((data) => {
         const list = Array.isArray(data?.periods) ? data.periods : [];
-        if (active) setDbPeriods(list);
+        if (!active) return;
+        const { rows, total } = toPage(data, list, offset);
+        setDbPeriods(rows);
+        setDbPeriodsTotal(total);
       })
       .catch((error) => {
         console.warn("Load periods failed, using local list:", error);
@@ -355,7 +543,12 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [periodPage, periodTermFilter]);
+
+  const togglePeriodTerm = (termId) => {
+    setPeriodTermFilter((cur) => (String(cur) === String(termId) ? "" : String(termId)));
+    setPeriodPage(1);
+  };
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -391,6 +584,13 @@ export default function AdminManagement({ user, claims = [], onReload }) {
         };
       })
     : getMasterPeriods().map((p) => ({ ...p, state: p.status === 1 ? "OPEN" : "CLOSED" }));
+  const localPeriods = dbPeriods
+    ? []
+    : periods.filter((p) => !periodTermFilter || String(p.term_id) === periodTermFilter);
+  const periodRows = dbPeriods
+    ? periods
+    : localPeriods.slice((periodPage - 1) * PAGE_SIZE, periodPage * PAGE_SIZE);
+  const periodTotal = dbPeriods ? dbPeriodsTotal : localPeriods.length;
 
   // Users state
   // ผู้ใช้จำลองแสดงเฉพาะโหมดทดลอง — ล็อกอินจริงยังไม่มี API รายชื่อผู้ใช้
@@ -661,17 +861,41 @@ export default function AdminManagement({ user, claims = [], onReload }) {
     setUserRoleModal(null);
   };
 
+  /*
+   * ล็อกอินจริง → ผู้ใช้จาก app_user (GET /api/admin/users)
+   * บทบาทแสดงจาก section_staff (อาจารย์/TA) เพราะกลุ่ม Cognito ไม่ได้เก็บใน DB
+   * ส่วนผู้ตรวจสอบ/ผู้อนุมัติ/ผู้ดูแลจึงขึ้นเป็น "ไม่ได้สอน section ใด"
+   */
+  const isDevMode = Boolean(getDevUser());
+  const displayUsers = useMemo(() => {
+    if (isDevMode) return usersList;
+    return adminUsers.map((u) => {
+      const roles = (u.staff_roles || []).map((r) =>
+        r === "TA" ? "ผู้ช่วยสอน (TA)" : r === "INSTRUCTOR" ? "อาจารย์ผู้สอน" : r
+      );
+      return {
+        userId: u.user_id,
+        username: u.username,
+        email: u.username?.includes("@") ? u.username : "-",
+        name: u.name,
+        role: roles.length ? roles.join(", ") : "",
+        sectionCount: u.section_count ?? 0,
+        fromDb: true,
+      };
+    });
+  }, [isDevMode, usersList, adminUsers]);
+
   const filteredUsers = useMemo(() => {
-    if (!userSearch.trim()) return usersList;
+    if (!userSearch.trim()) return displayUsers;
     const q = userSearch.toLowerCase();
-    return usersList.filter(
+    return displayUsers.filter(
       (u) =>
         u.name?.toLowerCase().includes(q) ||
         u.email?.toLowerCase().includes(q) ||
         u.role?.toLowerCase().includes(q) ||
         u.username?.toLowerCase().includes(q)
     );
-  }, [usersList, userSearch]);
+  }, [displayUsers, userSearch]);
 
   const TABS = [
     { id: "overview", label: "ภาพรวม & งบประมาณ", icon: Wallet, fr: "FR9" },
@@ -1183,7 +1407,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 }`}
                 style={{ borderColor: C.border }}
               >
-                รายวิชาและการจัดสรร ({courseRows.length})
+                รายวิชาและการจัดสรร ({courseTotal})
               </button>
               <button
                 type="button"
@@ -1244,6 +1468,66 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           {/* Subtab Courses */}
           {masterSubTab === "courses" && (
             <SectionCard hoverable={false} className="p-0 overflow-hidden">
+              <div className="flex flex-col sm:flex-row gap-3 p-4 border-b" style={{ borderColor: C.border }}>
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={courseSearch}
+                    onChange={(e) => setCourseSearch(e.target.value)}
+                    placeholder="ค้นหารหัสหรือชื่อวิชา"
+                    className="w-full rounded-xl border pl-9 pr-3.5 py-2 text-sm outline-none"
+                    style={{ borderColor: C.border }}
+                  />
+                </div>
+                <Select
+                  value={courseTermFilter}
+                  onChange={(e) => {
+                    setCourseTermFilter(e.target.value);
+                    setCoursePage(1);
+                  }}
+                  className="sm:w-48 rounded-xl border px-3.5 py-2 text-sm outline-none"
+                  style={{ borderColor: C.border }}
+                >
+                  <option value="">ทุกภาคการศึกษา</option>
+                  {academicTerms.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      ภาค {t.label || `${t.semester}/${t.year}`}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={courseStaffFilter}
+                  onChange={(e) => {
+                    setCourseStaffFilter(e.target.value);
+                    setCoursePage(1);
+                  }}
+                  className="sm:w-48 rounded-xl border px-3.5 py-2 text-sm outline-none"
+                  style={{ borderColor: C.border }}
+                >
+                  {STAFF_FILTER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+                {(courseSearch || courseTermFilter || courseStaffFilter) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCourseSearch("");
+                      setCourseQuery("");
+                      setCourseTermFilter("");
+                      setCourseStaffFilter("");
+                      setCoursePage(1);
+                    }}
+                    className="shrink-0 flex items-center justify-center gap-1 px-3.5 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100"
+                  >
+                    <X size={14} />
+                    ล้างตัวกรอง
+                  </button>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[700px]">
                   <thead>
@@ -1259,6 +1543,15 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: C.border }}>
+                    {courseRows.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
+                          {courseQuery || courseTermFilter || courseStaffFilter
+                            ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไข"
+                            : "ยังไม่มีรายวิชา"}
+                        </td>
+                      </tr>
+                    )}
                     {courseRows.map((course) => (
                       <tr key={course.section_id} className="hover:bg-slate-50/60">
                         <td className="px-5 py-3.5 font-extrabold text-teal-800">
@@ -1297,7 +1590,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                           {course.fromDb ? (
                             <div className="flex items-center justify-end gap-1">
                               <button
-                                onClick={() => openStaffOf(course.section_id)}
+                                onClick={() => openStaffOf(course)}
                                 className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-600"
                                 title="จัดการผู้สอน"
                               >
@@ -1335,12 +1628,18 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                   </tbody>
                 </table>
               </div>
+              <Pager page={coursePage} total={courseTotal} onChange={setCoursePage} />
             </SectionCard>
           )}
 
           {/* Subtab ผู้สอนประจำ section (section_staff) */}
           {masterSubTab === "staff" && dbCourses && (() => {
-            const selected = dbCourses.find((c) => String(c.section_id) === staffSectionId);
+            const found = staffSections.find((c) => String(c.section_id) === staffSectionId);
+            const selected = found && {
+              staff_count: found.staff_count,
+              max_hour: found.section_max_hour,
+              hour: found.section_used_hour,
+            };
             const usedInSection = new Set(sectionStaff.map((s) => s.user_id));
             const editingMember = staffEditing
               ? sectionStaff.find((s) => s.user_id === staffForm.user_id)
@@ -1349,23 +1648,43 @@ export default function AdminManagement({ user, claims = [], onReload }) {
             return (
               <div className="space-y-6">
                 <SectionCard hoverable={false} className="p-6 space-y-4">
-                  <Field label="เลือก section" required>
-                    <Select
-                      value={staffSectionId}
-                      onChange={(e) => setStaffSectionId(e.target.value)}
-                      className="w-full rounded-xl border px-3.5 py-2.5 outline-none"
-                      style={{ borderColor: C.border }}
-                    >
-                      <option value="" disabled>
-                        เลือกรายวิชา / กลุ่ม
-                      </option>
-                      {dbCourses.map((c) => (
-                        <option key={c.section_id} value={String(c.section_id)}>
-                          {c.course_code} {c.course_name_th} · กลุ่ม {c.section_no} · ภาค {c.term_label}
+                  <div className="grid grid-cols-1 md:grid-cols-[12rem_1fr] gap-3">
+                    <Field label="ภาคการศึกษา" required>
+                      <Select
+                        value={String(staffTerm)}
+                        onChange={(e) => {
+                          setStaffTermId(e.target.value);
+                          setStaffSectionId("");
+                        }}
+                        className="w-full rounded-xl border px-3.5 py-2.5 outline-none"
+                        style={{ borderColor: C.border }}
+                      >
+                        {academicTerms.map((t) => (
+                          <option key={t.id} value={String(t.id)}>
+                            ภาค {t.label || `${t.semester}/${t.year}`}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label="เลือก section" required>
+                      <Select
+                        value={staffSectionId}
+                        onChange={(e) => setStaffSectionId(e.target.value)}
+                        className="w-full rounded-xl border px-3.5 py-2.5 outline-none"
+                        style={{ borderColor: C.border }}
+                      >
+                        <option value="" disabled>
+                          {staffSections.length ? "เลือกรายวิชา / กลุ่ม" : "ภาคนี้ยังไม่มี section"}
                         </option>
-                      ))}
-                    </Select>
-                  </Field>
+                        {staffSections.map((c) => (
+                          <option key={c.section_id} value={String(c.section_id)}>
+                            {c.course_code} {c.course_name_th} · กลุ่ม {c.section_no}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
 
                   {selected && (
                     <p className="text-xs text-slate-500">
@@ -1540,14 +1859,18 @@ export default function AdminManagement({ user, claims = [], onReload }) {
           {masterSubTab === "terms" && (
             <div className="space-y-6">
               <SectionCard hoverable={false} className="p-6">
-                <h4 className="font-bold text-base text-slate-900 mb-3">ภาคการศึกษา (Academic Terms)</h4>
+                <h4 className="font-bold text-base text-slate-900 mb-1">ภาคการศึกษา (Academic Terms)</h4>
+                <p className="text-xs text-slate-500 mb-3">กดที่ภาคเพื่อดูเฉพาะรอบการยื่นของภาคนั้น กดอีกครั้งเพื่อดูทั้งหมด</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {terms.map((t) => (
-                    <div
+                    <button
+                      type="button"
                       key={t.id}
-                      className={`p-4 rounded-2xl border ${
+                      onClick={() => togglePeriodTerm(t.id)}
+                      aria-pressed={String(periodTermFilter) === String(t.id)}
+                      className={`text-left p-4 rounded-2xl border transition-all hover:shadow-sm ${
                         t.status === "ACTIVE" ? "bg-teal-50/50 border-teal-300" : "bg-white border-slate-200"
-                      }`}
+                      } ${String(periodTermFilter) === String(t.id) ? "ring-2 ring-slate-900 ring-offset-1" : ""}`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-extrabold text-base text-slate-900">{t.semester}/{t.year}</span>
@@ -1566,15 +1889,32 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                       <p className="text-xs text-slate-500">
                         {t.start_date} ถึง {t.end_date}
                       </p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </SectionCard>
 
-              <SectionCard hoverable={false} className="p-6">
-                <h4 className="font-bold text-base text-slate-900 mb-3">รอบการยื่นเบิกประจำภาค (Submission Periods)</h4>
-                <div className="divide-y" style={{ borderColor: C.border }}>
-                  {periods.map((p) => (
+              <SectionCard hoverable={false} className="p-0 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-6 pt-6 mb-1">
+                  <h4 className="font-bold text-base text-slate-900">
+                    รอบการยื่นเบิกประจำภาค (Submission Periods)
+                  </h4>
+                  {periodTermFilter && (
+                    <button
+                      type="button"
+                      onClick={() => togglePeriodTerm(periodTermFilter)}
+                      className="flex items-center gap-1 text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 text-white"
+                    >
+                      ภาค {termLabelOf(periodTermFilter)}
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <div className="divide-y px-6" style={{ borderColor: C.border }}>
+                  {periodRows.length === 0 && (
+                    <p className="py-6 text-center text-sm text-slate-400">ยังไม่มีรอบการยื่น</p>
+                  )}
+                  {periodRows.map((p) => (
                     <div key={p.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
@@ -1602,6 +1942,9 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="pb-2">
+                  <Pager page={periodPage} total={periodTotal} onChange={setPeriodPage} />
                 </div>
               </SectionCard>
             </div>
@@ -1987,7 +2330,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: C.border }}>
                   {filteredUsers.map((u) => (
-                    <tr key={u.username} className="hover:bg-slate-50/60">
+                    <tr key={u.userId || u.username} className="hover:bg-slate-50/60">
                       <td className="px-5 py-3.5">
                         <p className="font-extrabold text-slate-900">{u.name}</p>
                         <p className="text-xs text-slate-500 font-mono">@{u.username}</p>
@@ -1996,7 +2339,11 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                         {u.email}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-600">
-                        {u.department || "สาขาวิชาวิทยาการคอมพิวเตอร์"}
+                        {u.fromDb
+                          ? u.sectionCount > 0
+                            ? `สอน ${u.sectionCount} section`
+                            : "-"
+                          : u.department || "สาขาวิชาวิทยาการคอมพิวเตอร์"}
                       </td>
                       <td className="px-4 py-3.5 text-center">
                         <span
@@ -2022,10 +2369,13 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                               : "#C4622D",
                           }}
                         >
-                          {u.role || "ผู้ใช้งาน"}
+                          {u.role || (u.fromDb ? "ไม่ได้สอน section ใด" : "ผู้ใช้งาน")}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
+                        {u.fromDb ? (
+                          <span className="text-[11px] text-slate-400">แก้ที่ Cognito group</span>
+                        ) : (
                         <button
                           type="button"
                           onClick={() => setUserRoleModal(u)}
@@ -2034,6 +2384,7 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                         >
                           แก้ไขบทบาท
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2041,8 +2392,8 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                   {filteredUsers.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-5 py-8 text-center text-xs text-slate-500">
-                        {usersList.length === 0
-                          ? "ยังไม่มี API รายชื่อผู้ใช้จาก backend — จัดการบทบาทได้ที่ Cognito group"
+                        {displayUsers.length === 0
+                          ? "กำลังโหลดรายชื่อผู้ใช้... (ถ้าไม่ขึ้น ตรวจ Lambda ClaimAdminMasterData / สิทธิ์ ADMIN)"
                           : "ไม่พบผู้ใช้ที่ค้นหา"}
                       </td>
                     </tr>

@@ -8,7 +8,14 @@
 //   GET /api/courses              -> section ที่ผู้ใช้สอน + ชั่วโมงสอนแล้ว / ทั้งหมด / คงเหลือ
 //       ?term_id=1                   กรองเฉพาะเทอม
 //       ?all=true                    ทุก section (ไม่กรองตามผู้สอน) ใช้ทดสอบ / Staff
+//       ?q=cs34                      ค้นรหัสหรือชื่อวิชา
+//       ?staff=none|assigned|used|full   กรองตาม section_staff ทั้ง section
+//            none = ยังไม่มีผู้สอน · assigned = มีผู้สอนแล้ว
+//            used = เบิกชั่วโมงไปแล้ว · full = ใช้ครบโควตา
 //   GET /api/compensation-types   -> ประเภทค่าตอบแทน + อัตราต่อชั่วโมง
+//
+// แบ่งหน้า (/api/period, /api/courses) — ไม่ส่ง limit = คืนทั้งหมดเหมือนเดิม
+//       ?limit=10&offset=20          คืน { total, limit, offset } เพิ่มให้ทำปุ่มหน้า
 //
 // ทุก path ตั้ง Authorization เป็น Cognito authorizer
 // ผู้ใช้ (cognito_sub) มาจาก event.requestContext.authorizer.claims.sub
@@ -28,6 +35,8 @@ const pool = new pg.Pool({
   max: 1,
   connectionTimeoutMillis: 3000,
 });
+
+const STAFF_FILTERS = ['none', 'assigned', 'used', 'full'];
 
 const respond = (statusCode, body) => ({
   statusCode,
@@ -50,11 +59,27 @@ export const handler = async (event) => {
   }
   const all = q.all === 'true';
 
+  // limit ไม่ส่ง = null (ไม่จำกัด) · สูงสุด 100 ต่อหน้า
+  const limit = q.limit !== undefined ? Number(q.limit) : null;
+  const offset = q.offset !== undefined ? Number(q.offset) : 0;
+  if (limit !== null && !(Number.isInteger(limit) && limit >= 1 && limit <= 100)) {
+    return respond(400, { message: 'limit ต้องเป็นจำนวนเต็ม 1-100' });
+  }
+  if (!(Number.isInteger(offset) && offset >= 0)) {
+    return respond(400, { message: 'offset ต้องเป็นจำนวนเต็มตั้งแต่ 0' });
+  }
+  const page = { limit, offset };
+  const search = String(q.q ?? '').trim().slice(0, 100);
+  const staff = q.staff ?? '';
+  if (staff && !STAFF_FILTERS.includes(staff)) {
+    return respond(400, { message: `staff ต้องเป็น ${STAFF_FILTERS.join(' / ')}` });
+  }
+
   try {
     switch (event.resource) {
       case '/api/term':    return await getTerms();
-      case '/api/period':  return await getPeriods(termId, all);
-      case '/api/courses': return await getCourses(claims.sub, termId, all);
+      case '/api/period':  return await getPeriods(termId, all, page);
+      case '/api/courses': return await getCourses(claims.sub, termId, all, page, search, staff);
       case '/api/compensation-types': return await getCompensationTypes();
       default:             return respond(404, { message: 'ไม่พบ endpoint นี้' });
     }
@@ -63,6 +88,34 @@ export const handler = async (event) => {
     return respond(500, { message: 'ดึงข้อมูลไม่สำเร็จ' });
   }
 };
+
+// ---------------------------------------------------------------------
+// แบ่งหน้า: SELECT ต้องมี "count(*) OVER () AS total_count" (จำนวนทั้งหมดก่อนตัดหน้า)
+// limit/offset ต่อท้ายพารามิเตอร์เดิม — LIMIT NULL = ไม่จำกัด
+// ---------------------------------------------------------------------
+async function queryPage(sql, params, { limit, offset }, countSql) {
+  const n = params.length;
+  const { rows } = await pool.query(
+    `${sql} LIMIT $${n + 1} OFFSET $${n + 2}`,
+    [...params, limit, offset],
+  );
+
+  let total = rows.length ? Number(rows[0].total_count) : 0;
+  // offset เลยแถวสุดท้าย → ไม่มีแถวให้อ่าน total จึงนับแยก
+  if (!rows.length && offset > 0) {
+    total = Number((await pool.query(countSql, params)).rows[0].total);
+  }
+  rows.forEach((r) => delete r.total_count);
+
+  return { rows, total };
+}
+
+const pageInfo = (rows, total, { limit, offset }) => ({
+  count: rows.length,
+  total,
+  limit,
+  offset,
+});
 
 // ---------------------------------------------------------------------
 // GET /api/term
@@ -99,8 +152,11 @@ async function getCompensationTypes() {
 // ---------------------------------------------------------------------
 // GET /api/period
 // ---------------------------------------------------------------------
-async function getPeriods(termId, all) {
-  const { rows } = await pool.query(
+async function getPeriods(termId, all, page) {
+  const where = `
+      WHERE ($1::int IS NULL OR p.term_id = $1)
+        AND ($2 OR (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at))`;
+  const { rows, total } = await queryPage(
     `SELECT p.id,
             p.term_id,
             t.semester || '/' || t.year AS term_label,
@@ -108,22 +164,53 @@ async function getPeriods(termId, all) {
             p.open_at,
             p.close_at,
             p.status,
-            (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at) AS is_open_now
+            (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at) AS is_open_now,
+            count(*) OVER () AS total_count
        FROM claim_period p
        JOIN academic_term t ON t.id = p.term_id
-      WHERE ($1::int IS NULL OR p.term_id = $1)
-        AND ($2 OR (p.status = 1 AND now() BETWEEN p.open_at AND p.close_at))
-      ORDER BY p.open_at DESC`,
+      ${where}
+      ORDER BY p.open_at DESC, p.id DESC`,
     [termId, all],
+    page,
+    `SELECT count(*) AS total FROM claim_period p ${where}`,
   );
-  return respond(200, { count: rows.length, periods: rows });
+  return respond(200, { ...pageInfo(rows, total, page), periods: rows });
 }
 
 // ---------------------------------------------------------------------
 // GET /api/courses : section + โควตาชั่วโมงของผู้ใช้คนนั้น จาก section_staff.hour / max_hour
 // ---------------------------------------------------------------------
-async function getCourses(cognitoSub, termId, all) {
-  const { rows } = await pool.query(
+async function getCourses(cognitoSub, termId, all, page, search, staff) {
+  // agg = รวมทุกคนใน section — อยู่ใน FROM เพื่อให้ WHERE / query นับจำนวนใช้กรองได้
+  const from = `
+       FROM section s
+       JOIN course         co ON co.id = s.course_id
+       JOIN academic_term  t  ON t.id  = s.term_id
+       LEFT JOIN section_staff  ss ON ss.section_id = s.id AND ss.user_id = $1
+       LEFT JOIN LATERAL (
+            SELECT count(*)::int                         AS staff_count,
+                   COALESCE(sum(a.max_hour), 0)::float   AS section_max_hour,
+                   COALESCE(sum(a.hour), 0)::float       AS section_used_hour
+              FROM section_staff a
+             WHERE a.section_id = s.id
+       ) agg ON true`;
+  // $4 = คำค้น ('' = ไม่กรอง) ตรงรหัส/ชื่อไทย/ชื่ออังกฤษ แบบไม่สนตัวพิมพ์
+  // $5 = สถานะผู้สอน ('' = ไม่กรอง) ดู STAFF_FILTERS
+  const where = `
+      WHERE ($2::int IS NULL OR s.term_id = $2)
+        AND ($3 OR ss.user_id IS NOT NULL)
+        AND ($4 = '' OR co.code    ILIKE '%' || $4 || '%'
+                     OR co.name_th ILIKE '%' || $4 || '%'
+                     OR co.name_en ILIKE '%' || $4 || '%')
+        AND CASE $5
+              WHEN 'none'     THEN agg.staff_count = 0
+              WHEN 'assigned' THEN agg.staff_count > 0
+              WHEN 'used'     THEN agg.section_used_hour > 0
+              WHEN 'full'     THEN agg.section_max_hour > 0
+                                   AND agg.section_used_hour >= agg.section_max_hour
+              ELSE true
+            END`;
+  const { rows, total } = await queryPage(
     `SELECT s.id                          AS section_id,
             co.code                       AS course_code,
             co.name_th                    AS course_name_th,
@@ -138,22 +225,14 @@ async function getCourses(cognitoSub, termId, all) {
             -- รวมทุกคนใน section (ใช้ในหน้าจัดการระบบ)
             agg.staff_count,
             agg.section_max_hour,
-            agg.section_used_hour
-       FROM section s
-       JOIN course         co ON co.id = s.course_id
-       JOIN academic_term  t  ON t.id  = s.term_id
-       LEFT JOIN section_staff  ss ON ss.section_id = s.id AND ss.user_id = $1
-       LEFT JOIN LATERAL (
-            SELECT count(*)::int                         AS staff_count,
-                   COALESCE(sum(a.max_hour), 0)::float   AS section_max_hour,
-                   COALESCE(sum(a.hour), 0)::float       AS section_used_hour
-              FROM section_staff a
-             WHERE a.section_id = s.id
-       ) agg ON true
-      WHERE ($2::int IS NULL OR s.term_id = $2)
-        AND ($3 OR ss.user_id IS NOT NULL)
-      ORDER BY t.year DESC, t.semester DESC, co.code, s.section_no`,
-    [cognitoSub, termId, all],
+            agg.section_used_hour,
+            count(*) OVER () AS total_count
+      ${from}
+      ${where}
+      ORDER BY t.year DESC, t.semester DESC, co.code, s.section_no, s.id`,
+    [cognitoSub, termId, all, search, staff],
+    page,
+    `SELECT count(*) AS total ${from} ${where}`,
   );
-  return respond(200, { count: rows.length, courses: rows });
+  return respond(200, { ...pageInfo(rows, total, page), courses: rows });
 }

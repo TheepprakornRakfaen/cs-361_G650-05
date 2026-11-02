@@ -57,6 +57,7 @@ import {
   syncCurrentUser,
   getTerms,
   getPeriods,
+  clearApiCache,
   getCourses,
   getClaims,
   getReportClaims,
@@ -228,6 +229,8 @@ export default function App() {
   // Semester & Submission Period
   // =========================
   const [terms, setTerms] = useState([]);
+  // promise ของ syncCurrentUser ตอนล็อกอิน — การบันทึกคำขอต้องรอให้เสร็จก่อน
+  const userSyncRef = useRef(Promise.resolve());
   const [selectedTermId, setSelectedTermId] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [allPeriods, setAllPeriods] = useState([]);
@@ -310,7 +313,11 @@ export default function App() {
     }
   };
 
-  // โหลดรอบการยื่นของทุกภาคการศึกษาพร้อมกัน
+  /*
+   * โหลดรอบการยื่น (ที่เปิดรับอยู่) ของทุกภาคการศึกษา
+   * ยิงครั้งเดียวโดยไม่ส่ง term_id — ได้ผลเท่ากับยิงรายภาค แต่ไม่เปิด Lambda หลาย container
+   * พร้อมกัน (แต่ละ container รับทีละ request → ยิงขนานไป Lambda เดียว = cold start หลายครั้ง)
+   */
   const loadAllPeriods = async (termList = terms) => {
     if (!Array.isArray(termList) || termList.length === 0) {
       setAllPeriods([]);
@@ -320,54 +327,24 @@ export default function App() {
     setAllPeriodsLoading(true);
     setAllPeriodsError("");
 
-    /*
-     * ใช้ allSettled: ภาคไหนโหลดไม่สำเร็จ (เช่น backend ตอบ 500) ไม่ทำให้ภาคอื่นหายไปด้วย
-     */
-    const results = await Promise.allSettled(
-      termList.map(async (term) => {
-        const data = await getPeriods(term.id);
+    try {
+      const data = await getPeriods();
 
-        const list = Array.isArray(data?.periods)
-          ? data.periods
-          : Array.isArray(data)
-            ? data
-            : [];
+      const list = Array.isArray(data?.periods)
+        ? data.periods
+        : Array.isArray(data)
+          ? data
+          : [];
 
-        // กันกรณี API ไม่ส่ง term_id กลับมา
-        return list.map((period) => ({
-          ...period,
-          term_id: period.term_id ?? term.id,
-        }));
-      }),
-    );
+      // แสดงเฉพาะรอบของภาคที่รู้จัก (เหมือนเดิมที่ยิงตาม termList)
+      const termIds = new Set(termList.map((term) => String(term.id)));
 
-    const loaded = results
-      .filter((r) => r.status === "fulfilled")
-      .flatMap((r) => r.value);
+      setAllPeriods(list.filter((period) => termIds.has(String(period.term_id))));
+    } catch (error) {
+      console.error("Load periods failed:", error);
 
-    const failedTerms = termList.filter(
-      (_, index) => results[index].status === "rejected",
-    );
-
-    failedTerms.forEach((term, i) =>
-      console.error(
-        `Load periods failed for term ${term.semester}/${term.year}:`,
-        results.filter((r) => r.status === "rejected")[i]?.reason,
-      ),
-    );
-
-    setAllPeriods(loaded);
-
-    if (failedTerms.length > 0) {
-      const names = failedTerms
-        .map((term) => `${term.semester}/${term.year}`)
-        .join(", ");
-
-      setAllPeriodsError(
-        loaded.length > 0
-          ? `โหลดรอบของบางภาคการศึกษาไม่สำเร็จ (${names}) — แสดงเฉพาะภาคที่โหลดได้`
-          : `ไม่สามารถโหลดรอบการยื่นได้ (${names})`,
-      );
+      setAllPeriods([]);
+      setAllPeriodsError(error?.message || "ไม่สามารถโหลดรอบการยื่นได้");
     }
 
     setAllPeriodsLoading(false);
@@ -651,6 +628,8 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser) {
+      // ออกจากระบบ/หมดอายุ → ล้าง cache ภาคการศึกษา/ประเภทค่าตอบแทน
+      clearApiCache();
       setApiClaims([]);
       setPendingEvidence({});
       setReviewClaims([]);
@@ -672,18 +651,16 @@ export default function App() {
 
     async function bootstrap() {
       /*
-       * Sync Cognito user
-       * กับ backend
+       * Sync Cognito user กับ backend (สร้าง/อัปเดตแถวใน app_user)
+       * ไม่ต้องรอ — การอ่าน terms/claims ใช้ sub จาก token ไม่ได้พึ่งผล sync
+       * แต่การบันทึกคำขอต้องมีแถว app_user ก่อน → saveClaimToApi รอ userSyncRef
        */
-      try {
-        await syncCurrentUser();
-      } catch (error) {
+      userSyncRef.current = syncCurrentUser().catch((error) => {
         console.error("User sync failed:", error);
-      }
+      });
 
       /*
-       * Claims กับ Terms
-       * โหลดพร้อมกันได้
+       * Sync, Claims และ Terms โหลดพร้อมกันได้
        */
       const [nextTerms] = await Promise.all([
         loadTerms(),
@@ -1303,6 +1280,9 @@ export default function App() {
 
       console.log("POST /api/claims payload:", payload);
 
+      // claim อ้างถึง app_user → ผู้ใช้ใหม่ต้อง sync เสร็จก่อนบันทึก (ปกติเสร็จไปนานแล้ว)
+      await userSyncRef.current;
+
       /*
        * STEP 2
        * Create Claim
@@ -1660,6 +1640,7 @@ export default function App() {
             user={currentUser}
             claims={queueClaims}
             onReload={loadReviewClaims}
+            terms={terms}
           />
         );
 

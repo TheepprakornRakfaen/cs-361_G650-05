@@ -114,6 +114,49 @@ async function apiRequest(path, options = {}) {
 
 /*
  * =====================
+ * Cache ข้อมูลอ้างอิงที่แทบไม่เปลี่ยน (ภาคการศึกษา, ประเภทค่าตอบแทน)
+ *
+ * - เก็บในหน่วยความจำเท่านั้น (รีเฟรชหน้า = โหลดใหม่) อายุ LOOKUP_TTL
+ * - เก็บ promise ไม่ใช่ผลลัพธ์ → หลายหน้าขอพร้อมกันระหว่างรอ ได้ request เดียวกัน
+ * - โหลดพลาดไม่เก็บ ครั้งหน้าลองใหม่
+ * - ห้ามใช้กับข้อมูลที่เปลี่ยนบ่อย เช่น claims
+ * =====================
+ */
+
+const LOOKUP_TTL = 5 * 60 * 1000;
+const lookupCache = new Map(); // key → { at, promise }
+
+function cachedRequest(key, request) {
+  const hit = lookupCache.get(key);
+
+  if (hit && Date.now() - hit.at < LOOKUP_TTL) {
+    return hit.promise;
+  }
+
+  const promise = request().catch((error) => {
+    // ลบเฉพาะถ้ายังเป็นตัวเดียวกัน (ระหว่างรออาจถูกล้าง/แทนที่ไปแล้ว)
+    if (lookupCache.get(key)?.promise === promise) {
+      lookupCache.delete(key);
+    }
+    throw error;
+  });
+
+  lookupCache.set(key, { at: Date.now(), promise });
+
+  return promise;
+}
+
+// ล้างตอนออกจากระบบ (ไม่ให้ข้อมูลค้างไปถึงผู้ใช้คนถัดไป) หรือหลังแก้ข้อมูลนั้นเอง
+export function clearApiCache(key) {
+  if (key) {
+    lookupCache.delete(key);
+  } else {
+    lookupCache.clear();
+  }
+}
+
+/*
+ * =====================
  * Authentication / User
  * =====================
  */
@@ -230,9 +273,11 @@ export function getClaimEvidence(claimId) {
  */
 
 export function getTerms() {
-  return apiRequest("/api/term", {
-    method: "GET",
-  });
+  return cachedRequest("terms", () =>
+    apiRequest("/api/term", {
+      method: "GET",
+    }),
+  );
 }
 
 /*
@@ -241,8 +286,12 @@ export function getTerms() {
  * =====================
  */
 
-// all = true → ทุกรอบ ไม่ว่าจะเปิดหรือปิด (หน้าจัดการระบบ)
-export function getPeriods(termId, { all = false } = {}) {
+/*
+ * query string ของ lookup API — ข้ามค่าว่าง
+ * limit/offset = แบ่งหน้า (ไม่ส่ง limit = ทั้งหมด) · q = คำค้น
+ * staff = none | assigned | used | full (/api/courses กรองตามผู้สอนใน section)
+ */
+function lookupQuery(termId, { all = false, limit, offset, q, staff } = {}) {
   const params = new URLSearchParams();
 
   if (termId !== undefined && termId !== null && termId !== "") {
@@ -253,9 +302,26 @@ export function getPeriods(termId, { all = false } = {}) {
     params.set("all", "true");
   }
 
-  const query = params.toString() ? `?${params}` : "";
+  if (limit !== undefined && limit !== null) {
+    params.set("limit", String(limit));
+    params.set("offset", String(offset || 0));
+  }
 
-  return apiRequest(`/api/period${query}`, {
+  if (q) {
+    params.set("q", q);
+  }
+
+  if (staff) {
+    params.set("staff", staff);
+  }
+
+  return params.toString() ? `?${params}` : "";
+}
+
+// all = true → ทุกรอบ ไม่ว่าจะเปิดหรือปิด (หน้าจัดการระบบ)
+// ส่ง limit → คืน { periods, total, limit, offset }
+export function getPeriods(termId, options = {}) {
+  return apiRequest(`/api/period${lookupQuery(termId, options)}`, {
     method: "GET",
   });
 }
@@ -267,20 +333,9 @@ export function getPeriods(termId, { all = false } = {}) {
  */
 
 // all = true → ทุก section ในระบบ (ไม่กรองตามผู้สอน) ใช้ในหน้าจัดการระบบ
-export function getCourses(termId, { all = false } = {}) {
-  const params = new URLSearchParams();
-
-  if (termId !== undefined && termId !== null && termId !== "") {
-    params.set("term_id", termId);
-  }
-
-  if (all) {
-    params.set("all", "true");
-  }
-
-  const query = params.toString() ? `?${params}` : "";
-
-  return apiRequest(`/api/courses${query}`, {
+// ส่ง limit → คืน { courses, total, limit, offset } · q = ค้นรหัส/ชื่อวิชา
+export function getCourses(termId, options = {}) {
+  return apiRequest(`/api/courses${lookupQuery(termId, options)}`, {
     method: "GET",
   });
 }
@@ -330,9 +385,11 @@ export function removeSectionStaff(sectionId, userId) {
  * คืน { types: [{ id, code, name, hourly_rate }] }
  */
 export function getCompensationTypes() {
-  return apiRequest("/api/compensation-types", {
-    method: "GET",
-  });
+  return cachedRequest("compensation-types", () =>
+    apiRequest("/api/compensation-types", {
+      method: "GET",
+    }),
+  );
 }
 
 /*
