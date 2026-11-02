@@ -144,7 +144,7 @@ export default function AccountSecurity({ onLogoutAll }) {
           {done && (
             <p
               className="flex items-center gap-2 text-xs font-medium rounded-lg px-3 py-2"
-              style={{ color: "#1E8E4F", background: "#DFF5E6" }}
+              style={{ color: C.green, background: C.greenSoft }}
               role="status"
             >
               <CheckCircle2 size={14} />
@@ -188,7 +188,7 @@ export default function AccountSecurity({ onLogoutAll }) {
           onClick={() => setConfirmOpen(true)}
           disabled={signingOut}
           className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold border transition-colors hover:bg-[#FCE9EA] disabled:opacity-60"
-          style={{ borderColor: "#F3C9C9", color: "#C23B3B" }}
+          style={{ borderColor: "#F3C9C9", color: C.red }}
         >
           {signingOut ? (
             <Loader2 size={15} className="animate-spin" />

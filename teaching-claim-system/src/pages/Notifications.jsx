@@ -19,13 +19,13 @@ import PageHeader from "../components/PageHeader";
 import { timeAgo } from "../data/notifications";
 
 const KIND_STYLE = {
-  approved: { icon: CheckCircle2, bg: "#DFF5E6", fg: "#1E8E4F" },
-  rejected: { icon: XCircle, bg: "#FBE2E2", fg: "#C23B3B" },
-  returned: { icon: RotateCcw, bg: "#FDEBDD", fg: "#B4531A" },
-  submitted: { icon: Clock, bg: "#FEF6D8", fg: "#9A7B06" },
+  approved: { icon: CheckCircle2, bg: C.greenSoft, fg: C.green },
+  rejected: { icon: XCircle, bg: C.redSoft, fg: C.red },
+  returned: { icon: RotateCcw, bg: C.orangeSoft, fg: C.orange },
+  submitted: { icon: Clock, bg: C.amberSoft, fg: C.amber },
   reviewed: { icon: ShieldCheck, bg: C.tealSoft, fg: C.tealDark },
-  toReview: { icon: ClipboardCheck, bg: "#FEF6D8", fg: "#9A7B06" },
-  toApprove: { icon: ClipboardCheck, bg: "#DFF5E6", fg: "#1E8E4F" },
+  toReview: { icon: ClipboardCheck, bg: C.amberSoft, fg: C.amber },
+  toApprove: { icon: ClipboardCheck, bg: C.greenSoft, fg: C.green },
   paid: { icon: Banknote, bg: STATUS_STYLE.Paid.bg, fg: STATUS_STYLE.Paid.fg },
   news: { icon: Megaphone, bg: C.tealSoft, fg: C.tealDark },
 };

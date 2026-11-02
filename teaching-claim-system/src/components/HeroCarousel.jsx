@@ -3,6 +3,11 @@ import { FileText } from "lucide-react";
 
 const AUTO_PLAY_MS = 5000; // เลื่อนสไลด์อัตโนมัติทุก 5 วินาที
 
+const BANNER = {
+  src: "/banner1.webp",
+  srcSet: "/banner1-sm.webp 900w, /banner1.webp 1800w",
+};
+
 // ลูกศรสไตล์พิกเซล (วาดจากสี่เหลี่ยมเล็ก ๆ 3x3 ช่อง)
 function PixelArrow({ dir = "left" }) {
   const cells =
@@ -31,8 +36,8 @@ export default function HeroCarousel({ images = [], alt = "" }) {
   const trackRef = useRef(null);
   const drag = useRef({ active: false, startX: 0, delta: 0 });
 
-  // เพิ่ม banner1.png เป็นสไลด์แรก
-  const slides = ["/banner1.png", ...images];
+  // แบนเนอร์หลักเป็นสไลด์แรก (WebP 2 ขนาด เบราว์เซอร์เลือกตามความกว้างจอ)
+  const slides = [BANNER, ...images];
 
   const count = slides.length;
 
@@ -80,7 +85,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
   if (count === 0) {
     return (
       <div
-        className="relative w-full h-48 md:h-72 overflow-hidden rounded-[28px] flex items-center justify-center"
+        className="relative w-full aspect-[2/1] md:aspect-auto md:h-72 overflow-hidden rounded-[20px] md:rounded-[28px] flex items-center justify-center"
         style={{ background: "linear-gradient(135deg, #69C4CE, #3FA7B3)" }}
       >
         <div className="text-center text-white">
@@ -102,7 +107,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
 
   return (
     <div
-      className="relative w-full h-48 md:h-72 overflow-hidden rounded-[28px] select-none"
+      className="relative w-full aspect-[2/1] md:aspect-auto md:h-72 overflow-hidden rounded-[20px] md:rounded-[28px] select-none"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -115,15 +120,23 @@ export default function HeroCarousel({ images = [], alt = "" }) {
         className="w-full h-full flex transition-transform duration-500 ease-out cursor-grab active:cursor-grabbing"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
-        {slides.map((src, i) => (
-          <img
-            key={src + i}
-            src={src}
-            alt={alt || `hero-${i + 1}`}
-            draggable={false}
-            className="w-full h-full object-cover shrink-0"
-          />
-        ))}
+        {slides.map((slide, i) => {
+          const { src, srcSet } = typeof slide === "string" ? { src: slide } : slide;
+          return (
+            <img
+              key={src + i}
+              src={src}
+              srcSet={srcSet}
+              sizes="(min-width: 1024px) 1100px, 100vw"
+              alt={alt || `hero-${i + 1}`}
+              draggable={false}
+              loading={i === 0 ? "eager" : "lazy"}
+              fetchpriority={i === 0 ? "high" : undefined}
+              decoding="async"
+              className="w-full h-full object-cover shrink-0"
+            />
+          );
+        })}
       </div>
 
       {/* ปุ่มลูกศรซ้าย/ขวา (สไตล์พิกเซล) — แสดงทุกขนาดหน้าจอ */}
@@ -132,7 +145,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
         onClick={prev}
         onPointerDown={(e) => e.stopPropagation()}
         aria-label="สไลด์ก่อนหน้า"
-        className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
+        className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
         style={{ color: "#111" }}
       >
         <PixelArrow dir="left" />
@@ -143,7 +156,7 @@ export default function HeroCarousel({ images = [], alt = "" }) {
         onClick={next}
         onPointerDown={(e) => e.stopPropagation()}
         aria-label="สไลด์ถัดไป"
-        className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
+        className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 md:w-12 md:h-12 bg-white flex items-center justify-center shadow-md hover:bg-gray-100 transition-colors"
         style={{ color: "#111" }}
       >
         <PixelArrow dir="right" />

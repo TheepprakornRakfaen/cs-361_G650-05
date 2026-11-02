@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap");
+/* ฟอนต์ Noto Sans Thai + Inter โหลดจาก index.html (preconnect + link) */
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +10,32 @@ html {
 
 body {
   font-family: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ขอบโฟกัสเมื่อใช้คีย์บอร์ด (Tab) — คลิกเมาส์แล้วไม่ขึ้น */
+:where(a, button, [role="button"], [tabindex], summary, select):focus-visible {
+  outline: 2px solid #3e7fc1;
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+
+tr[tabindex]:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ผู้ใช้ตั้งค่าลดการเคลื่อนไหวในเครื่อง → ปิดแอนิเมชันที่ไม่จำเป็น */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @keyframes fadein {
@@ -50,7 +76,7 @@ body {
   box-shadow: 0 0 0 3px #e8f0fa;
 }
 
-/* à¸Šà¹ˆà¸­à¸‡à¸à¸£à¸­à¸à¹ƒà¸™à¸«à¸™à¹‰à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š â€” à¸‚à¸­à¸šà¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™à¸ªà¸µ + à¸¡à¸µà¸§à¸‡à¹à¸«à¸§à¸™à¹€à¸¡à¸·à¹ˆà¸­à¹‚à¸Ÿà¸à¸±à¸ª */
+/* ช่องกรอกในหน้าเข้าสู่ระบบ — ขอบเปลี่ยนสี + มีวงแหวนเมื่อโฟกัส */
 .login-field {
   background: #f5f8fb;
   border: 1.5px solid #dceef2;
@@ -67,7 +93,7 @@ body {
   box-shadow: 0 0 0 4px rgba(62, 127, 193, 0.15);
 }
 
-/* à¸žà¸·à¹‰à¸™à¸—à¸µà¹ˆà¹€à¸¥à¸·à¹ˆà¸­à¸™à¸«à¸¥à¸±à¸à¸‚à¸­à¸‡à¸«à¸™à¹‰à¸² â€” à¹ƒà¸«à¹‰ scrollTo / anchor à¹€à¸¥à¸·à¹ˆà¸­à¸™à¹à¸šà¸šà¸™à¸¸à¹ˆà¸¡ */
+/* พื้นที่เลื่อนหลักของหน้า — ให้ scrollTo / anchor เลื่อนแบบนุ่ม */
 main {
   scroll-behavior: smooth;
 }
@@ -81,7 +107,7 @@ main {
   display: none;
 }
 
-/* à¸•à¸±à¸§à¹€à¸¥à¸‚à¹€à¸”à¹ˆà¸™ à¹€à¸Šà¹ˆà¸™ à¸­à¸±à¸•à¸£à¸²à¸„à¹ˆà¸²à¸•à¸­à¸šà¹à¸—à¸™ â€” à¸«à¸™à¸²à¹à¸¥à¸°à¸Šà¸±à¸”à¹€à¸ˆà¸™ à¹€à¸‚à¹‰à¸²à¸˜à¸µà¸¡à¸Ÿà¸­à¸™à¸•à¹Œà¹€à¸”à¸´à¸¡à¸‚à¸­à¸‡à¹€à¸§à¹‡à¸š */
+/* ตัวเลขเด่น เช่น อัตราค่าตอบแทน — หนาและชัดเจน เข้าธีมฟอนต์เดิมของเว็บ */
 .figure {
   font-family: "Inter", "Noto Sans Thai", sans-serif;
   font-variant-numeric: lining-nums tabular-nums;

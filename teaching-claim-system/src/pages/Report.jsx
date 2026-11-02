@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, RefreshCw, Loader2, Download } from "lucide-react";
+import { BarChart3, RefreshCw, Loader2, Download, AlertTriangle } from "lucide-react";
 
 import { C, STATUS_STYLE } from "../theme";
 import SectionCard from "../components/SectionCard";
@@ -53,13 +53,13 @@ const STATUS_GROUPS = [
     key: "inReview",
     label: "รอตรวจสอบ/อนุมัติ",
     statuses: [STATUS.SUBMITTED, STATUS.REVIEWED],
-    color: "#9A7B06",
+    color: C.amber,
   },
   {
     key: "toFinance",
     label: "อนุมัติแล้ว รอจ่ายเงิน",
     statuses: [STATUS.APPROVED],
-    color: "#1E8E4F",
+    color: C.green,
   },
   {
     key: "paid",
@@ -71,7 +71,7 @@ const STATUS_GROUPS = [
     key: "stopped",
     label: "ส่งกลับ/ไม่อนุมัติ",
     statuses: [STATUS.RETURNED, STATUS.REJECTED],
-    color: "#B4531A",
+    color: C.orange,
   },
 ];
 
@@ -772,10 +772,11 @@ export default function Report({
         }
       />
 
-      {error && (
+      {/* error ตอนยังมีข้อมูลเดิมอยู่ (เช่น รีเฟรชไม่สำเร็จ) — ถ้าไม่มีข้อมูลเลยจะแสดงในการ์ดด้านล่างแทน */}
+      {error && claims.length > 0 && (
         <div
           className="px-4 py-3 rounded-2xl text-sm"
-          style={{ background: C.roseSoft, color: "#C23B3B" }}
+          style={{ background: C.roseSoft, color: C.red }}
           role="alert"
         >
           {error}
@@ -795,11 +796,17 @@ export default function Report({
         </SectionCard>
       ) : error && claims.length === 0 ? (
         <SectionCard className="p-10 text-center" hoverable={false}>
-          <p className="text-sm font-medium" style={{ color: C.ink }}>
+          <div
+            className="mx-auto mb-3 w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{ background: C.roseSoft, color: C.rose }}
+          >
+            <AlertTriangle size={22} />
+          </div>
+          <p className="text-sm font-semibold" style={{ color: C.ink }} role="alert">
             ไม่สามารถโหลดรายงานได้
           </p>
-          <p className="text-sm mt-2" style={{ color: C.sub }}>
-            กรุณาลองกดปุ่มรีเฟรชอีกครั้ง
+          <p className="text-sm mt-1.5" style={{ color: C.sub }}>
+            {error} · กรุณาลองกดปุ่มรีเฟรชอีกครั้ง
           </p>
         </SectionCard>
       ) : (

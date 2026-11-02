@@ -1425,22 +1425,22 @@ export default function AdminManagement({ user, claims = [], onReload }) {
                           className="px-3 py-1 rounded-full text-xs font-bold inline-block"
                           style={{
                             background: u.role?.includes("TA")
-                              ? "#E8F0FA"
+                              ? C.tealSoft
                               : u.role?.includes("อาจารย์")
-                              ? "#E8F0FA"
+                              ? C.tealSoft
                               : u.role?.includes("ตรวจสอบ")
-                              ? "#F1EFFB"
+                              ? C.violetSoft
                               : u.role?.includes("อนุมัติ")
-                              ? "#DFF5E6"
+                              ? C.greenSoft
                               : "#FBEEE5",
                             color: u.role?.includes("TA")
-                              ? "#1E5687"
+                              ? C.tealDark
                               : u.role?.includes("อาจารย์")
-                              ? "#1E5687"
+                              ? C.tealDark
                               : u.role?.includes("ตรวจสอบ")
-                              ? "#6E62C9"
+                              ? C.violet
                               : u.role?.includes("อนุมัติ")
-                              ? "#1E8E4F"
+                              ? C.green
                               : "#C4622D",
                           }}
                         >

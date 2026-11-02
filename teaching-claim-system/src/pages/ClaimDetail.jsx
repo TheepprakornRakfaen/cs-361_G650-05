@@ -252,6 +252,8 @@ export default function ClaimDetail({
   pendingEvidence = [],
   // (claimId, File[] | pendingItems[]) => Promise<{ registered, failed }>
   onAttachEvidence,
+  // กำลังโหลดรายการคำขอ (เช่น รีเฟรชหน้ารายละเอียด) → แสดงกำลังโหลดแทน "ไม่พบข้อมูล"
+  loading = false,
 }) {
   const canViewEvidence = can(user, P.EVIDENCE_VIEW);
   const canViewFinance = can(user, P.FINANCE_VIEW);
@@ -319,7 +321,7 @@ export default function ClaimDetail({
       */
       // โหมดทดลอง: คำขอตัวอย่างใช้ id แบบข้อความ จึงไม่ต้องเช็ก UUID
       const isUuid =
-        DEV_AUTH_BYPASS ||
+        (DEV_AUTH_BYPASS && Boolean(claimId)) ||
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
           String(claimId || "")
         );
@@ -406,7 +408,7 @@ export default function ClaimDetail({
     const claimId = claim?.claimId || claim?.id;
 
     const isUuid =
-      DEV_AUTH_BYPASS ||
+      (DEV_AUTH_BYPASS && Boolean(claimId)) ||
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         String(claimId || "")
       );
@@ -465,12 +467,28 @@ export default function ClaimDetail({
     return (
       <div className="w-full">
         <SectionCard className="p-10 text-center">
-          <p
-            className="text-sm font-medium"
-            style={{ color: C.ink }}
-          >
-            ไม่พบข้อมูลคำขอ
-          </p>
+          {loading ? (
+            <p className="flex items-center justify-center gap-2 text-sm font-medium" style={{ color: C.sub }}>
+              <Loader2 size={16} className="animate-spin" />
+              กำลังโหลดคำขอ...
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-medium" style={{ color: C.ink }}>
+                ไม่พบข้อมูลคำขอ
+              </p>
+              {goBack && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold"
+                  style={{ background: C.tealSoft, color: C.tealDark }}
+                >
+                  {backLabel || "ย้อนกลับ"}
+                </button>
+              )}
+            </>
+          )}
         </SectionCard>
       </div>
     );
@@ -636,7 +654,7 @@ export default function ClaimDetail({
                       {viewedIds.has(item.id) && (
                         <span
                           className="flex items-center gap-1 text-xs font-semibold shrink-0"
-                          style={{ color: "#1E8E4F" }}
+                          style={{ color: C.green }}
                         >
                           <CheckCircle2 size={14} />
                           เปิดดูแล้ว
@@ -696,7 +714,7 @@ export default function ClaimDetail({
               title="คัดลอกรหัสคำขอ"
               aria-label="คัดลอกรหัสคำขอ"
               className="no-print shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-[#EEF4F8]"
-              style={{ color: copied ? "#1E8E4F" : C.sub }}
+              style={{ color: copied ? C.green : C.sub }}
             >
               {copied ? <Check size={15} /> : <Copy size={15} />}
             </button>
@@ -815,7 +833,7 @@ export default function ClaimDetail({
               className="shrink-0 mt-0.5"
               style={{
                 color:
-                  status === STATUS.REJECTED ? "#C23B3B" : "#B4531A",
+                  status === STATUS.REJECTED ? C.red : C.orange,
               }}
             />
 
@@ -1173,7 +1191,7 @@ export default function ClaimDetail({
             >
               <p
                 className="flex items-center gap-2 text-sm font-semibold"
-                style={{ color: "#C23B3B" }}
+                style={{ color: C.red }}
               >
                 <AlertTriangle size={15} />
                 แนบไฟล์ไม่สำเร็จ {pendingEvidence.length} ไฟล์ — คำขอถูกยื่นเรียบร้อยแล้ว
@@ -1194,7 +1212,7 @@ export default function ClaimDetail({
                   disabled={attaching}
                   onClick={() => attach(pendingEvidence)}
                   className="mt-3 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                  style={{ background: "#C23B3B" }}
+                  style={{ background: C.red }}
                 >
                   {attaching ? (
                     <Loader2 size={13} className="animate-spin" />
@@ -1266,7 +1284,7 @@ export default function ClaimDetail({
                     {renderItems(signedItems)}
                   </div>
                 ) : (
-                  <p className="text-sm" style={{ color: "#C23B3B" }}>
+                  <p className="text-sm" style={{ color: C.red }}>
                     ยังไม่มีเอกสารลงนาม
                   </p>
                 )}

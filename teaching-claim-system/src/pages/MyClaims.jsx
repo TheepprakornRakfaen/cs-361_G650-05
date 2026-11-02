@@ -515,7 +515,7 @@ export default function MyClaims({
                         }}
                         className="inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-[#FBE2E2]"
                         style={{
-                          color: "#C23B3B",
+                          color: C.red,
                         }}
                         title="ลบแบบร่าง"
                         aria-label={`ลบแบบร่าง #${claim.code || claim.id}`}

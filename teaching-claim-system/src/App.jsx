@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 
 import { C } from "./theme";
 
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import { scrollToSection } from "./utils/scroll";
+import { readRoute, buildRoute } from "./utils/route";
 import Footer from "./components/Footer";
 import DevRoleSwitcher from "./components/DevRoleSwitcher";
 import Toast from "./components/Toast";
@@ -14,24 +15,26 @@ import ConfirmDialog from "./components/ConfirmDialog";
 
 import Home from "./pages/Home";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Assignments from "./pages/Assignments";
-import MyClaims from "./pages/MyClaims";
-import CreateClaim from "./pages/CreateClaim";
-import ClaimDetail from "./pages/ClaimDetail";
-import CreateClaimList from "./pages/CreateClaimList";
-import Profile from "./pages/Profile";
 import { applyProfileEdits } from "./data/profile";
-import Contact from "./pages/Contact";
-import Notifications from "./pages/Notifications";
-import ReviewQueue from "./pages/ReviewQueue";
-import AdminOverview from "./pages/AdminOverview";
-import AuditLog from "./pages/AuditLog";
-import AccessControl from "./pages/AccessControl";
-import AdminManagement from "./pages/AdminManagement";
-import Report from "./pages/Report";
 import NotFound from "./pages/NotFound";
 import AccessDenied from "./components/AccessDenied";
+
+// หน้าอื่นโหลดเมื่อเปิดใช้ครั้งแรก (หน้าแรก/เข้าสู่ระบบโหลดทันที) → ไฟล์เริ่มต้นเล็กลง เปิดเว็บเร็วขึ้น
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Assignments = lazy(() => import("./pages/Assignments"));
+const MyClaims = lazy(() => import("./pages/MyClaims"));
+const CreateClaim = lazy(() => import("./pages/CreateClaim"));
+const ClaimDetail = lazy(() => import("./pages/ClaimDetail"));
+const CreateClaimList = lazy(() => import("./pages/CreateClaimList"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
+const AdminOverview = lazy(() => import("./pages/AdminOverview"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const AccessControl = lazy(() => import("./pages/AccessControl"));
+const AdminManagement = lazy(() => import("./pages/AdminManagement"));
+const Report = lazy(() => import("./pages/Report"));
 
 import {
   canAccessQueue,
@@ -111,8 +114,23 @@ const PROTECTED_VIEWS = new Set([
   "report",
 ]);
 
+// แสดงระหว่างโหลดไฟล์ของหน้า (lazy)
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-24 text-sm font-semibold" style={{ color: C.sub }}>
+      <Loader2 size={18} className="animate-spin" />
+      กำลังโหลดหน้า...
+    </div>
+  );
+}
+
+// หน้าที่อ่านจาก URL ได้ (ดู utils/route.js)
+const ROUTE_VIEWS = new Set([...Object.keys(SUBTITLE_MAP), "login"]);
+
 export default function App() {
-  const [view, setView] = useState("home");
+  // หน้าเริ่มต้นอ่านจาก URL → รีเฟรชแล้วอยู่หน้าเดิม
+  const [initialRoute] = useState(() => readRoute(ROUTE_VIEWS));
+  const [view, setView] = useState(initialRoute.view);
 
   /*
    * ตัวกรองสถานะตอนเปิดหน้า "คำขอของฉัน" จากที่อื่น
@@ -184,7 +202,7 @@ export default function App() {
 
   const [search, setSearch] = useState("");
 
-  const [selectedClaimId, setSelectedClaimId] = useState(null);
+  const [selectedClaimId, setSelectedClaimId] = useState(initialRoute.claimId || null);
 
   const [presetSectionId, setPresetSectionId] = useState(null);
 
@@ -461,7 +479,41 @@ export default function App() {
   const [reportError, setReportError] = useState("");
 
   // หน้ารายละเอียดเปิดมาจากที่ไหน (ใช้กำหนดปุ่มย้อนกลับ/เมนูที่ไฮไลต์)
-  const [detailFrom, setDetailFrom] = useState("myclaims");
+  const [detailFrom, setDetailFrom] = useState(initialRoute.from || "myclaims");
+
+  // พื้นที่เลื่อนของหน้า — เปลี่ยนหน้าแล้วกลับขึ้นบนสุด
+  const mainRef = useRef(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [view, selectedClaimId]);
+
+  // เขียนหน้าปัจจุบันลง URL (เพิ่มประวัติ → ปุ่มย้อนกลับของเบราว์เซอร์ใช้ได้)
+  // ครั้งแรกแค่แทนที่ ไม่เพิ่มประวัติซ้อนหน้าเดิม
+  const routeReady = useRef(false);
+
+  useEffect(() => {
+    const hash = buildRoute(view, { claimId: selectedClaimId, from: detailFrom });
+    if (window.location.hash !== hash) {
+      window.history[routeReady.current ? "pushState" : "replaceState"](null, "", hash);
+    }
+    routeReady.current = true;
+  }, [view, selectedClaimId, detailFrom]);
+
+  // กดย้อนกลับ/ไปข้างหน้า → เปิดหน้าตาม URL
+  useEffect(() => {
+    const onPop = () => {
+      const route = readRoute(ROUTE_VIEWS);
+      if (route.view === "detail") {
+        setSelectedClaimId(route.claimId);
+        setDetailFrom(route.from);
+      }
+      setView(route.view);
+    };
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // ข้อความบนหน้า Login เมื่อถูกเด้งออก (เช่น เซสชันหมดอายุ)
   const [loginNotice, setLoginNotice] = useState("");
@@ -1675,6 +1727,7 @@ export default function App() {
         return (
           <ClaimDetail
             claim={selectedClaim}
+            loading={claimsLoading || reviewLoading}
             claims={queueClaims}
             course={
               courses.find(
@@ -1853,8 +1906,10 @@ export default function App() {
             print:!ml-0
           `}
         >
-          <main className="flex-1 overflow-y-auto">
-            <div className="p-5 md:p-9">{renderPage()}</div>
+          <main ref={mainRef} className="flex-1 overflow-y-auto">
+            <div className="p-5 md:p-9">
+              <Suspense fallback={<PageLoading />}>{renderPage()}</Suspense>
+            </div>
 
             {view === "home" && (
               <Footer onContactClick={() => setView("contact")} />

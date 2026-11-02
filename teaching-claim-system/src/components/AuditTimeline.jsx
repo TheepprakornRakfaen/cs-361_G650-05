@@ -9,10 +9,10 @@ import RoleBadge from "./RoleBadge";
 const TONE = {
   neutral: "#8FA3AD",
   teal: C.teal,
-  green: "#1E8E4F",
+  green: C.green,
   red: C.rose,
   amber: "#E8873A",
-  violet: "#6D4BC2",
+  plum: C.plum,
 };
 
 function formatDateTime(value) {

@@ -1078,7 +1078,7 @@ export default function CreateClaim({
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
                     style={{
-                      background: "#FCE9EA",
+                      background: C.roseSoft,
                       color: C.rose,
                     }}
                   >
@@ -1142,7 +1142,7 @@ export default function CreateClaim({
                 ) : (
                   <div
                     className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
-                    style={{ background: "#FEF6D8", color: "#9A7B06" }}
+                    style={{ background: C.amberSoft, color: C.amber }}
                   >
                     <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                     <span>
@@ -1768,7 +1768,7 @@ export default function CreateClaim({
                 <div
                   className="flex items-start gap-2 text-xs rounded-xl px-4 py-3"
                   style={{
-                    background: "#FCE9EA",
+                    background: C.roseSoft,
                     color: C.rose,
                   }}
                 >
