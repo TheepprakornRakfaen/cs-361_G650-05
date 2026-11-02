@@ -9,8 +9,8 @@
 3. [สถาปัตยกรรมระบบ (Architecture)](#3-สถาปัตยกรรมระบบ-architecture)
 4. [ฐานข้อมูล (Database)](#4-ฐานข้อมูล-database)
 5. [สิทธิ์การใช้งานและการเป็นเจ้าของข้อมูล](#5-สิทธิ์การใช้งานและการเป็นเจ้าของข้อมูล)
-6. [โครงสร้างโฟลเดอร์ใน GitHub](#6-โครงสร้างโฟลเดอร์ใน-github)
-7. [วิธีรันฝั่ง Frontend](#7-วิธีรันฝั่ง-frontend)
+6. [API และ Lambda](#6-api-และ-lambda)
+7. [โครงสร้างโฟลเดอร์ใน GitHub](#7-โครงสร้างโฟลเดอร์ใน-github)
 
 ---
 
@@ -38,7 +38,7 @@
 
 ## 2. ขั้นตอนการใช้งาน (User Flow)
 
-![CS361 V3 User Flow](docs/DataFlow/claim_user_flow.png)
+![CS361 User Flow](docs/DataFlow/claim_user_flow.png)
 
 ### สถานะของคำขอ
 
@@ -50,29 +50,75 @@
 | 3 | อนุมัติ | ผู้อนุมัติอนุมัติแล้ว |
 | 4 | ไม่อนุมัติ | ผู้อนุมัติปฏิเสธ |
 | 5 | ส่งคืนแก้ไข | ถูกส่งกลับให้ผู้ยื่นแก้ไขแล้วส่งใหม่ |
-| 6 | จ่ายเงินแล้ว | ระบบเปลี่ยนจากสถานะ 3 ให้อัตโนมัติหลังอนุมัติ |
+| 6 | จ่ายเงินแล้ว | ระบบเปลี่ยนจากสถานะ 3 ให้อัตโนมัติหลังอนุมัติ (บันทึกเวลาที่ `claim.paid_at`) |
+
+### โควตาชั่วโมงต่อคนต่อ section
+
+- ผู้สอนแต่ละคนใน section มีโควตา `max_hour` ที่ตาราง `section_staff` (ตั้งโดย ADMIN)
+- `section_staff.hour` คือชั่วโมงที่คนนั้นเบิกไปแล้ว นับจากคำขอสถานะ 1, 2, 3
+- ยื่นหรือส่งใหม่จะจองชั่วโมงทันที ถ้าเกิน `max_hour` ระบบปฏิเสธ
+- เมื่อคำขอถูกไม่อนุมัติ (4) หรือส่งคืนแก้ไข (5) ผ่าน `ClaimWorkflowAPI` ระบบคืนชั่วโมงให้
 
 ## 3. สถาปัตยกรรมระบบ (Architecture)
 
-![CS361 V3 AWS Architecture](docs/AWS_Architecture/CS361.png)
+![CS361 AWS Architecture](docs/AWS_Architecture/CS361.png)
+
+ไฟล์ต้นฉบับแก้ไขได้ด้วย draw.io: [CS361_V4.drawio](docs/AWS_Architecture/CS361_V4.drawio)
 
 รายละเอียดแต่ละ service: [docs/AWS_Architecture/AWS_Architecture.md](docs/AWS_Architecture/AWS_Architecture.md)
 
 | ส่วน | เทคโนโลยี | หน้าที่ |
 |---|---|---|
 | Frontend | React + Vite บน AWS Amplify | หน้าเว็บของผู้ใช้ทุกบทบาท |
-| Authentication | Amazon Cognito | ล็อกอินและกำหนดกลุ่มผู้ใช้ (TEACHER, TA, REVIEWER, APPROVER) |
-| API | API Gateway (REST) | จุดรับคำขอจากหน้าเว็บ ตรวจ token ก่อนส่งต่อ |
-| Backend | AWS Lambda (Node.js 22) ใน VPC | ตรรกะยื่นคำขอ ตรวจ อนุมัติ และออกลิงก์ไฟล์ |
+| Authentication | Amazon Cognito | ล็อกอินและกำหนดกลุ่มผู้ใช้ (TEACHER, TA, REVIEWER, APPROVER, ADMIN) |
+| API | API Gateway (REST) stage `v2` | จุดรับคำขอจากหน้าเว็บ ตรวจ token ด้วย Cognito authorizer |
+| Backend | AWS Lambda (Node.js 22, ESM) ใน VPC | ตรรกะยื่นคำขอ ตรวจ อนุมัติ จัดการหลักฐาน และงานของผู้ดูแล |
 | Database | RDS PostgreSQL | เก็บคำขอ รายวิชา รอบการยื่น ประวัติ |
 | File storage | S3 (private bucket) | เก็บไฟล์หลักฐาน เข้าถึงผ่าน presigned URL อายุสั้น |
+
+### เครือข่าย (VPC)
+
+![CS361 VPC](docs/AWS_Architecture/VPC.png)
+
+ต้นฉบับ draw.io: [VPC.drawio](docs/AWS_Architecture/VPC.drawio) · รายละเอียด subnet / route table / security group: [docs/AWS_Architecture/VPC.md](docs/AWS_Architecture/VPC.md)
+
+- Lambda และ RDS อยู่ใน VPC เดียวกัน การเชื่อมต่อฐานข้อมูลคุมด้วย security group (RDS รับพอร์ต 5432 จาก security group ของ Lambda)
+- Lambda เรียก S3 ผ่าน **S3 Gateway endpoint** (ไม่มีค่าใช้จ่าย) ไม่ต้องมี NAT Gateway
+- โค้ด Lambda เรียกเฉพาะ RDS และ S3 จึงไม่ต้องออกอินเทอร์เน็ต
+- การตรวจสิทธิ์ใช้ Cognito authorizer ที่ API Gateway และอ่านกลุ่มจาก `cognito:groups` ใน token
 
 ## 4. ฐานข้อมูล (Database)
 
 ![CS361 Database Schema](docs/database/V4_Databaseschema.png)
 
-- สคริปต์ฐานข้อมูลอยู่ใน [docs/database/migrations/](docs/database/migrations/): `001_schema.sql` (โครงสร้างทั้งหมด) แล้วตามด้วย `002_seed.sql` (ข้อมูลตัวอย่าง) ส่วน migration เดิม 001–017 เก็บไว้ที่ `_archive/`
 - ผู้ใช้ใน Cognito เป็นแหล่งข้อมูลหลัก ส่วนตาราง `app_user` เป็นเพียงสำเนาบางส่วน โดยใช้ `cognito_sub` เป็นคีย์
+- ตารางหลัก: `app_user`, `academic_term`, `course`, `section`, `section_staff`, `claim_period`, `compensation_type`, `claim`, `claim_date`, `claim_evidence`, `audit_log` และ view `claim_amount`
+- ยอดเงินคำนวณจาก `claim.hour × compensation_type.hourly_rate` (view `claim_amount`)
+
+### Migration (`docs/database/migrations/`)
+
+| ไฟล์ | ทำอะไร |
+|---|---|
+| `001_schema.sql` | สร้างตาราง ดัชนี และ view ทั้งหมดในครั้งเดียว (รวมผลของ migration เดิม 001–017) |
+| `002_seed.sql` | ข้อมูลตัวอย่าง: ผู้ใช้ placeholder, ภาคการศึกษา, รายวิชา, section, `section_staff` (พร้อม `max_hour`), รอบเบิก, ประเภทค่าตอบแทน 2 แบบ |
+| `003_claim_paid_status.sql` | เพิ่มสถานะคำขอ 6 = จ่ายเงินแล้ว (ปรับ `claim_status_check`) |
+| `004_add_claim_paid_at.sql` | เพิ่มคอลัมน์ `claim.paid_at` เก็บเวลาที่จ่ายเงิน |
+| `_archive/` | migration เดิม 001–017 เก็บไว้อ้างอิงประวัติ ไม่ต้องรันอีก |
+
+วิธีใช้:
+
+| กรณี | สิ่งที่ต้องรัน (ตามลำดับ) |
+|---|---|
+| ฐานข้อมูลใหม่ (ว่าง) | `001_schema.sql` → `002_seed.sql` → `003_claim_paid_status.sql` → `004_add_claim_paid_at.sql` |
+| RDS ที่รัน migration เดิมถึง 017 แล้ว | `003_claim_paid_status.sql` → `004_add_claim_paid_at.sql` (ไม่ต้องรัน 001/002 ซ้ำ) |
+
+```bash
+psql "$DATABASE_URL" -f docs/database/migrations/001_schema.sql
+```
+
+เมื่อ RDS อยู่ใน private subnet ต้องรันจากที่เข้าถึง VPC ได้ (เช่น CloudShell แบบ VPC)
+
+เมื่อเพิ่ม migration ใหม่ ให้ตั้งเลขไฟล์ต่อจากล่าสุด และตรวจว่าเลขไม่ซ้ำกับของคนอื่นในทีมก่อน push
 
 ## 5. สิทธิ์การใช้งานและการเป็นเจ้าของข้อมูล
 
@@ -80,6 +126,7 @@
 
 - เข้าถึงบัญชีของตัวเองได้
 - ยื่น แก้ไข และลบคำขอของตัวเองได้เท่านั้น
+- แนบหลักฐานประกอบ (`supporting`) และเอกสารลงนาม (`signed_form`) กับคำขอของตัวเองได้ตามสถานะที่กำหนด (สิทธิ์แนบดูที่ `UPLOAD_RULES` ใน `ClaimEvidenceAPI` และ `ClaimEvidencePresign`)
 - ดูคำขอหรือข้อมูลของคนอื่นไม่ได้
 - ยืนยันการตรวจสอบหรืออนุมัติคำขอไม่ได้
 
@@ -87,6 +134,7 @@
 
 - เข้าถึงคำขอทั้งหมดได้ แต่แก้ไขหรือลบไม่ได้
 - ยืนยันตรวจสอบหรือส่งคืนคำขอได้
+- แนบเอกสารลงนาม (`signed_form`) กับคำขอที่ยื่นแล้ว (สถานะ 1, 2, 3) ได้ และดูไฟล์แนบของคำขอที่ไม่ใช่ร่างได้
 - อนุมัติหรือปฏิเสธคำขอไม่ได้
 
 **ผู้บริหาร / ผู้อนุมัติ (APPROVER)**
@@ -97,38 +145,62 @@
 
 **ผู้ดูแลระบบ (ADMIN)**
 
-- ดูคำขอทั้งหมดและภาพรวมระบบได้ (อ่านอย่างเดียว) แก้ไขหรือลบไม่ได้
+- ดูคำขอทั้งหมดและภาพรวมระบบได้ (อ่านอย่างเดียว) แก้ไขหรือลบคำขอไม่ได้
 - ดูประวัติการดำเนินการทั้งระบบและส่งออกรายงาน (CSV) ได้
-- จัดการบทบาท สิทธิ์ และการตั้งค่าระบบได้
+- จัดการข้อมูลพื้นฐาน: เพิ่ม/ลบ section และกำหนดผู้สอนพร้อมโควตาชั่วโมง (`/api/admin/*`)
 - ยืนยันตรวจสอบ อนุมัติ ปฏิเสธ หรือส่งคืนคำขอไม่ได้
 - เปิดดูเอกสารแนบและข้อมูลส่วนบุคคลของผู้ยื่นไม่ได้
 
-## 6. โครงสร้างโฟลเดอร์ใน GitHub
+## 6. API และ Lambda
+
+REST API ชื่อ `cs361-claims-api` (stage `v2`) ทุก method ใช้ Cognito authorizer และ Lambda proxy integration ชื่อ Lambda ใน AWS ขึ้นต้นด้วย `GRP05-` เช่น `GRP05-ClaimWorkflowAPI`
+
+| Route | Lambda | หน้าที่ |
+|---|---|---|
+| `POST /api/auth/me` | `ClaimCRUDUser` | สร้าง/อัปเดตผู้ใช้ใน `app_user` หลัง login และคืนกลุ่ม |
+| `GET /api/term`, `/api/period`, `/api/courses`, `/api/compensation-types` | `ClaimsPeriodTermCourses` | ข้อมูลอ้างอิงสำหรับฟอร์มยื่น (รองรับแบ่งหน้า `limit`/`offset`) |
+| `GET/POST/DELETE /api/claims`, `POST /api/claims/{id}/resend` | `ClaimUserRequest` | สร้าง ดู ลบ ส่งใหม่ และคิวตรวจ/รายงาน (`?scope=review\|report`) |
+| `POST /api/claims/{id}/actions`, `POST /api/claims/batch-actions`, `GET /api/claims/{id}/history`, `GET /api/audit-logs` | `ClaimWorkflowAPI` | ตรวจ/อนุมัติ/ปฏิเสธ/ส่งคืน (`action`: `REVIEW_PASS`, `APPROVE`, `REJECT`, `RETURN`), จ่ายเงินอัตโนมัติ, ประวัติ, audit log |
+| `POST /api/claims/{id}/evidence/upload-url` | `ClaimEvidencePresign` | ออกลิงก์ presigned PUT สำหรับอัปโหลดไฟล์ไป S3 |
+| `POST/GET /api/claims/{id}/evidence` | `ClaimEvidenceAPI` | ลงทะเบียนไฟล์ที่อัปโหลดแล้ว และออกลิงก์เปิดไฟล์ (presigned GET) |
+| `ANY /api/admin/{proxy+}` | `ClaimAdminMasterData` | ADMIN: เพิ่ม/ลบ section, จัดการผู้สอน (`section_staff`), รายชื่อผู้ใช้ |
+
+รายละเอียด request/response: [docs/api/](docs/api/) และ [script/lambda/functions/README.md](script/lambda/functions/README.md)
+
+### ขั้นตอนอัปโหลดหลักฐาน
+
+1. หน้าเว็บเรียก `POST /api/claims/{id}/evidence/upload-url` ได้ `uploadUrl` และ `objectKey` (`{sub เจ้าของคำขอ}/{claim_id}/{evidence_id}.{ext}`)
+2. หน้าเว็บ `PUT` ไฟล์ขึ้น S3 ตรงด้วย `uploadUrl` (ต้องส่ง `Content-Type` ตรงกับที่ขอ)
+3. หน้าเว็บเรียก `POST /api/claims/{id}/evidence` เพื่อลงทะเบียน (Lambda ตรวจขนาด/ชนิดไฟล์ด้วย `HeadObject`)
+4. ดูไฟล์ด้วย `GET /api/claims/{id}/evidence` ได้ลิงก์ที่หมดอายุภายในไม่กี่นาที
+
+## 7. โครงสร้างโฟลเดอร์ใน GitHub
 
 ```
 cs-361_G650-05/
 ├── README.md
-├── package-lock.json
 ├── script/
 │   ├── cognito/
-│   ├── lambda/
-│   │   └── functions/
-│   │       ├── ClaimCRUDUser/
-│   │       ├── ClaimsPeriodTermCourses/
-│   │       ├── ClaimUserRequest/
-│   │       ├── ClaimReview/
-│   │       ├── ClaimWorkflowAPI/
-│   │       ├── ClaimEvidenceAPI/
-│   │       └── ClaimEvidencePresign/
-│   └── api-gateway/
+│   │   └── seed_cognito_users.sh
+│   ├── api-gateway/
+│   │   ├── create_api.sh
+│   │   └── list_routes.sh
+│   └── lambda/
+│       └── functions/
+│           ├── ClaimCRUDUser/
+│           ├── ClaimsPeriodTermCourses/
+│           ├── ClaimUserRequest/
+│           ├── ClaimWorkflowAPI/
+│           ├── ClaimEvidenceAPI/
+│           ├── ClaimEvidencePresign/
+│           └── ClaimAdminMasterData/
 ├── docs/
 │   ├── api/
 │   ├── AWS_Architecture/
 │   ├── DataFlow/
-│   ├── database/
-│   │   └── migrations/
-│   │       └── _archive/
-│   └── testing/
+│   └── database/
+│       └── migrations/
+│           └── _archive/
 └── teaching-claim-system/
     ├── public/
     └── src/
@@ -144,49 +216,20 @@ cs-361_G650-05/
 
 | Path | หมายถึง |
 |---|---|
-| `docs/security_group.md` | Security Group ของ Lambda/RDS: กฎ inbound/outbound, วิธีสร้างและตรวจ, ปัญหาที่พบบ่อย |
-| `docs/scripts.md` | วิธีใช้สคริปต์ตั้งค่า AWS (Cognito, Lambda, API Gateway) และลำดับเมื่อสร้างระบบใหม่ |
-| `docs/api/` | เอกสาร API: `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
-| `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
+| `docs/api/` | `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
+| `docs/AWS_Architecture/` | `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361_V4.png` (ภาพ architecture), `VPC.md` / `VPC.png` (เครือข่าย) พร้อมไฟล์ `.drawio` |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
-| `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` (รุ่นเก่า `V3_Databaseschema.png`) |
-| `docs/database/migrations/` | SQL สร้างฐานข้อมูล: `001_schema.sql` + `002_seed.sql` และ `003_...` เป็นต้นไป (ตารางด้านล่าง) |
-| `docs/testing/` | สคริปต์ทดสอบสิทธิ์และความปลอดภัย `rbac_security_test.sh` |
-
-### Migration (`docs/database/migrations/`)
-
-| ไฟล์ | ทำอะไร |
-|---|---|
-| `001_schema.sql` | สร้างตาราง ดัชนี และ view `claim_amount` ทั้งหมดในครั้งเดียว (เทียบเท่า migration เดิม 001–017 รวมกัน) |
-| `002_seed.sql` | ข้อมูลตัวอย่าง: ผู้ใช้ placeholder, ภาคการศึกษา, รายวิชา, section, `section_staff` (พร้อม `max_hour`), รอบเบิก, ประเภทค่าตอบแทน 2 แบบ |
-| `003_claim_paid_status.sql` | เพิ่มสถานะคำร้อง 6 = จ่ายเงินแล้ว (รันกับ RDS ที่ใช้ `001_schema.sql` ได้) |
-| `_archive/` | migration เดิม 001–017 เก็บไว้อ้างอิงประวัติ ไม่ต้องรันอีก |
-
-- ฐานข้อมูลใหม่ (ว่าง): รัน `001_schema.sql` แล้ว `002_seed.sql`
-- RDS ที่รัน migration เดิมถึง 017 แล้ว: **ไม่ต้องรันซ้ำ** (โครงสร้างเท่ากัน)
-- RDS ที่อยู่ที่ 017: รัน `003_claim_paid_status.sql`
-- แก้โครงสร้างครั้งต่อไป: เพิ่มไฟล์ `004_...sql` เป็นต้นไป แล้วอัปเดต `001_schema.sql` ให้ตรงกันถ้าต้องการให้ฐานข้อมูลใหม่ได้โครงสร้างล่าสุด
+| `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` |
+| `docs/database/migrations/` | SQL สร้างและแก้ฐานข้อมูล (ดูหัวข้อ 4) |
 
 ### สคริปต์ AWS (`script/`)
 
 | Path | หมายถึง |
 |---|---|
-| `script/cognito/` | สร้างกลุ่ม/ผู้ใช้ใน Cognito และ SQL ซิงก์ `app_user` |
-| `script/lambda/` | สคริปต์สร้าง zip / สร้าง / อัปเดต Lambda และโฟลเดอร์ `functions/` ที่เก็บโค้ดทุก function |
-| `script/api-gateway/` | สร้าง/ตรวจ route ของ API Gateway ทั้งหมด |
-
-วิธีใช้: [docs/scripts.md](docs/scripts.md)
-
-### Backend (`script/lambda/functions/`)
-
-| Path | หมายถึง |
-|---|---|
-| `script/lambda/functions/ClaimCRUDUser/` | `POST /api/auth/me` สร้าง/อัปเดตผู้ใช้ |
-| `script/lambda/functions/ClaimsPeriodTermCourses/` | `GET /api/term`, `/api/period`, `/api/courses` |
-| `script/lambda/functions/ClaimUserRequest/` | ยื่น ดู ลบ ส่งใหม่ และคิวตรวจ `/api/claims` |
-| `script/lambda/functions/ClaimReview/` | ตรวจและอนุมัติ `/api/claims/{id}/pass\|return\|approve\|reject` |
-
-รายละเอียด: [script/lambda/functions/README.md](script/lambda/functions/README.md) และ [docs/api/](docs/api/)
+| `script/cognito/seed_cognito_users.sh` | สร้างกลุ่ม/ผู้ใช้ทดสอบใน Cognito และเขียน `sync_app_user.sql` เพื่อซิงก์ `app_user` |
+| `script/api-gateway/create_api.sh` | สร้าง REST API, authorizer, resource, method และ CORS (ไม่ผูก Lambda และไม่ deploy) |
+| `script/api-gateway/list_routes.sh` | แสดง route ทั้งหมดพร้อม authorizer และ Lambda ที่ผูกอยู่ |
+| `script/lambda/functions/` | โค้ดของ Lambda แต่ละตัว (1 โฟลเดอร์ = 1 function) |
 
 ### Frontend (`teaching-claim-system/`)
 
@@ -195,26 +238,10 @@ cs-361_G650-05/
 | `teaching-claim-system/` | โปรเจกต์ React (Vite + Tailwind CSS) ที่ deploy บน Amplify |
 | `teaching-claim-system/package.json` | รายการ dependency และคำสั่งรัน/build |
 | `teaching-claim-system/vite.config.js`, `tailwind.config.js`, `postcss.config.js` | ไฟล์ตั้งค่า Vite, Tailwind, PostCSS |
-| `teaching-claim-system/index.html` | HTML หลักของแอป |
-| `teaching-claim-system/public/` | ไฟล์คงที่: รูปภาพ (`images/`, `banner1.png`, `grid.png`, `dot.png`) และเอกสาร (`documents/`) |
 | `teaching-claim-system/src/main.jsx`, `App.jsx` | จุดเริ่มแอปและการสลับหน้า |
-| `teaching-claim-system/src/aws-config.js` | ค่าตั้งค่าเชื่อมต่อ Cognito และ API |
-| `teaching-claim-system/src/theme.js`, `index.css` | สีและสไตล์ร่วมของแอป |
-| `teaching-claim-system/src/pages/` | หน้าจอ เช่น `Dashboard`, `MyClaims`, `CreateClaim`, `ClaimDetail`, `ReviewQueue`, `AuditLog`, `Login` |
+| `teaching-claim-system/src/aws-config.js` | ตั้งค่า Cognito (Amplify) จาก `VITE_COGNITO_*` |
+| `teaching-claim-system/src/pages/` | หน้าจอ เช่น `Dashboard`, `MyClaims`, `CreateClaim`, `ClaimDetail`, `ReviewQueue`, `Report`, `AuditLog`, `AdminManagement`, `AdminOverview` |
 | `teaching-claim-system/src/components/` | ส่วนประกอบที่ใช้ซ้ำ เช่น `Sidebar`, `Topbar`, `StatusPill`, `WorkflowStepper`, `ReviewActionPanel`, `Pagination` |
 | `teaching-claim-system/src/data/` | ค่าคงที่และตรรกะฝั่งหน้าเว็บ เช่น `workflow.js` (สถานะ), `roles.js` (บทบาท), `rates.js` (อัตรา) และข้อมูลจำลอง |
-| `teaching-claim-system/src/hooks/` | React hooks เช่น `useNotifications.js` |
 | `teaching-claim-system/src/services/` | โค้ดเรียก API และ auth: `api.js`, `auth.js`, `evidence.js` (อัปโหลดหลักฐาน), `claimMapper.js` (แปลงข้อมูลจาก API) |
-| `teaching-claim-system/src/utils/` | ฟังก์ชันช่วย เช่น `csv.js`, `time.js`, `sla.js` |
-
-> Lambda ที่ยังไม่อยู่ใน repo: evidence (presign/register) และ workflow `/actions`, `/history`, `/audit-logs`
-
-## 7. วิธีรันฝั่ง Frontend
-
-```bash
-cd teaching-claim-system
-npm install
-npm run dev
-```
-
-รายละเอียดโครงสร้างโค้ดเพิ่มเติม: [teaching-claim-system/README.md](teaching-claim-system/README.md)
+| `teaching-claim-system/src/hooks/`, `utils/` | React hooks และฟังก์ชันช่วย เช่น `csv.js`, `time.js`, `sla.js` |
