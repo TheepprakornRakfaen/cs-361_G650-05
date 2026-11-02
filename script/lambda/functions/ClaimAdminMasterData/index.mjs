@@ -4,7 +4,8 @@
 //
 // API Gateway: resource เดียว /api/admin/{proxy+} (ANY, Cognito authorizer, Lambda proxy)
 //
-//   GET    /api/admin/users                      -> ผู้ใช้ใน app_user (ให้เลือกเป็นผู้สอน)
+//   GET    /api/admin/users                      -> ผู้ใช้ใน app_user (หน้าผู้ใช้งาน + ให้เลือกเป็นผู้สอน)
+//          + staff_roles / section_count จาก section_staff (กลุ่ม Cognito ไม่ได้เก็บใน DB)
 //   POST   /api/admin/sections                   -> เพิ่ม section (สร้าง/อัปเดต course ตาม code)
 //          { course_code, course_name_th, course_name_en?, term_id, section_no }
 //   DELETE /api/admin/sections/{id}              -> ลบ section (ต้องไม่มีคำขอเบิกอ้างถึง)
@@ -101,9 +102,17 @@ export const handler = async (event) => {
 // ---------------------------------------------------------------------
 async function listUsers() {
   const { rows } = await pool.query(
-    `SELECT cognito_sub AS user_id, username, name
-       FROM app_user
-      ORDER BY name, username`,
+    `SELECT u.cognito_sub AS user_id,
+            u.username,
+            u.name,
+            u.created_at,
+            COALESCE(array_agg(DISTINCT ss.role) FILTER (WHERE ss.role IS NOT NULL), '{}')
+                                              AS staff_roles,     -- INSTRUCTOR / TA
+            count(DISTINCT ss.section_id)::int AS section_count
+       FROM app_user u
+       LEFT JOIN section_staff ss ON ss.user_id = u.cognito_sub
+      GROUP BY u.cognito_sub
+      ORDER BY u.name, u.username`,
   );
   return respond(200, { count: rows.length, users: rows });
 }
