@@ -31,6 +31,11 @@ import {
   getQueueLabel,
 } from "../data/roles";
 import { downloadCsv } from "../utils/csv";
+import { getClaims } from "../services/api";
+import {
+  normalizeClaimsResponse,
+  buildClaimCode,
+} from "../services/claimMapper";
 import {
   SLA_BUSINESS_DAYS,
   SLA_STYLE,
@@ -105,6 +110,11 @@ export default function ReviewQueue({
   const [anomalyFilter, setAnomalyFilter] = useState("All"); // All | anomalies | clean
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [serverPageRows, setServerPageRows] = useState([]);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
+  const [serverReady, setServerReady] = useState(false);
 
   const canSeeFinance = can(user, P.FINANCE_VIEW);
   const canSeePii = can(user, P.PII_VIEW);
@@ -150,9 +160,21 @@ export default function ReviewQueue({
   const anomalyMap = useMemo(() => {
     const duplicateIndex = buildDuplicateIndex(queue);
     const map = new Map();
+
     queue.forEach((c) => {
-      map.set(c.id, detectClaimAnomalies(c, queue, [], null, { duplicateIndex }));
+      map.set(
+        c.id,
+        c.anomalyDetection ??
+          detectClaimAnomalies(
+            c,
+            queue,
+            [],
+            null,
+            { duplicateIndex }
+          )
+      );
     });
+
     return map;
   }, [queue]);
 
@@ -258,12 +280,144 @@ export default function ReviewQueue({
     setPage(1);
   }, [query, statusFilter, termFilter, courseFilter, claimantFilter, roleFilter, anomalyFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
-  const pageRows = rows.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+  // แปลงสถานะ UI เป็น status ของ Database
+  const dbStatuses = {
+    [STATUS.SUBMITTED]: 1,
+    [STATUS.REVIEWED]: 2,
+    [STATUS.APPROVED]: 3,
+    [STATUS.REJECTED]: 4,
+    [STATUS.RETURNED]: 5,
+  };
+
+  // Filter บางประเภทต้องใช้ข้อมูลทั้งคิว
+  // จึงให้ใช้ Client-side ต่อไปก่อน
+  const serverMode =
+    courseFilter === "All" &&
+    roleFilter === "All" &&
+    anomalyFilter === "All" &&
+    statusFilter !== ESCALATED &&
+    statusFilter !== STATUS.PAID;
+
+  const selectedTermId =
+    termFilter === "All"
+      ? null
+      : queue.find(
+          (c) => c.termLabel === termFilter
+        )?.termId;
+
+  const claimsById = useMemo(
+    () => new Map(
+      claims.map((c) => [String(c.id), c])
+    ),
+    [claims]
   );
+
+  useEffect(() => {
+    if (!serverMode) return;
+
+    let active = true;
+
+    async function loadPage() {
+      setServerLoading(true);
+      setServerReady(false);
+      setServerError("");
+      setServerTotal(0);
+
+      try {
+        const filters = {
+          page,
+          page_size: PAGE_SIZE,
+          sort_by: "submitted_at",
+          sort_order: "asc",
+        };
+
+        if (query.trim()) {
+          filters.q = query.trim();
+        }
+
+        if (statusFilter !== "All") {
+          filters.status = dbStatuses[statusFilter];
+        }
+
+        if (selectedTermId != null) {
+          filters.term_id = selectedTermId;
+        }
+
+        if (claimantFilter !== "All") {
+          filters.claimant = claimantFilter;
+        }
+
+        const data = await getClaims("review", filters);
+
+        if (!active) return;
+
+        const normalized = normalizeClaimsResponse(data);
+
+        const nextRows = normalized.map((c) => {
+          const existing = claimsById.get(String(c.id));
+
+          if (existing) return existing;
+
+          // กรณีคำขอใหม่ยังไม่อยู่ในข้อมูลสรุปเดิม
+          const termLabel = c.semester || "";
+
+          return {
+            ...c,
+            termLabel,
+            code: buildClaimCode({
+              id: c.id,
+              courseCode: c.courseCode,
+              termLabel,
+              periodMonth: c.periodMonth,
+              submittedAt: c.submittedAt || c.createdAt,
+            }),
+          };
+        });
+
+        setServerPageRows(nextRows);
+        setServerTotal(Number(data.total ?? 0));
+        setServerReady(true);
+      } catch (err) {
+        if (!active) return;
+
+        setServerPageRows([]);
+        setServerTotal(0);
+        setServerError(
+          err.message || "โหลดข้อมูลจาก Server ไม่สำเร็จ"
+        );
+      } finally {
+        if (active) setServerLoading(false);
+      }
+    }
+
+    // หน่วงการค้นหาขณะพิมพ์ เพื่อลดจำนวน API Requests
+    const timer = setTimeout(loadPage, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [
+    serverMode,
+    page,
+    query,
+    statusFilter,
+    selectedTermId,
+    claimantFilter,
+    claimsById,
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = serverMode
+  ? page
+  : Math.min(page, pageCount);
+
+  const pageRows = serverMode
+  ? (serverReady ? serverPageRows : [])
+  : rows.slice(
+      (currentPage - 1) * PAGE_SIZE,
+      currentPage * PAGE_SIZE
+    );
 
   const readOnly = !can(user, P.CLAIM_REVIEW) && !can(user, P.CLAIM_APPROVE);
 
@@ -613,7 +767,7 @@ export default function ReviewQueue({
                 const submitted = claim.submittedAt || claim.createdAt;
                 const waiting = isPending(claim.status) ? businessDaysSince(submitted) : null;
                 const sla = SLA_STYLE[slaLevel(waiting)];
-                const check = anomalyMap.get(claim.id);
+                const check = claim.anomalyDetection ?? anomalyMap.get(claim.id);
 
                 return (
                   <tr
@@ -737,7 +891,7 @@ export default function ReviewQueue({
                 );
               })}
 
-              {rows.length === 0 && (
+              {pageRows.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center">
                     <p className="text-sm font-semibold text-slate-800">
@@ -758,7 +912,7 @@ export default function ReviewQueue({
         <Pagination
           page={currentPage}
           pageSize={PAGE_SIZE}
-          total={rows.length}
+          total={serverMode ? serverTotal : rows.length}
           onChange={setPage}
         />
       </SectionCard>

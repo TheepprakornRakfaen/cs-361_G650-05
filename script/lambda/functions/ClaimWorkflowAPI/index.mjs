@@ -817,22 +817,40 @@ const STATUS_LABEL = {
   3: "Approved",
   4: "Rejected",
   5: "Returned",
+  6: "Paid",
 };
 
 async function writeAuditLog(
   client,
-  { claimId, action, actorSub, groups, fromStatus, toStatus, comment = null },
+  {
+    claimId,
+    action,
+    actorSub,
+    groups = [],
+    fromStatus,
+    toStatus,
+    comment = null,
+  },
 ) {
-  const {
-    rows: [actor],
-  } = await client.query(
-    `
-      SELECT name
-      FROM app_user
-      WHERE cognito_sub = $1::uuid
-    `,
-    [actorSub],
-  );
+  let actorName = "ระบบ";
+  let actorRole = "SYSTEM";
+
+  // ถ้าเป็นการกระทำของผู้ใช้ ให้ดึงชื่อจาก app_user
+  if (actorSub) {
+    const {
+      rows: [actor],
+    } = await client.query(
+      `
+        SELECT name
+        FROM app_user
+        WHERE cognito_sub = $1::uuid
+      `,
+      [actorSub],
+    );
+
+    actorName = actor?.name || "";
+    actorRole = groups.join(",");
+  }
 
   const result = await client.query(
     `
@@ -851,9 +869,9 @@ async function writeAuditLog(
     [
       claimId,
       action,
-      actorSub,
-      actor?.name || "",
-      groups.join(","),
+      actorSub || null,
+      actorName,
+      actorRole,
       STATUS_LABEL[fromStatus] || String(fromStatus),
       STATUS_LABEL[toStatus] || String(toStatus),
       comment,
@@ -1075,6 +1093,107 @@ async function handleClaimAction(cognitoSub, groups, claimId, rawBody) {
         console.error("Rollback failed:", rollbackError);
       }
     }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function autoPayClaim(claimId) {
+  if (!isUuid(claimId)) {
+    return {
+      success: false,
+      message: "Invalid claimId",
+    };
+  }
+
+  const client = await pool.connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query("BEGIN");
+    transactionStarted = true;
+
+    // Lock claim to prevent duplicate payment
+    const {
+      rows: [claim],
+    } = await client.query(
+      `
+        SELECT id, status
+        FROM claim
+        WHERE id = $1::uuid
+        FOR UPDATE
+      `,
+      [claimId],
+    );
+
+    if (!claim) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+
+      return {
+        success: false,
+        message: "Claim not found",
+      };
+    }
+
+    // Only Approved claims can become Paid
+    if (Number(claim.status) !== 3) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+
+      return {
+        success: true,
+        message: "Claim is not awaiting payment",
+        status: Number(claim.status),
+      };
+    }
+
+    const {
+      rows: [updated],
+    } = await client.query(
+      `
+        UPDATE claim
+        SET
+          status = 6,
+          paid_at = NOW()
+        WHERE id = $1::uuid
+          AND status = 3
+        RETURNING id, status, paid_at
+      `,
+      [claimId],
+    );
+
+    if (!updated) {
+      throw new Error("Unable to update claim to Paid");
+    }
+
+    // Record automatic payment in audit log
+    await writeAuditLog(client, {
+      claimId,
+      action: "AUTO_PAY",
+      actorSub: null,
+      groups: ["SYSTEM"],
+      fromStatus: 3,
+      toStatus: 6,
+      comment: "Automatically changed to Paid",
+    });
+
+    await client.query("COMMIT");
+    transactionStarted = false;
+
+    return {
+      success: true,
+      message: "Claim automatically marked as Paid",
+      claim: updated,
+    };
+  } catch (error) {
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
+
+    console.error("[AUTO_PAY_ERROR]", error);
 
     throw error;
   } finally {
@@ -1445,6 +1564,21 @@ export const handler = async (event) => {
   // Handle CORS preflight before requiring Cognito authentication.
   if (event.httpMethod === "OPTIONS") {
     return respond(200, {});
+  }
+
+  // Handle internal Auto Pay event
+  if (event.source === "cs361.claim.autopay" && event.detail?.claimId) {
+    try {
+      const result = await autoPayClaim(event.detail.claimId);
+
+      return {
+        statusCode: result.success ? 200 : 400,
+        body: JSON.stringify(result),
+      };
+    } catch (error) {
+      console.error("[AUTO_PAY_EVENT_ERROR]", error);
+      throw error;
+    }
   }
 
   const claims = event.requestContext?.authorizer?.claims;
