@@ -2,7 +2,7 @@
 -- CS361 Teaching Compensation Claim System
 -- 001 : โครงสร้างฐานข้อมูล (schema) ฉบับรวม
 --
---   รวมผลของ migration 001–017 เดิม (เก็บไว้ที่ migrations/_archive/)
+--   รวมผลของ migration 001–017 เดิม และ 004_academic_year_budget (เก็บไว้ที่ migrations/_archive/)
 --   ใช้กับ "ฐานข้อมูลใหม่ที่ว่างเปล่า" เท่านั้น
 --     psql "$DATABASE_URL" -f 001_schema.sql
 --     psql "$DATABASE_URL" -f 002_seed.sql
@@ -38,12 +38,23 @@ COMMENT ON COLUMN app_user.bank_account_no IS 'เลขบัญชีรับ
 -- ------------------------------------------------------------
 -- ข้อมูลอ้างอิงการเรียนการสอน
 -- ------------------------------------------------------------
+-- งบประมาณรายปี (ปี พ.ศ. เป็น PK ให้ academic_term.year อ้างอิง)
+CREATE TABLE academic_year (
+  year    INT PRIMARY KEY,                                    -- ปี พ.ศ. เช่น 2569
+  budget  NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (budget >= 0) -- งบประมาณของปี (บาท)
+);
+
+COMMENT ON TABLE  academic_year        IS 'งบประมาณรายปีการศึกษา';
+COMMENT ON COLUMN academic_year.year   IS 'ปี พ.ศ. (อ้างอิงจาก academic_term.year)';
+COMMENT ON COLUMN academic_year.budget IS 'งบประมาณค่าตอบแทนของปีนั้น (บาท)';
+
 CREATE TABLE academic_term (
   id          SERIAL PRIMARY KEY,
   year        INT  NOT NULL,                            -- ปี พ.ศ. เช่น 2569
   semester    INT  NOT NULL CHECK (semester IN (1, 2, 3)),
   start_date  DATE NOT NULL,                            -- วันที่เป็น ค.ศ.
   end_date    DATE NOT NULL,
+  CONSTRAINT academic_term_year_fkey FOREIGN KEY (year) REFERENCES academic_year (year),
   UNIQUE (year, semester)
 );
 

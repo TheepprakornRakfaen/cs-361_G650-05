@@ -134,11 +134,22 @@ async function getCourses(cognitoSub, termId, all) {
             ss.role,                                           -- INSTRUCTOR / TA (NULL ถ้า all=true แล้วไม่ได้สอน)
             COALESCE(ss.hour, 0)::float                          AS hour,           -- ผู้ใช้คนนี้เบิกไปแล้ว
             COALESCE(ss.max_hour, 0)::float                      AS max_hour,       -- โควตาของผู้ใช้คนนี้
-            (COALESCE(ss.max_hour, 0) - COALESCE(ss.hour, 0))::float AS remaining_hour  -- เหลือ
+            (COALESCE(ss.max_hour, 0) - COALESCE(ss.hour, 0))::float AS remaining_hour, -- เหลือ
+            -- รวมทุกคนใน section (ใช้ในหน้าจัดการระบบ)
+            agg.staff_count,
+            agg.section_max_hour,
+            agg.section_used_hour
        FROM section s
        JOIN course         co ON co.id = s.course_id
        JOIN academic_term  t  ON t.id  = s.term_id
        LEFT JOIN section_staff  ss ON ss.section_id = s.id AND ss.user_id = $1
+       LEFT JOIN LATERAL (
+            SELECT count(*)::int                         AS staff_count,
+                   COALESCE(sum(a.max_hour), 0)::float   AS section_max_hour,
+                   COALESCE(sum(a.hour), 0)::float       AS section_used_hour
+              FROM section_staff a
+             WHERE a.section_id = s.id
+       ) agg ON true
       WHERE ($2::int IS NULL OR s.term_id = $2)
         AND ($3 OR ss.user_id IS NOT NULL)
       ORDER BY t.year DESC, t.semester DESC, co.code, s.section_no`,

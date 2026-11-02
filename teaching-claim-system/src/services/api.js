@@ -240,11 +240,19 @@ export function getTerms() {
  * =====================
  */
 
-export function getPeriods(termId) {
-  const query =
-    termId !== undefined && termId !== null && termId !== ""
-      ? `?term_id=${encodeURIComponent(termId)}`
-      : "";
+// all = true → ทุกรอบ ไม่ว่าจะเปิดหรือปิด (หน้าจัดการระบบ)
+export function getPeriods(termId, { all = false } = {}) {
+  const params = new URLSearchParams();
+
+  if (termId !== undefined && termId !== null && termId !== "") {
+    params.set("term_id", termId);
+  }
+
+  if (all) {
+    params.set("all", "true");
+  }
+
+  const query = params.toString() ? `?${params}` : "";
 
   return apiRequest(`/api/period${query}`, {
     method: "GET",
@@ -257,14 +265,62 @@ export function getPeriods(termId) {
  * =====================
  */
 
-export function getCourses(termId) {
-  const query =
-    termId !== undefined && termId !== null && termId !== ""
-      ? `?term_id=${encodeURIComponent(termId)}`
-      : "";
+// all = true → ทุก section ในระบบ (ไม่กรองตามผู้สอน) ใช้ในหน้าจัดการระบบ
+export function getCourses(termId, { all = false } = {}) {
+  const params = new URLSearchParams();
+
+  if (termId !== undefined && termId !== null && termId !== "") {
+    params.set("term_id", termId);
+  }
+
+  if (all) {
+    params.set("all", "true");
+  }
+
+  const query = params.toString() ? `?${params}` : "";
 
   return apiRequest(`/api/courses${query}`, {
     method: "GET",
+  });
+}
+
+/*
+ * =====================
+ * Admin master data (เฉพาะ ADMIN) — Lambda ClaimAdminMasterData
+ * =====================
+ */
+
+// คืน { users: [{ user_id, username, name }] }
+export function getAdminUsers() {
+  return apiRequest("/api/admin/users", { method: "GET" });
+}
+
+// { course_code, course_name_th, course_name_en, term_id, section_no } → { section_id }
+export function createSection(payload) {
+  return apiRequest("/api/admin/sections", { method: "POST", body: payload });
+}
+
+export function deleteSection(sectionId) {
+  return apiRequest(`/api/admin/sections/${encodeURIComponent(sectionId)}`, {
+    method: "DELETE",
+  });
+}
+
+// คืน { staff: [{ section_id, user_id, username, name, role, hour, max_hour }] }
+export function getSectionStaff(sectionId) {
+  const query = sectionId ? `?section_id=${encodeURIComponent(sectionId)}` : "";
+  return apiRequest(`/api/admin/section-staff${query}`, { method: "GET" });
+}
+
+// { section_id, user_id, role: INSTRUCTOR|TA, max_hour } — เพิ่มหรือแก้ (upsert)
+export function saveSectionStaff(payload) {
+  return apiRequest("/api/admin/section-staff", { method: "PUT", body: payload });
+}
+
+export function removeSectionStaff(sectionId, userId) {
+  return apiRequest("/api/admin/section-staff", {
+    method: "DELETE",
+    body: { section_id: sectionId, user_id: userId },
   });
 }
 

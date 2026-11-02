@@ -6,6 +6,7 @@
 |---|---|---|
 | [`ClaimCRUDUser/`](ClaimCRUDUser/) | `POST /api/auth/me` | สร้าง/อัปเดตผู้ใช้ใน `app_user` และคืนกลุ่ม |
 | [`ClaimsPeriodTermCourses/`](ClaimsPeriodTermCourses/) | `GET /api/term`, `/api/period`, `/api/courses` | ข้อมูลอ้างอิงสำหรับฟอร์มยื่น |
+| [`ClaimAdminMasterData/`](ClaimAdminMasterData/) | `/api/admin/{proxy+}` (ANY) | ADMIN: เพิ่ม/ลบ section, จัดการผู้สอน (`section_staff`), รายชื่อผู้ใช้ |
 | [`ClaimUserRequest/`](ClaimUserRequest/) | `/api/claims` (GET/POST/DELETE) | สร้าง ดู ลบ คำขอของผู้ยื่น + คิวตรวจ |
 | [`ClaimReview/`](ClaimReview/) | `/api/claims/{id}/resend\|pass\|return\|approve\|reject` | ส่งใหม่ ตรวจสอบและอนุมัติ |
 | [`ClaimWorkflowAPI/`](ClaimWorkflowAPI/) | `/actions`, `/history`, `/batch-actions`, `/api/audit-logs` | ยังไม่มีโค้ด (stub 501) |
