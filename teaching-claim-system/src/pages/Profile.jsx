@@ -282,6 +282,7 @@ export default function Profile({
     const result = {
       Draft: 0,
       Submitted: 0,
+      Reviewed: 0,
       Returned: 0,
       Approved: 0,
       Paid: 0,
