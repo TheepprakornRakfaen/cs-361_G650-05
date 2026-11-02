@@ -69,7 +69,7 @@
 
 ## 4. ฐานข้อมูล (Database)
 
-![CS361 Database Schema](docs/database/V5_Databaseschema.png)
+![CS361 Database Schema](docs/database/V4_Databaseschema.png)
 
 - สคริปต์ฐานข้อมูลอยู่ใน [docs/database/migrations/](docs/database/migrations/): `001_schema.sql` (โครงสร้างทั้งหมด) แล้วตามด้วย `002_seed.sql` (ข้อมูลตัวอย่าง) ส่วน migration เดิม 001–017 เก็บไว้ที่ `_archive/`
 - ผู้ใช้ใน Cognito เป็นแหล่งข้อมูลหลัก ส่วนตาราง `app_user` เป็นเพียงสำเนาบางส่วน โดยใช้ `cognito_sub` เป็นคีย์
@@ -149,7 +149,7 @@ cs-361_G650-05/
 | `docs/api/` | เอกสาร API: `README.md` (ภาพรวม, สถานะ, error) และ `endpoints.md` (request/response แต่ละ endpoint) |
 | `docs/AWS_Architecture/` | เอกสารสถาปัตยกรรม: `AWS_Architecture.md` (อธิบายแต่ละ service) และ `CS361 - V3.png` (ภาพ architecture) |
 | `docs/DataFlow/` | แผนภาพขั้นตอนการใช้งาน `claim_user_flow.png` / `.svg` |
-| `docs/database/` | ภาพ ER diagram `V5_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` (รุ่นเก่า `V3_Databaseschema.png`, `V4_Databaseschema.png`) |
+| `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` (รุ่นเก่า `V3_Databaseschema.png`) |
 | `docs/database/migrations/` | SQL สร้างฐานข้อมูล: `001_schema.sql` + `002_seed.sql` และ `003_...` เป็นต้นไป (ตารางด้านล่าง) |
 | `docs/testing/` | สคริปต์ทดสอบสิทธิ์และความปลอดภัย `rbac_security_test.sh` |
 
@@ -160,13 +160,12 @@ cs-361_G650-05/
 | `001_schema.sql` | สร้างตาราง ดัชนี และ view `claim_amount` ทั้งหมดในครั้งเดียว (เทียบเท่า migration เดิม 001–017 รวมกัน) |
 | `002_seed.sql` | ข้อมูลตัวอย่าง: ผู้ใช้ placeholder, ภาคการศึกษา, รายวิชา, section, `section_staff` (พร้อม `max_hour`), รอบเบิก, ประเภทค่าตอบแทน 2 แบบ |
 | `003_claim_paid_status.sql` | เพิ่มสถานะคำร้อง 6 = จ่ายเงินแล้ว (รันกับ RDS ที่ใช้ `001_schema.sql` ได้) |
-| `004_academic_year_budget.sql` | ตาราง `academic_year` (`year` เป็น PK + `budget` งบประมาณรายปี) และให้ `academic_term.year` อ้างอิงมาที่นี่ (ฐานข้อมูลใหม่ได้ผลนี้จาก 001 แล้ว ไม่ต้องรันไฟล์นี้) |
 | `_archive/` | migration เดิม 001–017 เก็บไว้อ้างอิงประวัติ ไม่ต้องรันอีก |
 
 - ฐานข้อมูลใหม่ (ว่าง): รัน `001_schema.sql` แล้ว `002_seed.sql`
 - RDS ที่รัน migration เดิมถึง 017 แล้ว: **ไม่ต้องรันซ้ำ** (โครงสร้างเท่ากัน)
-- RDS ที่อยู่ที่ 017: รัน `003_claim_paid_status.sql` และ `004_academic_year_budget.sql` ตามลำดับ
-- แก้โครงสร้างครั้งต่อไป: เพิ่มไฟล์ `005_...sql` เป็นต้นไป แล้วอัปเดต `001_schema.sql` ให้ตรงกันถ้าต้องการให้ฐานข้อมูลใหม่ได้โครงสร้างล่าสุด
+- RDS ที่อยู่ที่ 017: รัน `003_claim_paid_status.sql`
+- แก้โครงสร้างครั้งต่อไป: เพิ่มไฟล์ `004_...sql` เป็นต้นไป แล้วอัปเดต `001_schema.sql` ให้ตรงกันถ้าต้องการให้ฐานข้อมูลใหม่ได้โครงสร้างล่าสุด
 
 ### สคริปต์ AWS (`script/`)
 

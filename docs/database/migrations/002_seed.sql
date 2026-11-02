@@ -18,11 +18,6 @@ INSERT INTO app_user (cognito_sub, username, name) VALUES
   ('00000000-0000-4000-8000-000000000003', 'ta01@example.com',      'ธนกฤต ขยันยิ่ง'),
   ('00000000-0000-4000-8000-000000000004', 'ta02@example.com',      'พิมพ์ชนก ช่วยงาน');
 
--- งบประมาณรายปี (ตัวเลขสมมติ แก้ตามจริงภายหลัง)
-INSERT INTO academic_year (year, budget) VALUES
-  (2568, 500000.00),
-  (2569, 600000.00);
-
 -- ภาคการศึกษา
 INSERT INTO academic_term (id, year, semester, start_date, end_date) VALUES
   (1, 2568, 2, '2026-01-12', '2026-05-15'),

@@ -1,6 +1,5 @@
 erDiagram
     course ||--o{ section : "has"
-    academic_year ||--o{ academic_term : "has"
     academic_term ||--o{ section : "has"
     academic_term ||--o{ claim_period : "has"
     section ||--o{ section_staff : "staffed by"
@@ -24,13 +23,9 @@ erDiagram
         TIMESTAMPTZ created_at
         TIMESTAMPTZ synced_at
     }
-    academic_year {
-        INT year PK
-        NUMERIC budget
-    }
     academic_term {
         SERIAL id PK
-        INT year UK,FK
+        INT year UK
         INT semester UK
         DATE start_date
         DATE end_date
