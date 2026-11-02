@@ -170,7 +170,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
     [],
   );
 
-  // "1/2569" — ตรงกับ claim.termLabel ที่ใช้กรอง
+  // "1/2569" — ตรงกับ claimTerm() ที่ใช้กรอง
   const terms = useMemo(
     () =>
       apiTerms
@@ -252,10 +252,10 @@ function SummaryReport({ claims, canExport, canViewPII }) {
     const map = new Map();
 
     filtered.forEach((c) => {
-      const key = `${c.termLabel || "-"}|${c.periodMonth ?? ""}`;
+      const key = `${claimTerm(c) || "-"}|${c.periodMonth ?? ""}`;
       const row = map.get(key) || {
         key,
-        term: c.termLabel || "-",
+        term: claimTerm(c) || "-",
         month: c.periodMonth ?? "-",
         count: 0,
         hours: 0,
@@ -346,7 +346,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
         claimTypeName(c),
         canViewPII ? c.claimantName : "ปกปิดข้อมูล",
         c.courseCode,
-        c.termLabel,
+        claimTerm(c),
         c.periodMonth ?? "",
         claimDate(c),
         c.hours,
