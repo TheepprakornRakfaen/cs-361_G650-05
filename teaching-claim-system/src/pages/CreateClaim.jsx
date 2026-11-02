@@ -32,7 +32,7 @@ import {
   roundMoney,
 } from "../utils/time";
 import { HOURLY_RATE } from "../data/rates";
-import { downloadSignForm, printSignForm } from "../utils/signForm";
+import { downloadSignFormPdf, printSignForm } from "../utils/signForm";
 import { getClaimEvidence, getCompensationTypes } from "../services/api";
 import { getCompType } from "../services/claimMapper";
 import { STATUS } from "../data/workflow";
@@ -1441,20 +1441,20 @@ export default function CreateClaim({
                     ? "TA ดาวน์โหลดเอกสารนี้ → พิมพ์ → นำไปให้อาจารย์ผู้สอนลงนามรับรอง → สแกนแล้วแนบกลับด้านล่าง"
                     : "ดาวน์โหลดเอกสารนี้ → พิมพ์ → ลงนาม (และให้ผู้มีอำนาจลงนามรับรอง) → สแกนแล้วแนบกลับด้านล่าง"}
                   {" "}
-                  ข้อมูลในเอกสารมาจากคำขอนี้ หากแก้ไขวันสอน/ชั่วโมงภายหลัง ต้องดาวน์โหลดและลงนามใหม่
+                  หรือกด “เปิดเพื่อพิมพ์” เพื่อใช้ฉบับที่กรอกข้อมูลจากคำขอนี้ไว้ให้แล้ว หากแก้ไขวันสอน/ชั่วโมงภายหลัง ต้องลงนามใหม่
                 </p>
 
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => downloadSignForm(buildSignFormData())}
+                    onClick={downloadSignFormPdf}
                     className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                     }}
                   >
                     <Download size={15} />
-                    ดาวน์โหลดเอกสารลงนาม
+                    ดาวน์โหลดเอกสารลงนาม (PDF)
                   </button>
 
                   <button
@@ -1464,7 +1464,7 @@ export default function CreateClaim({
                     style={{ borderColor: C.teal, color: C.tealDark }}
                   >
                     <Printer size={15} />
-                    เปิดเพื่อพิมพ์ / บันทึก PDF
+                    เปิดเพื่อพิมพ์ (กรอกข้อมูลให้แล้ว)
                   </button>
                 </div>
               </div>

@@ -37,8 +37,7 @@ import {
   formatDuration,
   formatThaiDate,
 } from "../utils/time";
-import { downloadSignForm } from "../utils/signForm";
-import { getCompType } from "../services/claimMapper";
+import { downloadSignFormPdf } from "../utils/signForm";
 import { detectClaimAnomalies } from "../utils/anomalyDetector";
 
 import {
@@ -563,27 +562,6 @@ export default function ClaimDetail({
   const signedItems = evidenceItems.filter((item) => item.isSigned);
   const supportItems = evidenceItems.filter((item) => !item.isSigned);
 
-  // เอกสารลงนามสร้างจากข้อมูลคำขอที่ยื่นจริง (มีเลขที่คำขอกำกับ)
-  const signFormData = {
-    claimantName: claim.claimantName || user?.name || "",
-    claimantRole:
-      getCompType(claim.claimantRole || user?.roleKey) === "TA"
-        ? "ผู้ช่วยสอน (TA)"
-        : getCompType(claim.claimantRole || user?.roleKey) === "TEACHER"
-          ? "อาจารย์ผู้สอน"
-          : user?.role || "",
-    roleKey: getCompType(claim.claimantRole || user?.roleKey),
-    courseCode: claim.courseCode,
-    courseName: course?.name || claim.courseName || "",
-    sectionNo: course?.section_no || "",
-    semester: claim.termLabel || claim.semester || "",
-    round: claim.round || claim.month || "",
-    sessions,
-    rate: claim.rate,
-    notes: claim.notes,
-    claimCode: claim.code || claim.id,
-  };
-
   // เจ้าของคำขอที่ยังแก้ไข/แนบได้ ดาวน์โหลดแบบฟอร์มไปลงนามได้
   const canDownloadForm =
     canViewFinance &&
@@ -737,7 +715,7 @@ export default function ClaimDetail({
             {canDownloadForm && (
               <button
                 type="button"
-                onClick={() => downloadSignForm(signFormData)}
+                onClick={downloadSignFormPdf}
                 className="no-print flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-opacity hover:opacity-80"
                 style={{
                   borderColor: C.border,
