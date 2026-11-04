@@ -682,7 +682,9 @@ export default function CreateClaim({
       return;
     }
 
-    // ไปขั้นตรวจสอบได้แม้ยังไม่แนบ (บันทึกร่างได้) แต่จะยื่นจริงไม่ได้จนกว่าจะแนบเอกสารลงนาม
+    if (step === 3 && !validateStep3()) {
+      return;
+    }
 
     setStep((current) => Math.min(4, current + 1));
   }

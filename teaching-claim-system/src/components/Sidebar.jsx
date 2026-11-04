@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { C } from "../theme";
-import { canAccessView, getQueueLabel } from "../data/roles";
+import { canAccessView } from "../data/roles";
 
 export const NAV_ITEMS = [
   { id: "home", label: "หน้าแรก", icon: Home },
@@ -26,8 +26,8 @@ export const NAV_ITEMS = [
   { id: "assignments", label: "งานสอน", icon: BookOpen, requiresLogin: true },
   { id: "myclaims", label: "คำขอของฉัน", icon: ClipboardList, requiresLogin: true },
   { id: "create", label: "สร้างคำขอ", icon: FilePlus2, requiresLogin: true },
-  // [V3] เห็นเฉพาะผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ (ดู VIEW_PERMISSION ใน data/roles.js)
-  { id: "admin", label: "ภาพรวมระบบ", icon: Gauge, requiresLogin: true, staffOnly: true },
+  // [V3][V4] สำหรับผู้ตรวจสอบ / ผู้อนุมัติ / ผู้ดูแลระบบ — ใช้ชื่อและไอคอน "แดชบอร์ด" ให้สอดคล้องกันทุกบทบาท
+  { id: "admin", label: "แดชบอร์ด", icon: LayoutDashboard, requiresLogin: true, staffOnly: true },
   { id: "review", label: "ตรวจสอบ / อนุมัติ", icon: ClipboardCheck, requiresLogin: true, staffOnly: true },
   { id: "report", label: "รายงานสรุปยอดเบิก", icon: Wallet, requiresLogin: true, staffOnly: true },
   { id: "auditlog", label: "ประวัติการดำเนินการ", icon: History, requiresLogin: true, staffOnly: true },
@@ -203,12 +203,7 @@ export default function Sidebar({
                         : ""
                     }
                   >
-                    {
-                      // ผู้ตรวจสอบเห็น "ตรวจสอบ" ผู้อนุมัติเห็น "อนุมัติ" ผู้ดูแลระบบเห็น "คำขอทั้งหมด"
-                      item.id === "review" && isLoggedIn
-                        ? getQueueLabel(user)
-                        : item.label
-                    }
+                    {item.label}
                   </span>
 
                   {/* แม่กุญแจ = ต้องเข้าสู่ระบบก่อน */}

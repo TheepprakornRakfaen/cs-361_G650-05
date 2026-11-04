@@ -4,6 +4,7 @@
  */
 import { getDevUser } from "./devAuth";
 import { PERMISSION as P, can, maskEmail } from "../data/roles";
+import { loadProfileEdits } from "../data/profile";
 
 const DAY = 86400000;
 const now = Date.now();
@@ -141,16 +142,63 @@ const PEOPLE = [
     bank_name: "ธนาคารออมสิน",
     bank_account_no: "0203040506",
   },
+  // ผู้ใช้จาก Database Seed (002_seed.sql / 014_app_user_bank_account.sql)
+  {
+    sub: "00000000-0000-4000-8000-000000000001",
+    name: "สมชาย ใจดี",
+    email: "teacher01@example.com",
+    role: "TEACHER",
+    bank_name: "ธนาคารกรุงไทย",
+    bank_account_no: "1234567890",
+  },
+  {
+    sub: "00000000-0000-4000-8000-000000000002",
+    name: "สมหญิง รักเรียน",
+    email: "teacher02@example.com",
+    role: "TEACHER",
+    bank_name: "ธนาคารไทยพาณิชย์",
+    bank_account_no: "4051122334",
+  },
+  {
+    sub: "00000000-0000-4000-8000-000000000003",
+    name: "วิชัย เก่งการ",
+    email: "ta01@example.com",
+    role: "TA",
+    bank_name: "ธนาคารกสิกรไทย",
+    bank_account_no: "7889900112",
+  },
+  {
+    sub: "00000000-0000-4000-8000-000000000004",
+    name: "กานดา สดใส",
+    email: "ta02@example.com",
+    role: "TA",
+    bank_name: "ธนาคารกรุงเทพ",
+    bank_account_no: "1472583690",
+  },
 ];
 
 /*
  * บัญชีรับเงินของเจ้าของคำขอ (ปลายทางการจ่ายเงิน)
  * จริง ๆ backend จะดึงจากโปรไฟล์ผู้ใช้ (ตาราง app_user) ของเจ้าของคำขอ
- * ที่นี่จำลองด้วยการ map จาก owner_sub → PEOPLE
+ * ที่นี่จำลองด้วยการ map จาก owner_sub / claimant_email → PEOPLE หรือ profile edits
  * ถ้าไม่พบ ใช้บัญชีเริ่มต้นเพื่อให้ยังสาธิตการจ่ายเงินได้
  */
 function resolvePayoutAccount(claim) {
-  const person = PEOPLE.find((p) => p.sub === claim.owner_sub);
+  const username = claim.claimant_email?.split("@")[0] || claim.owner_sub;
+  const savedEdits = loadProfileEdits(username);
+  if (savedEdits?.bankName && savedEdits?.bankAccount) {
+    return {
+      bank_name: savedEdits.bankName,
+      account_no: savedEdits.bankAccount,
+    };
+  }
+
+  const person = PEOPLE.find(
+    (p) =>
+      p.sub === claim.owner_sub ||
+      (claim.claimant_email && p.email?.toLowerCase() === claim.claimant_email?.toLowerCase()) ||
+      (claim.claimant_name && p.name === claim.claimant_name)
+  );
 
   return {
     bank_name: person?.bank_name || "ธนาคารกรุงไทย",

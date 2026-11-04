@@ -89,7 +89,9 @@ function ownClaimNotification(claim) {
         kind: "paid",
         title: `คำขอ ${claimLabel(claim)} จ่ายเงินแล้ว`,
         description: `${course}ยอด ${baht(claim.amount)} บาท${
-          claim.paidAccountMasked ? ` · เข้าบัญชี ${claim.paidAccountMasked}` : ""
+          claim.paidBankName || claim.paidAccountMasked
+            ? ` · โอนเข้าบัญชี ${claim.paidBankName ? `${claim.paidBankName} ` : ""}เลขที่ ${claim.paidAccountMasked || "-"}`
+            : ""
         }`,
       };
     case "Rejected":

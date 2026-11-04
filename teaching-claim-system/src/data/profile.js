@@ -7,6 +7,7 @@
  */
 
 import { FACULTIES, getDepartments } from "./faculties";
+import { MOCK_USERS } from "./users";
 
 const storageKey =(username) => `teaching-claim:profile:${username}`;
 
@@ -49,12 +50,18 @@ export function saveProfileEdits(username, edits) {
   return data;
 }
 
-// รวมข้อมูลที่แก้ไว้เข้ากับ user จาก Cognito
+// รวมข้อมูลที่แก้ไว้เข้ากับ user จาก Cognito / ข้อมูลเริ่มต้นจาก Mock Database
 export function applyProfileEdits(user) {
   if (!user) return user;
 
+  const defaultMock = MOCK_USERS.find(
+    (u) =>
+      (user.email && u.email?.toLowerCase() === user.email.toLowerCase()) ||
+      (user.username && u.username?.toLowerCase() === user.username.toLowerCase())
+  );
+
   const edits = loadProfileEdits(user.username);
-  const merged = { ...user };
+  const merged = { ...defaultMock, ...user };
 
   EDITABLE_FIELDS.forEach((field) => {
     if (edits[field]) merged[field] = edits[field];

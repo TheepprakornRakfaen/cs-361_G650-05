@@ -11,6 +11,7 @@
  * TODO: ลบไฟล์นี้กับ devMockApi.js เมื่อ Cognito พร้อมใช้งาน
  */
 import { ROLE, resolveRoles, getRoleLabel } from "../data/roles";
+import { MOCK_USERS } from "../data/users";
 
 export const DEV_AUTH_BYPASS =
   import.meta.env.DEV &&
@@ -32,17 +33,19 @@ export const DEV_ROLE_OPTIONS = Object.keys(DEV_PROFILES).map((role) => ({
   label: getRoleLabel(role),
 }));
 
-// บัญชีทดสอบจริงตามสถานการณ์ทดสอบ TC1 และ TC2 (พี่ฟิว, พี่จูน, อ.วิรัตน์)
+// บัญชีทดสอบจริงตามสถานการณ์ทดสอบ TC1 และ TC2 (พี่ฟิว, พี่จูน, อ.วิรัตน์, อ.สมชาย)
 const TEST_PROFILES = {
   TEST_WIRAT: { group: "TEACHER", name: "อ.วิรัตน์ ยิ่งมงคลเจริญ", email: "wirat@tu.ac.th", sub: "dev-wirat" },
   TEST_FEW: { group: "TA", name: "พี่ฟิว (ผู้ช่วยสอน TA)", email: "few@tu.ac.th", sub: "dev-few" },
   TEST_JUNE: { group: "TA", name: "พี่จูน (ผู้ช่วยสอน TA)", email: "june@tu.ac.th", sub: "dev-june" },
+  TEST_TEACHER01: { group: "TEACHER", name: "สมชาย ใจดี", email: "teacher01@example.com", sub: "00000000-0000-4000-8000-000000000001" },
 };
 
 export const DEV_TEST_ACCOUNT_OPTIONS = [
   { role: "TEST_WIRAT", label: "อ.วิรัตน์ (อาจารย์ผู้สอน)" },
   { role: "TEST_FEW", label: "พี่ฟิว (ผู้ช่วยสอน TA)" },
   { role: "TEST_JUNE", label: "พี่จูน (ผู้ช่วยสอน TA)" },
+  { role: "TEST_TEACHER01", label: "อ.สมชาย (teacher01@example.com)" },
 ];
 
 export function buildDevUser(role) {
@@ -52,13 +55,24 @@ export function buildDevUser(role) {
 
   const groups = [profile.group];
   const { roles, primary } = resolveRoles(groups);
+  const mock = MOCK_USERS.find(
+    (u) =>
+      u.email?.toLowerCase() === profile.email.toLowerCase() ||
+      u.username?.toLowerCase() === profile.email.split("@")[0].toLowerCase()
+  );
 
   return {
     username: profile.email.split("@")[0],
     cognitoSub: profile.sub || `dev-${role.toLowerCase()}`,
     email: profile.email,
     name: profile.name,
-    firstName: profile.name,
+    firstName: mock?.firstName || profile.name,
+    staffId: mock?.staffId || "",
+    faculty: mock?.faculty || "",
+    department: mock?.department || "",
+    phone: mock?.phone || "",
+    bankName: mock?.bankName || "",
+    bankAccount: mock?.bankAccount || "",
     role: getRoleLabel(primary),
     roleKey: primary,
     roles,

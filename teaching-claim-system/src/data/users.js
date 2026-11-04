@@ -69,6 +69,59 @@ export const MOCK_USERS = [
     bankName: "ธนาคารออมสิน",
     bankAccount: "0203040506",
   },
+  // ผู้ใช้จาก Database Seed (002_seed.sql / 014_app_user_bank_account.sql)
+  {
+    username: "teacher01",
+    email: "teacher01@example.com",
+    name: "สมชาย ใจดี",
+    firstName: "สมชาย",
+    role: "อาจารย์ผู้สอน",
+    staffId: "T6500001",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "02-564-4440 ต่อ 2001",
+    bankName: "ธนาคารกรุงไทย",
+    bankAccount: "1234567890",
+  },
+  {
+    username: "teacher02",
+    email: "teacher02@example.com",
+    name: "สมหญิง รักเรียน",
+    firstName: "สมหญิง",
+    role: "อาจารย์ผู้สอน",
+    staffId: "T6500002",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "02-564-4440 ต่อ 2002",
+    bankName: "ธนาคารไทยพาณิชย์",
+    bankAccount: "4051122334",
+  },
+  {
+    username: "ta01_ex",
+    email: "ta01@example.com",
+    name: "วิชัย เก่งการ",
+    firstName: "วิชัย",
+    role: "ผู้ช่วยสอน (TA)",
+    staffId: "6509610001",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "081-999-0001",
+    bankName: "ธนาคารกสิกรไทย",
+    bankAccount: "7889900112",
+  },
+  {
+    username: "ta02",
+    email: "ta02@example.com",
+    name: "กานดา สดใส",
+    firstName: "กานดา",
+    role: "ผู้ช่วยสอน (TA)",
+    staffId: "6509610002",
+    faculty: "คณะวิทยาศาสตร์และเทคโนโลยี",
+    department: "สาขาวิชาวิทยาการคอมพิวเตอร์",
+    phone: "081-999-0002",
+    bankName: "ธนาคารกรุงเทพ",
+    bankAccount: "1472583690",
+  },
 ];
 
 /*
@@ -105,6 +158,18 @@ export const MOCK_ASSIGNMENTS = {
   ta01: [
     { courseCode: "CS101", position: "lecturerAssistant" },
     { courseCode: "CS102", position: "activityAssistant" },
+  ],
+  teacher01: [
+    { courseCode: "CS101", position: "lecturer", program: "thai", students: 150 },
+    { courseCode: "CS341", position: "lecturer", program: "english", students: 220 },
+    { courseCode: "CS361", position: "lecturer", program: "thai", students: 80 },
+  ],
+  teacher02: [
+    { courseCode: "CS213", position: "lecturer", program: "thai", students: 100 },
+  ],
+  ta02: [
+    { courseCode: "CS341", position: "activityAssistant" },
+    { courseCode: "CS361", position: "lecturerAssistant" },
   ],
 };
 

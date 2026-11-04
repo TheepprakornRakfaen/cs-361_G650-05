@@ -88,7 +88,7 @@ const SUBTITLE_MAP = {
   profile: "ข้อมูลส่วนตัว",
   contact: "ติดต่อเรา",
   notifications: "การแจ้งเตือน",
-  admin: "ภาพรวมระบบ",
+  admin: "แดชบอร์ด",
   review: "ตรวจสอบ / อนุมัติ",
   auditlog: "ประวัติการดำเนินการ",
   settings: "จัดการระบบและสิทธิ์",
