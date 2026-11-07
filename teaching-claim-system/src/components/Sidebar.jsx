@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { C } from "../theme";
-import { canAccessView } from "../data/roles";
+import { canAccessView, canDecideClaims } from "../data/roles";
 
 export const NAV_ITEMS = [
   { id: "home", label: "หน้าแรก", icon: Home },
@@ -203,7 +203,12 @@ export default function Sidebar({
                         : ""
                     }
                   >
-                    {item.label}
+                    {
+                      // ผู้ดูแลระบบดูได้อย่างเดียว ไม่มีสิทธิ์ตัดสิน → ป้ายเมนูไม่ควรบอกว่า "ตรวจสอบ/อนุมัติ"
+                      item.id === "review" && !canDecideClaims(user)
+                        ? "คำขอทั้งหมด"
+                        : item.label
+                    }
                   </span>
 
                   {/* แม่กุญแจ = ต้องเข้าสู่ระบบก่อน */}

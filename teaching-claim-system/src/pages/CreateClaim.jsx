@@ -683,6 +683,10 @@ export default function CreateClaim({
     }
 
     if (step === 3 && !validateStep3()) {
+      // เลื่อนหน้าจอไปที่ช่องที่มีข้อผิดพลาด
+      setTimeout(() => {
+        document.getElementById("signed-upload-zone")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
       return;
     }
 
@@ -1488,6 +1492,7 @@ export default function CreateClaim({
                 </p>
 
                 <div
+                  id="signed-upload-zone"
                   className="rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-8 px-6 text-center"
                   style={{
                     borderColor: errors.signed ? C.rose : C.border,

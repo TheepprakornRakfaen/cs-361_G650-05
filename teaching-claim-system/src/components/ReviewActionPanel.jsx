@@ -59,7 +59,7 @@ function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(15, 30, 45, 0.6)" }}
       onClick={() => !busy && onCancel()}
       role="dialog"
@@ -67,7 +67,7 @@ function ConfirmDialog({
       aria-label={action.confirmTitle}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-md p-6"
+        className="bg-white rounded-2xl w-full max-w-md p-6 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
