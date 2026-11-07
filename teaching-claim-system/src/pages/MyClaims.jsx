@@ -11,6 +11,7 @@ import {
   Trash2,
   RefreshCw,
   X,
+  Download,
 } from "lucide-react";
 
 import { C } from "../theme";
@@ -21,6 +22,7 @@ import StatusPill from "../components/StatusPill";
 import Pagination from "../components/Pagination";
 import { STATUS_STYLE } from "../theme";
 import { DELETABLE_STATUSES } from "../data/workflow";
+import { downloadCsv } from "../utils/csv";
 
 export default function MyClaims({
   claims = [],
@@ -176,6 +178,22 @@ export default function MyClaims({
     statusFilter,
   ]);
 
+  // ส่งออกรายการตามตัวกรองปัจจุบันเป็น CSV
+  const exportCsv = () => {
+    downloadCsv(
+      `คำขอของฉัน-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["รหัสคำขอ", "รายวิชา", "ภาค", "เดือน", "จำนวนเงิน", "สถานะ"],
+      filtered.map((claim) => [
+        claim.code || claim.id,
+        claim.courseCode || "",
+        claim.termLabel || "",
+        claim.month || "",
+        Number(claim.amount || 0),
+        STATUS_STYLE[claim.status]?.label || claim.status || "",
+      ])
+    );
+  };
+
   // แบ่งหน้าละ 10 รายการ
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
@@ -244,6 +262,21 @@ export default function MyClaims({
 
           <button
             type="button"
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm border bg-white transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{
+              borderColor: C.border,
+              color: C.tealDark,
+            }}
+            title="ดาวน์โหลดรายการตามตัวกรองที่เลือก"
+          >
+            <Download size={15} />
+            CSV
+          </button>
+
+          <button
+            type="button"
             onClick={goCreate}
             className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full font-semibold text-white text-sm transition-opacity hover:opacity-90"
             style={{
@@ -258,9 +291,9 @@ export default function MyClaims({
       />
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 mb-6">
         <div
-          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 max-w-md"
+          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 lg:max-w-md"
           style={{
             borderColor: C.border,
           }}
@@ -282,6 +315,7 @@ export default function MyClaims({
           />
         </div>
 
+        <div className="grid grid-cols-3 gap-2 lg:flex lg:gap-4">
         <Select
           value={termFilter}
           onChange={(e) => {
@@ -289,7 +323,7 @@ export default function MyClaims({
             // รายวิชาเดิมอาจไม่มีในภาคใหม่
             setCourseFilter("All");
           }}
-          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          className="rounded-full border pl-3 pr-2.5 lg:pl-4 lg:pr-3.5 py-2.5 text-xs lg:text-sm font-medium bg-white outline-none w-full lg:w-auto lg:min-w-[9rem]"
           style={{
             borderColor: C.border,
             color: C.ink,
@@ -311,7 +345,7 @@ export default function MyClaims({
           onChange={(e) =>
             setCourseFilter(e.target.value)
           }
-          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[9rem]"
+          className="rounded-full border pl-3 pr-2.5 lg:pl-4 lg:pr-3.5 py-2.5 text-xs lg:text-sm font-medium bg-white outline-none w-full lg:w-auto lg:min-w-[9rem]"
           style={{
             borderColor: C.border,
             color: C.ink,
@@ -333,7 +367,7 @@ export default function MyClaims({
           onChange={(e) =>
             setStatusFilter(e.target.value)
           }
-          className="rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none min-w-[10rem]"
+          className="rounded-full border pl-3 pr-2.5 lg:pl-4 lg:pr-3.5 py-2.5 text-xs lg:text-sm font-medium bg-white outline-none w-full lg:w-auto lg:min-w-[10rem]"
           style={{
             borderColor: C.border,
             color: C.ink,
@@ -349,6 +383,7 @@ export default function MyClaims({
             </option>
           ))}
         </Select>
+        </div>
 
         {(query ||
           statusFilter !== "All" ||
@@ -362,7 +397,7 @@ export default function MyClaims({
               setCourseFilter("All");
               setTermChoice(null);
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-70"
+            className="self-start lg:self-auto flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-70"
             style={{ color: C.sub }}
           >
             <X size={14} />
@@ -372,7 +407,7 @@ export default function MyClaims({
       </div>
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-7 gap-4 mb-8">
+      <div className="grid grid-cols-3 md:grid-cols-4 2xl:grid-cols-7 gap-2.5 md:gap-4 mb-6 md:mb-8">
         {statusCards.map(
           ([key, label, bg, fg]) => (
             <button
@@ -385,7 +420,7 @@ export default function MyClaims({
                     : key
                 )
               }
-              className="rounded-2xl p-5 text-left transition-transform hover:-translate-y-0.5"
+              className="rounded-2xl p-3 md:p-5 text-left transition-transform hover:-translate-y-0.5"
               style={{
                 background: bg,
                 outline:
@@ -395,14 +430,14 @@ export default function MyClaims({
               }}
             >
               <p
-                className="font-bold"
+                className="font-bold text-[11px] leading-4 md:text-base md:leading-normal min-h-[2rem] md:min-h-0"
                 style={{ color: fg }}
               >
                 {label}
               </p>
 
               <p
-                className="text-3xl font-extrabold mt-1 figure"
+                className="text-2xl md:text-3xl font-extrabold mt-1 figure"
                 style={{ color: fg }}
               >
                 {counts[key] || 0}
@@ -414,7 +449,56 @@ export default function MyClaims({
 
       {/* Claims Table */}
       <SectionCard className="overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* มือถือ: แสดงเป็นการ์ด ไม่ต้องเลื่อนตารางซ้ายขวา */}
+        <ul className="lg:hidden divide-y" style={{ borderColor: C.border }}>
+          {pageItems.map((claim) => (
+            <li key={claim.id} className="flex items-stretch" style={{ borderColor: C.border }}>
+              <button
+                type="button"
+                onClick={() => goDetail?.(claim.id)}
+                className="flex-1 min-w-0 text-left px-4 py-3.5 active:bg-[#F8FBFC]"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold [overflow-wrap:anywhere]" style={{ color: C.ink }}>
+                    #{claim.code || claim.id}
+                  </p>
+                  <span className="shrink-0">
+                    <StatusPill status={claim.status} />
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-1.5 text-xs" style={{ color: C.sub }}>
+                  <span className="truncate">
+                    {claim.courseCode || "-"} · ภาค {claim.termLabel || "-"} · {claim.month || "-"}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold figure" style={{ color: C.ink }}>
+                    ฿{Number(claim.amount || 0).toLocaleString()}
+                  </span>
+                </div>
+              </button>
+
+              {DELETABLE_STATUSES.includes(claim.status) && (
+                <button
+                  type="button"
+                  onClick={() => onDelete?.(claim)}
+                  className="shrink-0 w-12 flex items-center justify-center hover:bg-[#FBE2E2]"
+                  style={{ color: C.red }}
+                  aria-label={`ลบแบบร่าง #${claim.code || claim.id}`}
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </li>
+          ))}
+
+          {filtered.length === 0 && (
+            <li className="px-6 py-10 text-center">
+              <p className="text-sm font-medium" style={{ color: C.ink }}>ไม่พบคำขอ</p>
+              <p className="text-xs mt-1" style={{ color: C.sub }}>ลองเปลี่ยนคำค้นหาหรือตัวกรองสถานะ</p>
+            </li>
+          )}
+        </ul>
+
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr
@@ -432,7 +516,7 @@ export default function MyClaims({
                 ].map((heading) => (
                   <th
                     key={heading}
-                    className="px-6 py-4 font-semibold whitespace-nowrap"
+                    className="px-4 py-4 font-semibold whitespace-nowrap"
                   >
                     {heading}
                   </th>
@@ -447,13 +531,17 @@ export default function MyClaims({
                   onClick={() =>
                     goDetail?.(claim.id)
                   }
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target === e.currentTarget) goDetail?.(claim.id);
+                  }}
                   className="border-t cursor-pointer hover:bg-[#F8FBFC] transition-colors"
                   style={{
                     borderColor: C.border,
                   }}
                 >
                   <td
-                    className="px-6 py-4 font-semibold whitespace-nowrap"
+                    className="px-4 py-4 font-semibold whitespace-nowrap"
                     style={{
                       color: C.ink,
                     }}
@@ -462,7 +550,7 @@ export default function MyClaims({
                   </td>
 
                   <td
-                    className="px-6 py-4 whitespace-nowrap"
+                    className="px-4 py-4 whitespace-nowrap"
                     style={{
                       color: C.ink,
                     }}
@@ -471,7 +559,7 @@ export default function MyClaims({
                   </td>
 
                   <td
-                    className="px-6 py-4 whitespace-nowrap"
+                    className="px-4 py-4 whitespace-nowrap"
                     style={{
                       color: C.sub,
                     }}
@@ -480,7 +568,7 @@ export default function MyClaims({
                   </td>
 
                   <td
-                    className="px-6 py-4 whitespace-nowrap"
+                    className="px-4 py-4 whitespace-nowrap"
                     style={{
                       color: C.sub,
                     }}
@@ -489,7 +577,7 @@ export default function MyClaims({
                   </td>
 
                   <td
-                    className="px-6 py-4 whitespace-nowrap figure"
+                    className="px-4 py-4 whitespace-nowrap figure"
                     style={{
                       color: C.ink,
                     }}
@@ -500,13 +588,13 @@ export default function MyClaims({
                     ).toLocaleString()}
                   </td>
 
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-4">
                     <StatusPill
                       status={claim.status}
                     />
                   </td>
 
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-4 text-right">
                     {DELETABLE_STATUSES.includes(claim.status) && (
                       <button
                         type="button"

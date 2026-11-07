@@ -364,7 +364,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
           เงื่อนไขรายงาน
         </p>
 
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-3">
           <label className="text-xs font-semibold" style={{ color: C.sub }}>
             ยื่นตั้งแต่วันที่
             <input
@@ -372,7 +372,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
               value={from}
               max={to || undefined}
               onChange={(e) => setFrom(e.target.value)}
-              className={`${FIELD} block mt-1`}
+              className={`${FIELD} block mt-1 w-full sm:w-auto min-w-0`}
               style={{ borderColor: C.border, color: C.ink }}
             />
           </label>
@@ -384,7 +384,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
               value={to}
               min={from || undefined}
               onChange={(e) => setTo(e.target.value)}
-              className={`${FIELD} block mt-1`}
+              className={`${FIELD} block mt-1 w-full sm:w-auto min-w-0`}
               style={{ borderColor: C.border, color: C.ink }}
             />
           </label>
@@ -392,7 +392,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
           <Select
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            className={`${FIELD} min-w-[9.5rem]`}
+            className={`${FIELD} w-full sm:w-auto sm:min-w-[9.5rem]`}
             style={{ borderColor: C.border, color: C.ink }}
             aria-label="ภาคการศึกษา"
           >
@@ -407,7 +407,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
           <Select
             value={compType}
             onChange={(e) => setCompType(e.target.value)}
-            className={`${FIELD} min-w-[11rem]`}
+            className={`${FIELD} w-full sm:w-auto sm:min-w-[11rem]`}
             style={{ borderColor: C.border, color: C.ink }}
             aria-label="ประเภทค่าตอบแทน"
           >
@@ -422,7 +422,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
           <Select
             value={group}
             onChange={(e) => setGroup(e.target.value)}
-            className={`${FIELD} min-w-[11rem]`}
+            className={`${FIELD} w-full sm:w-auto sm:min-w-[11rem]`}
             style={{ borderColor: C.border, color: C.ink }}
             aria-label="สถานะ"
           >
@@ -571,7 +571,7 @@ function SummaryReport({ claims, canExport, canViewPII }) {
             <table className="w-full text-sm">
               <thead style={{ background: "#F7FAFC", color: C.sub }}>
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold min-w-[11rem]">
                     ประเภทค่าตอบแทน
                   </th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold">

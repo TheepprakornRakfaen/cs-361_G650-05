@@ -1740,7 +1740,7 @@ export default function App() {
             courses={courses}
             claims={claims}
             onLogin={() => setView("login")}
-            onOpenClaims={openMyClaims}
+            onOpenClaims={canAccessView(currentUser, "myclaims") ? openMyClaims : undefined}
             onUserUpdate={setCurrentUser}
             onLogoutAll={handleLogoutAll}
           />

@@ -64,7 +64,8 @@ const AVATAR_BG = `linear-gradient(135deg, #F07A7E, ${C.rose})`;
  * ตอนนี้ทำเฉพาะแบบร่าง — จะให้การ์ดอื่นกดได้ ให้เพิ่มชื่อสถานะในนี้
  * เช่น ["Draft", "Pending", "Approved"]
  */
-const CLICKABLE_STATUSES = ["Draft"];
+// กดการ์ดสถานะแล้วไปหน้าคำขอของฉันที่กรองสถานะนั้นไว้
+const CLICKABLE_STATUSES = ["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Paid", "Rejected"];
 
 function InfoRow({ icon: Icon, label, value }) {
   return (
@@ -773,7 +774,7 @@ export default function Profile({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-7 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 2xl:grid-cols-7 gap-2.5 sm:gap-3">
               {["Draft", "Submitted", "Reviewed", "Returned", "Approved", "Paid", "Rejected"]
                 .map((key) => [key, STATUS_STYLE[key]])
                 .map(
@@ -793,7 +794,7 @@ export default function Profile({
                         onClick: () => onOpenClaims(key),
                         title: `ดูรายการ${style.label}`,
                       })}
-                      className={`rounded-2xl px-4 py-3 text-left ${
+                      className={`rounded-2xl px-3 sm:px-4 py-3 text-left ${
                         clickable
                           ? "transition-transform hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
                           : ""
@@ -803,13 +804,13 @@ export default function Profile({
                       }}
                     >
                       <p
-                        className="text-xs font-semibold flex items-center justify-between gap-1"
+                        className="text-[11px] sm:text-xs font-semibold leading-4 flex items-start justify-between gap-1 min-h-[2rem]"
                         style={{
                           color: style.fg,
                         }}
                       >
                         {style.label}
-                        {clickable && <ChevronRight size={14} />}
+                        {clickable && <ChevronRight size={14} className="shrink-0" />}
                       </p>
 
                       <p

@@ -78,7 +78,7 @@ const termSortKey = (label) => {
 };
 
 const pillClass =
-  "rounded-full border pl-4 pr-3.5 py-2.5 text-sm font-medium bg-white outline-none";
+  "rounded-full border pl-3 pr-2.5 md:pl-4 md:pr-3.5 py-2.5 text-xs md:text-sm font-medium bg-white outline-none";
 
 /*
  * [V4] คิวตรวจสอบและอนุมัติ (Verification & Reporting - FR7 & TC2)
@@ -590,7 +590,7 @@ export default function ReviewQueue({
       {/* Toolbar: Search & Select Filters (FR8) */}
       <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3">
         <div
-          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 min-w-[14rem] max-w-md shadow-sm"
+          className="flex items-center gap-2 bg-white rounded-full border px-4 py-2.5 flex-1 md:min-w-[14rem] md:max-w-md shadow-sm"
           style={{ borderColor: C.border }}
         >
           <Search size={16} style={{ color: C.sub }} />
@@ -605,13 +605,14 @@ export default function ReviewQueue({
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-2 md:contents">
         <Select
           value={termFilter}
           onChange={(e) => {
             setTermFilter(e.target.value);
             setCourseFilter("All");
           }}
-          className={`${pillClass} min-w-[8rem]`}
+          className={`${pillClass} w-full md:w-auto md:min-w-[8rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามภาค"
         >
@@ -626,7 +627,7 @@ export default function ReviewQueue({
         <Select
           value={courseFilter}
           onChange={(e) => setCourseFilter(e.target.value)}
-          className={`${pillClass} min-w-[8rem]`}
+          className={`${pillClass} w-full md:w-auto md:min-w-[8rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามรายวิชา"
         >
@@ -641,7 +642,7 @@ export default function ReviewQueue({
         <Select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className={`${pillClass} min-w-[8rem]`}
+          className={`${pillClass} w-full md:w-auto md:min-w-[8rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามบทบาท"
         >
@@ -653,7 +654,7 @@ export default function ReviewQueue({
         <Select
           value={claimantFilter}
           onChange={(e) => setClaimantFilter(e.target.value)}
-          className={`${pillClass} min-w-[9rem]`}
+          className={`${pillClass} w-full md:w-auto md:min-w-[9rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามผู้ยื่น"
         >
@@ -668,7 +669,7 @@ export default function ReviewQueue({
         <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className={`${pillClass} min-w-[9rem]`}
+          className={`${pillClass} w-full md:w-auto md:min-w-[9rem]`}
           style={{ borderColor: C.border, color: C.ink }}
           aria-label="กรองตามสถานะ"
         >
@@ -679,12 +680,13 @@ export default function ReviewQueue({
             </option>
           ))}
         </Select>
+        </div>
 
         {filtersActive && (
           <button
             type="button"
             onClick={resetFilters}
-            className="text-xs font-bold px-3 py-2 rounded-full border bg-white hover:bg-slate-50 text-teal-800"
+            className="self-start md:self-auto text-xs font-bold px-3 py-2 rounded-full border bg-white hover:bg-slate-50 text-teal-800"
             style={{ borderColor: C.border }}
           >
             ล้างตัวกรอง
@@ -694,7 +696,7 @@ export default function ReviewQueue({
 
       {/* Status Summary KPI Cards */}
       <div
-        className={`grid grid-cols-2 sm:grid-cols-4 gap-3 ${
+        className={`grid grid-cols-3 sm:grid-cols-4 gap-2.5 sm:gap-3 ${
           statusCards.length > 6 ? "xl:grid-cols-7" : "xl:grid-cols-6"
         }`}
       >
@@ -708,14 +710,14 @@ export default function ReviewQueue({
               type="button"
               onClick={() => setStatusFilter(active ? "All" : key)}
               aria-pressed={active}
-              className="rounded-2xl p-4 text-left transition-transform hover:-translate-y-0.5 border"
+              className="rounded-2xl p-3 sm:p-4 text-left transition-transform hover:-translate-y-0.5 border"
               style={{
                 background: style.bg,
                 borderColor: active ? style.fg : "transparent",
                 outline: active ? `2px solid ${style.fg}` : "none",
               }}
             >
-              <p className="font-bold text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
+              <p className="font-bold text-[11px] sm:text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
                 {style.label}
               </p>
               <p className="text-2xl font-extrabold mt-1 figure" style={{ color: style.fg }}>
@@ -747,7 +749,78 @@ export default function ReviewQueue({
 
       {/* Main Table */}
       <SectionCard hoverable={false} className="overflow-hidden p-0 shadow-sm">
-        <div className="overflow-x-auto">
+        {/* มือถือ: แสดงเป็นการ์ด ไม่ต้องเลื่อนตารางซ้ายขวา */}
+        <ul className="lg:hidden divide-y" style={{ borderColor: C.border }}>
+          {pageRows.map((claim) => {
+            const submitted = claim.submittedAt || claim.createdAt;
+            const waiting = isPending(claim.status) ? businessDaysSince(submitted) : null;
+            const sla = SLA_STYLE[slaLevel(waiting)];
+            const check = claim.anomalyDetection ?? anomalyMap.get(claim.id);
+            const issues = check?.anomalies?.length || 0;
+
+            return (
+              <li key={claim.id}>
+                <button
+                  type="button"
+                  onClick={() => goDetail?.(claim.id)}
+                  className="w-full text-left px-4 py-3.5 active:bg-[#F8FBFC]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-extrabold text-[13px] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>
+                      #{claim.code || claim.id}
+                    </p>
+                    <span className="shrink-0">
+                      <StatusPill status={claim.status} />
+                    </span>
+                  </div>
+
+                  <p className="text-sm font-bold text-slate-900 mt-1 truncate">
+                    {claim.claimantName || "-"}
+                    <span className="font-normal text-slate-500"> · {claim.courseCode || "-"}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    {waiting !== null && (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: sla.bg, color: sla.fg }}>
+                        รอ {waiting} วันทำการ
+                      </span>
+                    )}
+                    {issues > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <AlertTriangle size={11} />
+                        ผิดปกติ {issues} รายการ
+                      </span>
+                    )}
+                    {claim.escalation && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border"
+                        style={{ background: ESCALATED_STYLE.bg, borderColor: ESCALATED_STYLE.border, color: ESCALATED_STYLE.fg }}
+                      >
+                        <FileQuestion size={11} />
+                        ขอหลักฐาน
+                      </span>
+                    )}
+                    <span className="ml-auto text-sm figure font-extrabold text-slate-900">
+                      <Restricted allowed={canSeeFinance} value={claim.amount}>
+                        ฿{Number(claim.amount || 0).toLocaleString()}
+                      </Restricted>
+                    </span>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+
+          {pageRows.length === 0 && (
+            <li className="px-6 py-10 text-center">
+              <p className="text-sm font-semibold text-slate-800">
+                {loading ? "กำลังโหลดข้อมูลคำขอ..." : "ไม่พบคำขอตามเงื่อนไขที่เลือก"}
+              </p>
+            </li>
+          )}
+        </ul>
+
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-sm [&_th:first-child]:pl-5 [&_td:first-child]:pl-5">
             <thead>
               <tr style={{ background: "#F6F9FB", color: C.sub }}>
@@ -774,7 +847,7 @@ export default function ReviewQueue({
                     key={claim.id}
                     onClick={() => goDetail?.(claim.id)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") goDetail?.(claim.id);
+                      if (e.key === "Enter" && e.target === e.currentTarget) goDetail?.(claim.id);
                     }}
                     tabIndex={0}
                     className="group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"

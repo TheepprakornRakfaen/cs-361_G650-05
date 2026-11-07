@@ -915,15 +915,18 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
       />
 
       {/* Main Tabs Navigation */}
-      <div className="flex flex-wrap items-center gap-2 border-b pb-3" style={{ borderColor: C.border }}>
+      <div className="flex md:flex-wrap items-center gap-2 border-b pb-3 overflow-x-auto -mx-5 px-5 md:mx-0 md:px-0 [scrollbar-width:none]" role="tablist" style={{ borderColor: C.border }}>
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold whitespace-nowrap shrink-0 transition-all ${
                 active
                   ? "text-white shadow-md shadow-teal-700/20"
                   : "bg-white hover:bg-slate-50 border text-slate-700"

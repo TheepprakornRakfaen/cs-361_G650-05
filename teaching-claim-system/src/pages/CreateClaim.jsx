@@ -241,6 +241,16 @@ export default function CreateClaim({
 
   const [step, setStep] = useState(1);
 
+  // เปลี่ยนขั้นตอนแล้วเลื่อนกลับขึ้นไปบนสุด (ไม่ค้างอยู่ตรงปุ่มด้านล่าง)
+  const firstStepRender = useRef(true);
+  useEffect(() => {
+    if (firstStepRender.current) {
+      firstStepRender.current = false;
+      return;
+    }
+    document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
   const initialTerm =
     terms.find(
       (term) =>
@@ -1791,12 +1801,12 @@ export default function CreateClaim({
           )}
 
           {/* Buttons */}
-          <div className="flex items-center justify-between mt-10">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-10">
             <button
               type="button"
               onClick={back}
               disabled={submitting}
-              className="px-6 py-2.5 rounded-full text-sm font-semibold disabled:opacity-40"
+              className="px-4 sm:px-6 py-2.5 whitespace-nowrap rounded-full text-sm font-semibold disabled:opacity-40"
               style={{
                 background: "#EEF2F5",
                 color: C.ink,
@@ -1805,14 +1815,14 @@ export default function CreateClaim({
               ย้อนกลับ
             </button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 ml-auto">
               <button
                 type="button"
                 // 0 = แบบร่าง
                 onClick={() => onSaveDraft?.({ ...buildPayload(), status: 0 }, buildUploadEntries())}
                 // ไม่มีวิชาที่ได้รับมอบหมาย = บันทึกร่างไม่ได้เช่นกัน
                 disabled={normalizedCourses.length === 0 || submitting}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 whitespace-nowrap rounded-full text-sm font-semibold border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{
                   borderColor: C.border,
                   color: C.tealDark,
@@ -1826,7 +1836,7 @@ export default function CreateClaim({
                 <button
                   type="button"
                   onClick={next}
-                  className="px-7 py-2.5 rounded-full text-sm font-semibold text-white flex items-center gap-2"
+                  className="px-5 sm:px-7 py-2.5 whitespace-nowrap rounded-full text-sm font-semibold text-white flex items-center gap-2"
                   style={{
                     background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                   }}
@@ -1835,12 +1845,12 @@ export default function CreateClaim({
                   <ArrowRight size={15} />
                 </button>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 ml-auto">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
                     disabled={submitting}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold border disabled:opacity-40"
+                    className="flex items-center gap-2 px-4 sm:px-6 py-2.5 whitespace-nowrap rounded-full text-sm font-semibold border disabled:opacity-40"
                     style={{
                       borderColor: C.border,
                       color: C.ink,
@@ -1854,7 +1864,7 @@ export default function CreateClaim({
                     type="button"
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-wait"
+                    className="flex items-center gap-2 px-5 sm:px-7 py-2.5 whitespace-nowrap rounded-full text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-wait"
                     style={{
                       background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
                     }}

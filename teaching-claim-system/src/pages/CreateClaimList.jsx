@@ -399,7 +399,7 @@ export default function CreateClaimList({
                             </span>
                           </div>
 
-                          <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
                             <span
                               className="flex items-center gap-1.5 text-xs"
                               style={{ color: C.sub }}
@@ -408,12 +408,12 @@ export default function CreateClaimList({
                               {hasCourses ? `เหลือ ${remaining} จาก ${quota} ชม.` : "ยังไม่มีรายวิชาที่ได้รับมอบหมาย"}
                             </span>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 ml-auto">
                               {submitted && (
                                 <button
                                   type="button"
                                   onClick={() => goDetail?.(submitted.id)}
-                                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity hover:opacity-80"
+                                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-80"
                                   style={{ background: C.greenSoft, color: C.green }}
                                   title="ดูคำขอล่าสุดที่ยื่นในรอบนี้"
                                 >
@@ -433,7 +433,7 @@ export default function CreateClaimList({
                                       : undefined
                                 }
                                 onClick={() => open && !full && goCreateForRound?.(round)}
-                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                                 style={{
                                   background: open
                                     ? `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`

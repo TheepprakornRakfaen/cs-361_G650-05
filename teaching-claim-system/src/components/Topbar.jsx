@@ -92,6 +92,14 @@ export default function Topbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchOpen]);
 
+  // กด Esc ปิดเมนูบัญชี
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   const chooseResult = (r) => {
     if (!r) return;
     setSearchOpen(false);
@@ -117,7 +125,7 @@ export default function Topbar({
 
   return (
     <header
-      className="flex items-center justify-between px-6 md:px-9 h-20 shrink-0 sticky top-0 z-50"
+      className="flex items-center justify-between gap-3 px-4 sm:px-6 md:px-9 h-16 sm:h-20 shrink-0 sticky top-0 z-50"
       style={{
         background: `linear-gradient(90deg, ${C.tealDark} 0%, #2B6CA8 100%)`,
         borderBottom: "1px solid rgba(255,255,255,0.12)",
@@ -125,10 +133,11 @@ export default function Topbar({
       }}
     >
       {/* Left */}
-      <div className="flex items-center gap-5 min-w-0 flex-1">
+      <div className="flex items-center gap-2 sm:gap-5 min-w-0 flex-1">
         {/* Menu */}
         <button
           onClick={onMenuClick}
+          aria-label="เปิด/ปิดเมนู"
           className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 shrink-0 transition-all"
           style={{ color: "#FFFFFF" }}
         >
@@ -246,6 +255,7 @@ export default function Topbar({
             {/* Search */}
             <button
               onClick={() => setSearchOpen(true)}
+              aria-label="ค้นหาข้อมูล"
               className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 shrink-0 transition-all"
               style={{ color: "#FFFFFF" }}
             >
@@ -266,11 +276,12 @@ export default function Topbar({
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-4 shrink-0">
+      <div className={`items-center gap-2 sm:gap-4 shrink-0 ${searchOpen ? "hidden sm:flex" : "flex"}`}>
         {isHome ? (
           /* หน้าแรก: ปุ่มติดต่อเรา */
           <button
             onClick={onContactClick}
+            aria-label="ติดต่อเรา"
             className="flex items-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white border border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 transition-all active:scale-[0.98] shrink-0"
           >
             <Mail size={17} />
@@ -327,7 +338,7 @@ export default function Topbar({
                   onClick={() => setMenuOpen(false)}
                 />
                 <div
-                  className="absolute right-0 mt-3 w-72 rounded-2xl border bg-white z-50 overflow-hidden"
+                  className="absolute right-0 mt-3 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border bg-white z-50 overflow-hidden"
                   style={{
                     borderColor: C.border,
                     boxShadow: "0 20px 45px -12px rgba(15,40,70,0.35)",
@@ -406,6 +417,7 @@ export default function Topbar({
         ) : (
           <button
             onClick={onProfileClick}
+            aria-label="เข้าสู่ระบบ"
             className="flex items-center gap-2 h-11 pl-4 pr-5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shrink-0"
             style={{ background: C.rose }}
           >
