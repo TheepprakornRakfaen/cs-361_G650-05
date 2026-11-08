@@ -1,0 +1,391 @@
+# =====================================================================
+# infra/backend.example.yaml   (ไฟล์ตัวอย่าง ยังไม่ใช่ตัวจริง)
+# CS361 GRP05 - ชั้น Backend
+#
+# สร้างอะไรบ้าง:
+#   1) Cognito: User Pool + App client + กลุ่มผู้ใช้ 5 กลุ่ม
+#   2) Lambda 7 ตัว (อยู่ใน VPC จาก network stack) + Lambda รัน migration
+#   3) API Gateway (REST) stage v2 + Cognito authorizer + CORS + route ทั้งหมด
+#
+# ต้องรัน network.yaml ก่อน (ไฟล์นี้ดึง subnet, security group, RDS endpoint, bucket
+#   จาก Outputs ของ network stack ผ่าน Fn::ImportValue)
+#
+# ใช้ SAM transform (บรรทัด Transform ด้านล่าง) เพื่อให้เขียน Lambda + route สั้นลงมาก
+#   SAM เป็นส่วนขยายของ CloudFormation: ตอน deploy มันจะขยาย template นี้เป็น
+#   CloudFormation เต็มรูปแบบ (ผูก integration, สร้าง Lambda permission ให้เอง)
+#   -> ต้องใส่ --capabilities CAPABILITY_AUTO_EXPAND ตอน deploy
+#
+# ก่อน deploy ต้องรัน build.sh ให้ได้โฟลเดอร์ build/ ที่มี
+#   build/<ชื่อ Lambda>/index.mjs + node_modules/ (แต่ละตัวมี pg ของตัวเอง ไม่ใช้ layer)
+# =====================================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+# เปิดใช้ SAM: ทำให้ใช้ชนิด AWS::Serverless::Function / Api / LayerVersion ได้
+Transform: AWS::Serverless-2016-10-31
+
+Description: CS361 GRP05 - Backend (Cognito, Lambda x7, API Gateway)
+
+# ---------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------
+Parameters:
+  Prefix:
+    Type: String
+    Default: cs361
+    Description: คำนำหน้าชื่อ Cognito และ API (ให้เหมือนกับ network stack)
+
+  FunctionPrefix:
+    Type: String
+    Default: GRP05-test-
+    # ชื่อ Lambda = FunctionPrefix + ชื่อฟังก์ชัน เช่น GRP05-test-ClaimWorkflowAPI
+    # Lambda ตัวจริงที่รันอยู่ชื่อ GRP05-ClaimXxx ถ้าใช้ชื่อเดียวกันจะ deploy ไม่ผ่าน (ชื่อซ้ำ)
+    # ตอนทดสอบจึงใส่ -test- ไว้ ถ้าจะสลับมาใช้ชื่อจริงให้ส่งค่า GRP05- (และต้องลบตัวเดิมก่อน)
+    Description: คำนำหน้าชื่อ Lambda (ต้องขึ้นต้นด้วย GRP05 ตามข้อตกลงของทีม)
+
+  NetworkStackName:
+    Type: String
+    Default: cs361-net-test
+    Description: ชื่อ stack ของ network.yaml ที่ deploy ไปแล้ว (ใช้ดึงค่าที่ export ไว้)
+
+  LabRoleArn:
+    Type: String
+    # AWS Learner Lab สร้าง IAM role ใหม่ไม่ได้ ต้องใช้ LabRole ที่มีอยู่แล้ว
+    # หา ARN ด้วย: aws iam get-role --role-name LabRole --query Role.Arn --output text
+    Description: ARN ของ LabRole (ใช้เป็น execution role ของทุก Lambda)
+
+  DbName:
+    Type: String
+    Default: claims
+  DbUsername:
+    Type: String
+    Default: claims_admin
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    # ต้องเป็นรหัสผ่านเดียวกับที่ใส่ตอน deploy network stack
+    # แนะนำใช้เฉพาะตัวอักษรและตัวเลข เพราะจะถูกต่อเข้าไปใน DATABASE_URL (ตัวอักษรพิเศษทำ URL พัง)
+    Description: รหัสผ่านฐานข้อมูล (ใส่ตอน deploy ห้ามเก็บในรีโป)
+
+  CorsAllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: origin ของเว็บ (เช่น https://xxx.amplifyapp.com) หรือ * ช่วงทดสอบ
+
+  StageName:
+    Type: String
+    Default: v2
+    Description: ชื่อ stage ของ API (frontend เรียกที่ .../v2)
+
+  UrlExpiresSec:
+    Type: Number
+    Default: 300
+    Description: อายุลิงก์ presigned URL (วินาที) ส่งให้ Lambda หลักฐานผ่านตัวแปร URL_EXPIRES_SEC
+
+# ---------------------------------------------------------------------
+# Globals = ค่าที่ใช้ร่วมกันทุก Lambda (ไม่ต้องเขียนซ้ำทีละตัว)
+# ---------------------------------------------------------------------
+# Globals = ค่าตั้งต้นที่ "ทุก Lambda" ใช้ร่วมกัน SAM จะผสมค่าเหล่านี้เข้าไปในแต่ละ
+# AWS::Serverless::Function ให้เองตอนขยาย template จึงไม่ต้องเขียนซ้ำ 8 รอบ
+# กฎการผสม:
+#   - Lambda กำหนดค่าเดียวกันเอง -> ค่าของ Lambda ชนะ (เช่น ClaimWorkflowAPI ตั้ง Timeout เอง)
+#   - ค่าที่เป็นแผนที่ (Environment.Variables) -> ผสมกัน ได้ทั้งของ Globals และของ Lambda
+#   - ค่าที่เป็นรายการ -> ต่อท้ายกัน ไม่ใช่ทับ
+#   - Globals ไม่รองรับ Role จึงต้องใส่ Role ในแต่ละ Lambda เอง
+Globals:
+  Function:
+    Runtime: nodejs22.x          # โค้ดเป็น ESM (index.mjs) ต้อง Node 18 ขึ้นไป
+    Handler: index.handler       # ไฟล์ index.mjs ฟังก์ชัน handler
+    Timeout: 15                  # วินาที (API Gateway ตอบรอได้สูงสุด 29 วินาที)
+    MemorySize: 256              # MB
+    # วาง Lambda ใน VPC เพื่อต่อ RDS ที่เป็น private ได้
+    # ค่า subnet/security group ไม่ได้เขียนตรงๆ แต่ดึงจาก Outputs ที่ network stack export ไว้
+    #   !Sub ประกอบชื่อ export:  "${NetworkStackName}-SubnetLambdaId" -> cs361-net-test-SubnetLambdaId
+    #   Fn::ImportValue เอาชื่อนั้นไปค้นหาใน export ของบัญชี/region แล้วได้ค่า เช่น subnet-0abc...
+    # ชื่อต้องตรงกับ Export.Name ใน network.yaml (ชื่อ stack ของ network + "-SubnetLambdaId")
+    # ถ้า network ยังไม่ถูก deploy หรือชื่อไม่ตรง จะ error: No export named ... found
+    # ข้อควรรู้: backend ใช้ค่าจาก network อยู่ จึงลบ network stack ไม่ได้จนกว่าจะลบ backend ก่อน
+    VpcConfig:
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${NetworkStackName}-SubnetLambdaId"
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub "${NetworkStackName}-LambdaSgId"
+    # ตัวแปรสภาพแวดล้อมที่ทุก Lambda ได้ (Lambda บางตัวเพิ่มของตัวเองได้ เช่น EVIDENCE_BUCKET)
+    # หมายเหตุ: รหัสผ่านอยู่ใน DATABASE_URL ใครเปิดหน้า config ของ Lambda ใน console ก็เห็น
+    #           เหมาะกับโปรเจกต์รายวิชา ถ้าใช้งานจริงควรเก็บใน Secrets Manager
+    Environment:
+      Variables:
+        # โค้ดทุกตัวอ่านตัวแปรชื่อ DATABASE_URL (รูปแบบ postgres://user:pass@host:5432/db)
+        DATABASE_URL: !Sub
+          - "postgres://${User}:${Pass}@${Host}:5432/${Db}"
+          - User: !Ref DbUsername
+            Pass: !Ref DbPassword
+            Db: !Ref DbName
+            Host:
+              Fn::ImportValue: !Sub "${NetworkStackName}-DbEndpoint"
+
+Resources:
+  # ===================================================================
+  # 1) Cognito
+  # ===================================================================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${Prefix}-users"
+      UsernameAttributes: [email]          # login ด้วย email
+      AutoVerifiedAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false               # อีเมลตัวพิมพ์เล็ก/ใหญ่ถือเป็นคนเดียวกัน
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true     # ไม่เปิดสมัครเอง (ผู้ดูแลสร้างให้ ตรงกับที่ frontend ไม่มีหน้าสมัคร)
+      Policies:
+        PasswordPolicy:                    # ปรับตามนโยบายจริงของ User pool เดิมถ้าต่างกัน
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      AccountRecoverySetting:              # ให้ฟังก์ชัน "ลืมรหัสผ่าน" ส่งโค้ดทางอีเมล
+        RecoveryMechanisms:
+          - { Name: verified_email, Priority: 1 }
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub "${Prefix}-web"
+      GenerateSecret: false                # เว็บ (เบราว์เซอร์) เก็บ secret ไม่ได้ จึงต้องไม่มี
+      PreventUserExistenceErrors: ENABLED  # ไม่บอกว่ามีอีเมลนี้ในระบบหรือไม่ตอน login ผิด
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH              # วิธีที่ Amplify ใช้ตอน signIn
+        - ALLOW_REFRESH_TOKEN_AUTH         # ต่ออายุ session
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH   # ให้สคริปต์ smoke test ขอ token ผ่าน CLI ได้
+
+  # กลุ่มผู้ใช้ 5 กลุ่ม (ระบบอ่านจาก cognito:groups ใน token)
+  GroupTeacher:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: { UserPoolId: !Ref UserPool, GroupName: TEACHER }
+  GroupTa:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: { UserPoolId: !Ref UserPool, GroupName: TA }
+  GroupReviewer:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: { UserPoolId: !Ref UserPool, GroupName: REVIEWER }
+  GroupApprover:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: { UserPoolId: !Ref UserPool, GroupName: APPROVER }
+  GroupAdmin:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties: { UserPoolId: !Ref UserPool, GroupName: ADMIN }
+
+  # ===================================================================
+  # 2) API Gateway (REST)
+  # ===================================================================
+  # API Gateway เป็นทางเข้าเดียวของ frontend: คำขอทุกตัวผ่านที่นี่ ตรวจ token Cognito แล้วค่อยส่งต่อ
+  # ไป Lambda ตาม route ที่ประกาศไว้ใน Events ของแต่ละ Lambda (ด้านล่าง ผูกกลับมาด้วย RestApiId: !Ref Api)
+  # SAM ขยายชนิดนี้เป็น RestApi + Deployment + Stage ให้เอง
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "${Prefix}-claims-api"
+      StageName: !Ref StageName
+      EndpointConfiguration:
+        Type: REGIONAL
+      # Auth: API Gateway ตรวจ token ให้ก่อน Lambda ถูกเรียก (token ผิด/หมดอายุตอบ 401 เลย ไม่เสียค่า Lambda)
+      #   ใช้ ID token ตามที่ frontend (Amplify) ส่งมา ถ้าส่ง access token จะไม่ผ่าน
+      #   การแยกสิทธิ์ตามกลุ่ม (cognito:groups) ยังทำที่โค้ด Lambda เอง
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer     # ทุก route ต้องมี token ของ Cognito (ไม่ต้องใส่ Auth ซ้ำในแต่ละ Lambda)
+        # คำขอ OPTIONS ที่เบราว์เซอร์ส่งมาถาม CORS ก่อนคำขอจริง "ไม่แนบ token"
+        # ถ้าบังคับตรวจ token จะโดน 401 แล้ว CORS พังทั้งระบบ จึงต้องปิดตรงนี้
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            Identity:
+              Header: Authorization              # token อยู่ใน header Authorization
+      # Cors: SAM สร้าง method OPTIONS ให้ทุก route อัตโนมัติ
+      #   ค่าต้องครอบด้วยเครื่องหมาย ' อีกชั้น เพราะ SAM ต้องการสตริงคงที่ (ไม่ครอบจะได้ header ผิด/deploy ไม่ผ่าน)
+      #   ช่วงทดสอบใช้ * ได้ ใช้จริงควรเปลี่ยนเป็นโดเมน Amplify (พารามิเตอร์ CorsAllowedOrigin)
+      #   Lambda ตั้ง CORS ในคำตอบเองอยู่แล้ว ส่วนนี้ครอบคลุมคำขอ OPTIONS เป็นหลัก
+      Cors:
+        AllowOrigin: !Sub "'${CorsAllowedOrigin}'"      # ต้องมีเครื่องหมาย ' ครอบตามรูปแบบของ SAM
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
+        MaxAge: 600
+      # GatewayResponses: error ที่ "API Gateway ตอบเอง" (เช่น 401 จาก authorizer) ไม่ผ่าน Lambda
+      #   จึงไม่มี header CORS ติดไป เบราว์เซอร์จะเห็นเป็น "CORS error" ทั้งที่จริงคือ token หมดอายุ (debug ยาก)
+      #   บล็อกนี้เติม header ให้คำตอบเหล่านั้น frontend จะอ่านสถานะ 401 ได้จริง
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowedOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${CorsAllowedOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  # ===================================================================
+  # 3) Lambda 7 ตัว + Lambda รัน migration + route ที่ผูกกับแต่ละตัว
+  #    Events แต่ละรายการ = หนึ่ง route (SAM สร้าง resource, method, integration
+  #    และสิทธิ์ให้ API Gateway เรียก Lambda ให้เอง)
+  # ===================================================================
+  ClaimCRUDUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimCRUDUser"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimCRUDUser
+      Description: สร้าง/อัปเดตผู้ใช้ใน app_user หลัง login และคืนกลุ่ม
+      Events:
+        AuthMe:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/auth/me, Method: POST }
+
+  ClaimsPeriodTermCourses:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimsPeriodTermCourses"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimsPeriodTermCourses
+      Description: ข้อมูลอ้างอิงสำหรับฟอร์ม (ภาคเรียน, รอบ, รายวิชา, ประเภทค่าตอบแทน)
+      Events:
+        Term:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/term, Method: GET }
+        Period:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/period, Method: GET }
+        Courses:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/courses, Method: GET }
+        CompensationTypes:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/compensation-types, Method: GET }
+
+  ClaimUserRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimUserRequest"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimUserRequest
+      Description: สร้าง ดู ลบ ส่งใหม่ คำขอ และคิวตรวจ/รายงาน
+      Events:
+        ListClaims:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/claims, Method: GET }
+        CreateClaim:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/claims, Method: POST }
+        DeleteClaim:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/claims, Method: DELETE }
+        ResendClaim:
+          Type: Api
+          # โค้ดตรวจ event.resource === "/api/claims/{id}/resend" จึงต้องเขียน path ให้ตรงตัว
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/resend", Method: POST }
+
+  ClaimWorkflowAPI:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimWorkflowAPI"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimWorkflowAPI
+      Description: ตรวจ/อนุมัติ/ปฏิเสธ/ส่งคืน, จ่ายเงินอัตโนมัติ, ประวัติ, audit log
+      Timeout: 29                      # ตัวนี้ใหญ่และทำงานหลายขั้น ให้เวลาสูงสุดที่ API Gateway รอได้
+      MemorySize: 512
+      Events:
+        Actions:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/actions", Method: POST }
+        BatchActions:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/claims/batch-actions, Method: POST }
+        History:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/history", Method: GET }
+        AuditLogs:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: /api/audit-logs, Method: GET }
+
+  ClaimEvidencePresign:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimEvidencePresign"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimEvidencePresign
+      Description: ออกลิงก์ presigned PUT สำหรับอัปโหลดไฟล์ไป S3
+      Environment:
+        Variables:                     # รวมกับตัวแปรใน Globals (DATABASE_URL) ให้อัตโนมัติ
+          EVIDENCE_BUCKET:
+            Fn::ImportValue: !Sub "${NetworkStackName}-EvidenceBucketName"
+          URL_EXPIRES_SEC: !Ref UrlExpiresSec
+      Events:
+        UploadUrl:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/evidence/upload-url", Method: POST }
+
+  ClaimEvidenceAPI:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimEvidenceAPI"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimEvidenceAPI
+      Description: ลงทะเบียนไฟล์ที่อัปโหลดแล้ว และออกลิงก์เปิดไฟล์ (presigned GET)
+      Environment:
+        Variables:
+          EVIDENCE_BUCKET:
+            Fn::ImportValue: !Sub "${NetworkStackName}-EvidenceBucketName"
+          URL_EXPIRES_SEC: !Ref UrlExpiresSec
+      Events:
+        RegisterEvidence:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/evidence", Method: POST }
+        ListEvidence:
+          Type: Api
+          Properties: { RestApiId: !Ref Api, Path: "/api/claims/{id}/evidence", Method: GET }
+
+  ClaimAdminMasterData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimAdminMasterData"
+      Role: !Ref LabRoleArn          # ใช้ LabRole แทนการสร้าง IAM role ใหม่ (Globals ไม่รองรับ Role)
+      CodeUri: ../build/ClaimAdminMasterData
+      Description: ADMIN - section, ผู้สอน (section_staff), รายชื่อผู้ใช้
+      Events:
+        Admin:
+          Type: Api
+          # {proxy+} รับทุก path ใต้ /api/admin และ ANY รับทุก method (โค้ดแยก route เอง)
+          Properties: { RestApiId: !Ref Api, Path: "/api/admin/{proxy+}", Method: ANY }
+
+  # Lambda ชั่วคราวสำหรับรัน SQL migration (ไม่มี route ใน API ต้องเรียกด้วย aws lambda invoke)
+  # ต้องอยู่ใน VPC (Globals ใส่ให้แล้ว) เพราะ RDS เป็น private
+  ClaimMigrate:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimMigrate"
+      Role: !Ref LabRoleArn
+      CodeUri: ../build/migrate
+      Description: รัน docs/database/migrations/*.sql บน RDS (รันซ้ำได้ ไม่ซ้ำไฟล์เดิม)
+      Timeout: 300
+
+# ---------------------------------------------------------------------
+# Outputs: ค่าที่ต้องเอาไปตั้งใน Amplify (environment variables ของ frontend)
+# ---------------------------------------------------------------------
+Outputs:
+  ApiUrl:
+    Description: ใส่เป็น VITE_API_URL ใน Amplify
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+  UserPoolId:
+    Description: ใส่เป็น VITE_COGNITO_USER_POOL_ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: ใส่เป็น VITE_COGNITO_CLIENT_ID
+    Value: !Ref UserPoolClient
+  MigrateFunctionName:
+    Description: ชื่อ Lambda ที่ deploy.sh เรียกเพื่อรัน migration
+    Value: !Ref ClaimMigrate
