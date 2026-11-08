@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  CS361 GRP05 - Network + Data layer
+  (VPC, private subnets, S3 endpoint, security groups, RDS PostgreSQL, S3 evidence bucket)
+
+# parameter - ค่าตัวแปรต่างๆที่ต้องใช้ในการสร้าง resource เช่น 
+# ชื่อ VPC, ชื่อ database, รหัสผ่าน database, ขนาดของ RDS instance, 
+# origin ของเว็บที่อนุญาตให้อัปโหลดไฟล์ตรงเข้า S3 ผ่าน presigned URL
+
+Parameters:
+  Prefix:
+
+    Type: String
+    Default : cs361
+    Description : คำนำหน้าชื่อ resource (ใช้ใน tag Name และชื่อ bucket)
+
+    VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+    Description: เป็นช่วง IP ของ VPC โดยแบ่ง /16 และแบ่ง subnet เป็น /20 จำนวน 3 ก้อน (private, public, database)
+
+    # prefix ของ AZ (Availability Zone)
+    AzLambda:
+      Type: AWS::EC2::AvailabilityZone::Name
+      Default: us-east-1d        
+
+    AzDbA:
+      Type: AWS::EC2::AvailabilityZone::Name
+      Default: us-east-1a        
+
+    AzDbB:
+      Type: AWS::EC2::AvailabilityZone::Name
+      Default: us-east-1b       
+
+    # prefix ของ Database เช่น ชื่อ, รหัสผ่าน, ขนาดของ instance, เวอร์ชันของ PostgreSQL, พื้นที่เก็บข้อมูลเป็น GB (ขั้นต่ำของ RDS)
+    DbName:
+      Type: String
+      Default: claims          
+    DbUsername:
+      Type: String
+      Default: claims_admin   
+    DbPassword:
+      Type: String
+      NoEcho: true              
+      MinLength: 8             
+      Description: รหัสผ่านฐานข้อมูล (ใส่ตอน deploy ห้ามเก็บในรีโป)
+    DbInstanceClass:
+      Type: String
+      Default: db.t3.micro      
+    DbEngineVersion:
+      Type: String
+      Default: "16"
+      Description: เวอร์ชัน PostgreSQL
+    DbStorageGb:
+      Type: Number
+      Default: 20          
+
+    # Prefix การตั้งค่า cors เอาใช้กัย S3, APIGateway, Lambda
+    CorsAllowedOrigin:
+      Type: String
+      Default: "*"
+    # origin ของเว็บที่อนุญาตให้อัปโหลดไฟล์ตรงเข้า S3 ผ่าน presigned URL
+    # ช่วงทดสอบใช้ * ได้ ตอนใช้จริงควรใส่ URL ของ Amplify เช่น https://xxx.amplifyapp.com
+      Description: origin ของเว็บ หรือ * ช่วงทดสอบ
+
+Resources:
+  # ===================================================================
+  # 1) VPC
+  # ===================================================================
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr #ดึงเอาจาก parameter VpcCidr
+      EnableDnsSupport: true      # ให้ resolve ชื่อ DNS ภายใน VPC ได้
+      EnableDnsHostnames: true    # ให้ RDS ได้ชื่อ host (endpoint) ที่ใช้เชื่อมต่อ
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-vpc" }
+        # !Sub แทน ${Prefix} ด้วยค่า parameter เช่น cs361-vpc โดยตั้งค่า tag Name ที่ชื่อ "${Prefix}-vpc" ให้ Resource นี้
+
+  SubnetLambda:                 
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Ref AzLambda
+      # แบ่ง subnet เป็น /16 จำนวน 3 ก้อน (private, public, database) โดยใช้ฟังก์ชัน !Cidr ของ CloudFormation
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 3, 12]]   
+      # คำนวน subnet จาก VpcCidr ซึ่ง !Cidr [!Ref VpcCidr, 3, 12] จะได้ 3 ก้อน 
+      # มีขนาด netmask /20 (12 bits) โดย !Select [0, ...] จะเลือกก้อนแรก 
+      MapPublicIpOnLaunch: false   # ไม่แจก public IP ให้ resource ใน subnet นี้
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-lambda" }
+
+  SubnetDbA:                       
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Ref AzDbA
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 3, 12]]   # select [2 , ...] ก้อนที่ 2 (10.20.16.0/20)
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-db-a" }
+
+  SubnetDbB:                       # subnet สำรอง ไม่มี resource อยู่ข้างใน
+    Type: AWS::EC2::Subnet         # มีไว้เพราะ DB subnet group ของ RDS บังคับ 2 AZ ขึ้นไป
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Ref AzDbB
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 3, 12]]   # ก้อนที่ 3 (10.20.32.0/20)
+      MapPublicIpOnLaunch: false
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-db-b" }
+
+# ===================================================================
+  # 3) Route table
+  #    ตารางนี้มีเฉพาะ route "local" (คุยกันภายใน VPC) ที่ AWS ใส่ให้อัตโนมัติ
+  #    ไม่มี 0.0.0.0/0 -> IGW จึงออกอินเทอร์เน็ตไม่ได้ = private subnet
+  # ===================================================================
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc #เอา id จาก vpc ข้างบน
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-private-rt" }
+
+  # ผูก subnet แต่ละตัวเข้ากับ route table ข้างบน (ถ้าไม่ผูก subnet จะใช้ main route table)
+  AssocLambda:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetLambda
+      RouteTableId: !Ref PrivateRouteTable
+
+  AssocDbA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetDbA
+      RouteTableId: !Ref PrivateRouteTable
+
+  AssocDbB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetDbB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ===================================================================
+  # 4) S3 Gateway endpoint
+  #    ทางลัดให้ Lambda ใน VPC คุยกับ S3 ได้โดยไม่ผ่านอินเทอร์เน็ต ไม่ต้องมี NAT และไม่มีค่าใช้จ่าย
+  #    เมื่อระบุ RouteTableIds แล้ว AWS จะเติม route ไป S3 ใน route table ให้เอง
+  # ===================================================================
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      VpcEndpointType: Gateway
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"   # ${AWS::Region} = region ที่ deploy
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+ # ===================================================================
+  # 5) Security group (ไฟร์วอลล์ระดับ resource)
+  #    หลักการ: RDS รับ 5432 เฉพาะจาก Lambda SG, Lambda ออกได้เท่าที่จำเป็น
+  # ===================================================================
+  RdsSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS - รับ 5432 จาก Lambda SG เท่านั้น
+      VpcId: !Ref Vpc
+      # ไม่ใส่ SecurityGroupIngress ตรงนี้ จะเพิ่มด้วย RdsIngressFromLambda ด้านล่าง
+      # (เพื่อไม่ให้ RdsSg กับ LambdaSg อ้างอิงกันเองเป็นวงกลม)
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-rds-sg" }
+
+  LambdaSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda - ไม่มี inbound, ออกได้เฉพาะ RDS 5432 และ 443 (ไป S3 endpoint)
+      VpcId: !Ref Vpc
+      # ไม่กำหนด inbound = ไม่มีใครเรียกเข้ามาที่ Lambda ได้ผ่านเครือข่าย
+      # (API Gateway เรียก Lambda ผ่านระบบ invoke ของ AWS ไม่ผ่าน SG)
+      # เมื่อกำหนด SecurityGroupEgress เอง ค่า "ออกได้ทุกที่" ตั้งต้นของ AWS จะหายไป
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref RdsSg   # ไปหา RDS เท่านั้น
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          # HTTPS ออกได้ แต่ในทางปฏิบัติไปถึงได้แค่ S3 เพราะ route table
+          # มีเส้นทางเดียวคือ local + S3 endpoint
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-lambda-sg" }
+
+  RdsIngressFromLambda:
+    Type: AWS::EC2::SecurityGroupIngress     # กฎ inbound แยกเป็น resource ของตัวเอง
+    Properties:
+      GroupId: !Ref RdsSg                    # เพิ่มกฎที่ RDS SG
+      IpProtocol: tcp
+      FromPort: 5432                         # พอร์ตของ PostgreSQL
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LambdaSg   # ต้นทางคือเครื่องที่ใช้ Lambda SG เท่านั้น
+
+
+  # ===================================================================
+  # 6) RDS PostgreSQL
+  # ===================================================================
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: db-a + db-b (RDS ต้องมี subnet อย่างน้อย 2 AZ)
+      SubnetIds:
+        - !Ref SubnetDbA
+        - !Ref SubnetDbB
+
+  Db:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete          # ลบ stack แล้วลบ RDS ด้วย (ค่าตั้งต้นของ RDS จะทำ snapshot ค้างไว้)
+    Properties:
+      Engine: postgres
+      EngineVersion: !Ref DbEngineVersion
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbStorageGb
+      StorageType: gp2              # ดิสก์แบบ SSD ทั่วไป
+      DBName: !Ref DbName
+      MasterUsername: !Ref DbUsername
+      MasterUserPassword: !Ref DbPassword
+      MultiAZ: false                # Single-AZ ประหยัดกว่า (ตามที่ใช้อยู่จริง)
+      PubliclyAccessible: false     # ไม่มี public IP เข้าถึงจากอินเทอร์เน็ตไม่ได้
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RdsSg                # ใช้ SG ที่รับ 5432 จาก Lambda เท่านั้น
+      BackupRetentionPeriod: 1      # เก็บ backup อัตโนมัติ 1 วัน
+      DeletionProtection: false     # ต้องเป็น false เพื่อให้ destroy.sh ลบได้
+      # ไม่ตั้ง DBInstanceIdentifier ให้ CloudFormation ตั้งชื่อเองจะได้ไม่ชนกับ cs361-claims-db เดิม
+      Tags:
+        - { Key: Name, Value: !Sub "${Prefix}-claims-db" }
+
+# ===================================================================
+  # 7) S3 bucket เก็บไฟล์หลักฐาน
+  #    ผู้ใช้อัปโหลดตรงจากเบราว์เซอร์ด้วย presigned URL ที่ Lambda ออกให้
+  # ===================================================================
+  EvidenceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete          # ลบ stack แล้วลบ bucket (ต้องล้างไฟล์ก่อน ดู destroy.sh)
+    Properties:
+      # ชื่อ bucket ต้องไม่ซ้ำทั้งโลกและเป็นตัวพิมพ์เล็ก จึงผูกกับ account และ region
+      BucketName: !Sub "grp05-evidence-${AWS::AccountId}-${AWS::Region}-${Prefix}"
+      PublicAccessBlockConfiguration:   # ปิดการเปิดสาธารณะทุกรูปแบบ
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:                 # เข้ารหัสไฟล์ที่เก็บ (ฟรี)
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:                # จำเป็นให้เบราว์เซอร์ PUT/GET ตรงเข้า S3 ได้
+        CorsRules:
+          - AllowedOrigins: [!Ref CorsAllowedOrigin]
+            AllowedMethods: [GET, PUT, HEAD]
+            AllowedHeaders: ["*"]
+            ExposedHeaders: [ETag]
+            MaxAge: 3000                # เบราว์เซอร์จำผล CORS ไว้ 3000 วินาที
+
+# ---------------------------------------------------------------------
+# Outputs = ค่าที่ stack ส่งออกมา
+# Export ให้ stack อื่น (backend.yaml) เรียกใช้ด้วย Fn::ImportValue ได้
+# หมายเหตุ: ไม่ส่งรหัสผ่านออก backend.yaml จะรับเป็น parameter เอง
+# ---------------------------------------------------------------------
+Outputs:
+  VpcId:
+    Value: !Ref Vpc
+    Export: { Name: !Sub "${AWS::StackName}-VpcId" }
+  SubnetLambdaId:
+    Value: !Ref SubnetLambda            # Lambda ต้องรู้ว่าจะวางใน subnet ไหน
+    Export: { Name: !Sub "${AWS::StackName}-SubnetLambdaId" }
+  LambdaSgId:
+    Value: !Ref LambdaSg                # Lambda ต้องใช้ SG นี้
+    Export: { Name: !Sub "${AWS::StackName}-LambdaSgId" }
+  DbEndpoint:
+    Value: !GetAtt Db.Endpoint.Address  # ชื่อ host ของ RDS ใช้ประกอบ DATABASE_URL
+    Export: { Name: !Sub "${AWS::StackName}-DbEndpoint" }
+  DbPort:
+    Value: !GetAtt Db.Endpoint.Port
+  DbName:
+    Value: !Ref DbName
+  DbUsername:
+    Value: !Ref DbUsername
+  EvidenceBucketName:
+    Value: !Ref EvidenceBucket          # ชื่อ bucket ใช้เป็น EVIDENCE_BUCKET ของ Lambda
+    Export: { Name: !Sub "${AWS::StackName}-EvidenceBucketName" }
