@@ -1,3 +1,24 @@
+# =====================================================================
+# infra/backend.example.yaml   (ไฟล์ตัวอย่าง ยังไม่ใช่ตัวจริง)
+# CS361 GRP05 - ชั้น Backend
+#
+# สร้างอะไรบ้าง:
+#   1) Cognito: User Pool + App client + กลุ่มผู้ใช้ 5 กลุ่ม
+#   2) Lambda 7 ตัว (อยู่ใน VPC จาก network stack) + Lambda รัน migration
+#   3) API Gateway (REST) stage v2 + Cognito authorizer + CORS + route ทั้งหมด
+#
+# ต้องรัน network.yaml ก่อน (ไฟล์นี้ดึง subnet, security group, RDS endpoint, bucket
+#   จาก Outputs ของ network stack ผ่าน Fn::ImportValue)
+#
+# ใช้ SAM transform (บรรทัด Transform ด้านล่าง) เพื่อให้เขียน Lambda + route สั้นลงมาก
+#   SAM เป็นส่วนขยายของ CloudFormation: ตอน deploy มันจะขยาย template นี้เป็น
+#   CloudFormation เต็มรูปแบบ (ผูก integration, สร้าง Lambda permission ให้เอง)
+#   -> ต้องใส่ --capabilities CAPABILITY_AUTO_EXPAND ตอน deploy
+#
+# ก่อน deploy ต้องรัน build.sh ให้ได้โฟลเดอร์ build/ ที่มี
+#   build/<ชื่อ Lambda>/index.mjs + node_modules/ (แต่ละตัวมี pg ของตัวเอง ไม่ใช้ layer)
+# =====================================================================
+
 AWSTemplateFormatVersion: "2010-09-09"
 
 # เปิดใช้ SAM: ทำให้ใช้ชนิด AWS::Serverless::Function / Api / LayerVersion ได้
@@ -54,7 +75,7 @@ Parameters:
 
   StageName:
     Type: String
-    Default: deploy
+    Default: v2
     Description: ชื่อ stage ของ API (frontend เรียกที่ .../v2)
 
   UrlExpiresSec:
@@ -65,19 +86,34 @@ Parameters:
 # ---------------------------------------------------------------------
 # Globals = ค่าที่ใช้ร่วมกันทุก Lambda (ไม่ต้องเขียนซ้ำทีละตัว)
 # ---------------------------------------------------------------------
+# Globals = ค่าตั้งต้นที่ "ทุก Lambda" ใช้ร่วมกัน SAM จะผสมค่าเหล่านี้เข้าไปในแต่ละ
+# AWS::Serverless::Function ให้เองตอนขยาย template จึงไม่ต้องเขียนซ้ำ 8 รอบ
+# กฎการผสม:
+#   - Lambda กำหนดค่าเดียวกันเอง -> ค่าของ Lambda ชนะ (เช่น ClaimWorkflowAPI ตั้ง Timeout เอง)
+#   - ค่าที่เป็นแผนที่ (Environment.Variables) -> ผสมกัน ได้ทั้งของ Globals และของ Lambda
+#   - ค่าที่เป็นรายการ -> ต่อท้ายกัน ไม่ใช่ทับ
+#   - Globals ไม่รองรับ Role จึงต้องใส่ Role ในแต่ละ Lambda เอง
 Globals:
   Function:
     Runtime: nodejs22.x          # โค้ดเป็น ESM (index.mjs) ต้อง Node 18 ขึ้นไป
     Handler: index.handler       # ไฟล์ index.mjs ฟังก์ชัน handler
     Timeout: 15                  # วินาที (API Gateway ตอบรอได้สูงสุด 29 วินาที)
     MemorySize: 256              # MB
-    Layers:
-      - !Ref NodeDepsLayer       # layer ที่มี pg และ AWS SDK
-    VpcConfig:                   # วาง Lambda ใน VPC เพื่อต่อ RDS แบบ private
+    # วาง Lambda ใน VPC เพื่อต่อ RDS ที่เป็น private ได้
+    # ค่า subnet/security group ไม่ได้เขียนตรงๆ แต่ดึงจาก Outputs ที่ network stack export ไว้
+    #   !Sub ประกอบชื่อ export:  "${NetworkStackName}-SubnetLambdaId" -> cs361-net-test-SubnetLambdaId
+    #   Fn::ImportValue เอาชื่อนั้นไปค้นหาใน export ของบัญชี/region แล้วได้ค่า เช่น subnet-0abc...
+    # ชื่อต้องตรงกับ Export.Name ใน network.yaml (ชื่อ stack ของ network + "-SubnetLambdaId")
+    # ถ้า network ยังไม่ถูก deploy หรือชื่อไม่ตรง จะ error: No export named ... found
+    # ข้อควรรู้: backend ใช้ค่าจาก network อยู่ จึงลบ network stack ไม่ได้จนกว่าจะลบ backend ก่อน
+    VpcConfig:
       SubnetIds:
         - Fn::ImportValue: !Sub "${NetworkStackName}-SubnetLambdaId"
       SecurityGroupIds:
         - Fn::ImportValue: !Sub "${NetworkStackName}-LambdaSgId"
+    # ตัวแปรสภาพแวดล้อมที่ทุก Lambda ได้ (Lambda บางตัวเพิ่มของตัวเองได้ เช่น EVIDENCE_BUCKET)
+    # หมายเหตุ: รหัสผ่านอยู่ใน DATABASE_URL ใครเปิดหน้า config ของ Lambda ใน console ก็เห็น
+    #           เหมาะกับโปรเจกต์รายวิชา ถ้าใช้งานจริงควรเก็บใน Secrets Manager
     Environment:
       Variables:
         # โค้ดทุกตัวอ่านตัวแปรชื่อ DATABASE_URL (รูปแบบ postgres://user:pass@host:5432/db)
@@ -143,21 +179,12 @@ Resources:
     Type: AWS::Cognito::UserPoolGroup
     Properties: { UserPoolId: !Ref UserPool, GroupName: ADMIN }
 
-# ===================================================================
-# 2) Lambda layer (ไลบรารีที่ทุกตัวใช้ร่วมกัน)
-# ===================================================================
-  NodeDepsLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: !Sub "${FunctionPrefix}node-deps"
-      Description: pg + AWS SDK (S3 client, presigner)
-      ContentUri: ../build/layer         # โฟลเดอร์ที่ build.sh สร้าง (มี nodejs/node_modules)
-      CompatibleRuntimes: [nodejs22.x]
-      RetentionPolicy: Delete            # ลบ stack แล้วลบ layer ด้วย (ค่าตั้งต้นคือเก็บไว้)
-
-# ===================================================================
-# 3) API Gateway (REST)
-# ===================================================================
+  # ===================================================================
+  # 2) API Gateway (REST)
+  # ===================================================================
+  # API Gateway เป็นทางเข้าเดียวของ frontend: คำขอทุกตัวผ่านที่นี่ ตรวจ token Cognito แล้วค่อยส่งต่อ
+  # ไป Lambda ตาม route ที่ประกาศไว้ใน Events ของแต่ละ Lambda (ด้านล่าง ผูกกลับมาด้วย RestApiId: !Ref Api)
+  # SAM ขยายชนิดนี้เป็น RestApi + Deployment + Stage ให้เอง
   Api:
     Type: AWS::Serverless::Api
     Properties:
@@ -165,20 +192,32 @@ Resources:
       StageName: !Ref StageName
       EndpointConfiguration:
         Type: REGIONAL
+      # Auth: API Gateway ตรวจ token ให้ก่อน Lambda ถูกเรียก (token ผิด/หมดอายุตอบ 401 เลย ไม่เสียค่า Lambda)
+      #   ใช้ ID token ตามที่ frontend (Amplify) ส่งมา ถ้าส่ง access token จะไม่ผ่าน
+      #   การแยกสิทธิ์ตามกลุ่ม (cognito:groups) ยังทำที่โค้ด Lambda เอง
       Auth:
-        DefaultAuthorizer: CognitoAuthorizer     # ทุก route ต้องมี token ของ Cognito
-        AddDefaultAuthorizerToCorsPreflight: false   # คำขอ OPTIONS (CORS) ต้องไม่ต้องมี token
+        DefaultAuthorizer: CognitoAuthorizer     # ทุก route ต้องมี token ของ Cognito (ไม่ต้องใส่ Auth ซ้ำในแต่ละ Lambda)
+        # คำขอ OPTIONS ที่เบราว์เซอร์ส่งมาถาม CORS ก่อนคำขอจริง "ไม่แนบ token"
+        # ถ้าบังคับตรวจ token จะโดน 401 แล้ว CORS พังทั้งระบบ จึงต้องปิดตรงนี้
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt UserPool.Arn
             Identity:
               Header: Authorization              # token อยู่ใน header Authorization
-      Cors:                                       # SAM สร้าง OPTIONS ให้ทุก route
+      # Cors: SAM สร้าง method OPTIONS ให้ทุก route อัตโนมัติ
+      #   ค่าต้องครอบด้วยเครื่องหมาย ' อีกชั้น เพราะ SAM ต้องการสตริงคงที่ (ไม่ครอบจะได้ header ผิด/deploy ไม่ผ่าน)
+      #   ช่วงทดสอบใช้ * ได้ ใช้จริงควรเปลี่ยนเป็นโดเมน Amplify (พารามิเตอร์ CorsAllowedOrigin)
+      #   Lambda ตั้ง CORS ในคำตอบเองอยู่แล้ว ส่วนนี้ครอบคลุมคำขอ OPTIONS เป็นหลัก
+      Cors:
         AllowOrigin: !Sub "'${CorsAllowedOrigin}'"      # ต้องมีเครื่องหมาย ' ครอบตามรูปแบบของ SAM
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
         MaxAge: 600
-      GatewayResponses:                           # error ที่ gateway ตอบเอง (401/403/5XX) ก็ต้องมี CORS
+      # GatewayResponses: error ที่ "API Gateway ตอบเอง" (เช่น 401 จาก authorizer) ไม่ผ่าน Lambda
+      #   จึงไม่มี header CORS ติดไป เบราว์เซอร์จะเห็นเป็น "CORS error" ทั้งที่จริงคือ token หมดอายุ (debug ยาก)
+      #   บล็อกนี้เติม header ให้คำตอบเหล่านั้น frontend จะอ่านสถานะ 401 ได้จริง
+      GatewayResponses:
         DEFAULT_4XX:
           ResponseParameters:
             Headers:
@@ -190,8 +229,8 @@ Resources:
               Access-Control-Allow-Origin: !Sub "'${CorsAllowedOrigin}'"
               Access-Control-Allow-Headers: "'Content-Type,Authorization'"
 
- # ===================================================================
-  # 4) Lambda 7 ตัว + route ที่ผูกกับแต่ละตัว
+  # ===================================================================
+  # 3) Lambda 7 ตัว + Lambda รัน migration + route ที่ผูกกับแต่ละตัว
   #    Events แต่ละรายการ = หนึ่ง route (SAM สร้าง resource, method, integration
   #    และสิทธิ์ให้ API Gateway เรียก Lambda ให้เอง)
   # ===================================================================
@@ -323,6 +362,17 @@ Resources:
           # {proxy+} รับทุก path ใต้ /api/admin และ ANY รับทุก method (โค้ดแยก route เอง)
           Properties: { RestApiId: !Ref Api, Path: "/api/admin/{proxy+}", Method: ANY }
 
+  # Lambda ชั่วคราวสำหรับรัน SQL migration (ไม่มี route ใน API ต้องเรียกด้วย aws lambda invoke)
+  # ต้องอยู่ใน VPC (Globals ใส่ให้แล้ว) เพราะ RDS เป็น private
+  ClaimMigrate:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${FunctionPrefix}ClaimMigrate"
+      Role: !Ref LabRoleArn
+      CodeUri: ../build/migrate
+      Description: รัน docs/database/migrations/*.sql บน RDS (รันซ้ำได้ ไม่ซ้ำไฟล์เดิม)
+      Timeout: 300
+
 # ---------------------------------------------------------------------
 # Outputs: ค่าที่ต้องเอาไปตั้งใน Amplify (environment variables ของ frontend)
 # ---------------------------------------------------------------------
@@ -336,5 +386,6 @@ Outputs:
   UserPoolClientId:
     Description: ใส่เป็น VITE_COGNITO_CLIENT_ID
     Value: !Ref UserPoolClient
-  LayerArn:
-    Value: !Ref NodeDepsLayer
+  MigrateFunctionName:
+    Description: ชื่อ Lambda ที่ deploy.sh เรียกเพื่อรัน migration
+    Value: !Ref ClaimMigrate
