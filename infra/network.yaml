@@ -15,54 +15,54 @@ Parameters:
     Default : cs361
     Description : คำนำหน้าชื่อ resource (ใช้ใน tag Name และชื่อ bucket)
 
-    VpcCidr:
+  VpcCidr:
     Type: String
     Default: 10.20.0.0/16
     Description: เป็นช่วง IP ของ VPC โดยแบ่ง /16 และแบ่ง subnet เป็น /20 จำนวน 3 ก้อน (private, public, database)
 
-    # prefix ของ AZ (Availability Zone)
-    AzLambda:
-      Type: AWS::EC2::AvailabilityZone::Name
-      Default: us-east-1d        
+  # prefix ของ AZ (Availability Zone)
+  AzLambda:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1d        
 
-    AzDbA:
-      Type: AWS::EC2::AvailabilityZone::Name
-      Default: us-east-1a        
+  AzDbA:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a        
 
-    AzDbB:
-      Type: AWS::EC2::AvailabilityZone::Name
-      Default: us-east-1b       
+  AzDbB:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b       
 
-    # prefix ของ Database เช่น ชื่อ, รหัสผ่าน, ขนาดของ instance, เวอร์ชันของ PostgreSQL, พื้นที่เก็บข้อมูลเป็น GB (ขั้นต่ำของ RDS)
-    DbName:
-      Type: String
-      Default: claims          
-    DbUsername:
-      Type: String
-      Default: claims_admin   
-    DbPassword:
-      Type: String
-      NoEcho: true              
-      MinLength: 8             
-      Description: รหัสผ่านฐานข้อมูล (ใส่ตอน deploy ห้ามเก็บในรีโป)
-    DbInstanceClass:
-      Type: String
-      Default: db.t3.micro      
-    DbEngineVersion:
-      Type: String
-      Default: "16"
-      Description: เวอร์ชัน PostgreSQL
-    DbStorageGb:
-      Type: Number
-      Default: 20          
+  # prefix ของ Database เช่น ชื่อ, รหัสผ่าน, ขนาดของ instance, เวอร์ชันของ PostgreSQL, พื้นที่เก็บข้อมูลเป็น GB (ขั้นต่ำของ RDS)
+  DbName:
+    Type: String
+    Default: claims          
+  DbUsername:
+    Type: String
+    Default: claims_admin   
+  DbPassword:
+    Type: String
+    NoEcho: true              
+    MinLength: 8             
+    Description: รหัสผ่านฐานข้อมูล (ใส่ตอน deploy ห้ามเก็บในรีโป)
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro      
+  DbEngineVersion:
+    Type: String
+    Default: "16"
+    Description: เวอร์ชัน PostgreSQL
+  DbStorageGb:
+    Type: Number
+    Default: 20          
 
-    # Prefix การตั้งค่า cors เอาใช้กัย S3, APIGateway, Lambda
-    CorsAllowedOrigin:
-      Type: String
-      Default: "*"
-    # origin ของเว็บที่อนุญาตให้อัปโหลดไฟล์ตรงเข้า S3 ผ่าน presigned URL
-    # ช่วงทดสอบใช้ * ได้ ตอนใช้จริงควรใส่ URL ของ Amplify เช่น https://xxx.amplifyapp.com
-      Description: origin ของเว็บ หรือ * ช่วงทดสอบ
+  # Prefix การตั้งค่า cors เอาใช้กัย S3, APIGateway, Lambda
+  CorsAllowedOrigin:
+    Type: String
+    Default: "*"
+  # origin ของเว็บที่อนุญาตให้อัปโหลดไฟล์ตรงเข้า S3 ผ่าน presigned URL
+  # ช่วงทดสอบใช้ * ได้ ตอนใช้จริงควรใส่ URL ของ Amplify เช่น https://xxx.amplifyapp.com
+    Description: origin ของเว็บ หรือ * ช่วงทดสอบ
 
 Resources:
   # ===================================================================
@@ -163,7 +163,7 @@ Resources:
   RdsSg:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: RDS - รับ 5432 จาก Lambda SG เท่านั้น
+      GroupDescription: RDS - allow 5432 from Lambda SG only
       VpcId: !Ref Vpc
       # ไม่ใส่ SecurityGroupIngress ตรงนี้ จะเพิ่มด้วย RdsIngressFromLambda ด้านล่าง
       # (เพื่อไม่ให้ RdsSg กับ LambdaSg อ้างอิงกันเองเป็นวงกลม)
@@ -173,7 +173,7 @@ Resources:
   LambdaSg:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Lambda - ไม่มี inbound, ออกได้เฉพาะ RDS 5432 และ 443 (ไป S3 endpoint)
+      GroupDescription: Lambda - no inbound; egress to RDS 5432 and 443 only
       VpcId: !Ref Vpc
       # ไม่กำหนด inbound = ไม่มีใครเรียกเข้ามาที่ Lambda ได้ผ่านเครือข่าย
       # (API Gateway เรียก Lambda ผ่านระบบ invoke ของ AWS ไม่ผ่าน SG)
@@ -208,7 +208,7 @@ Resources:
   DbSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: db-a + db-b (RDS ต้องมี subnet อย่างน้อย 2 AZ)
+      DBSubnetGroupDescription: db-a + db-b (RDS needs subnets in 2 AZs)
       SubnetIds:
         - !Ref SubnetDbA
         - !Ref SubnetDbB
