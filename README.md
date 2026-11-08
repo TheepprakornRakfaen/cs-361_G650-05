@@ -179,12 +179,20 @@ REST API ชื่อ `cs361-claims-api` (stage `v2`) ทุก method ใช้
 ```
 cs-361_G650-05/
 ├── README.md
-├── script/
-│   ├── cognito/
-│   │   └── seed_cognito_users.sh
-│   ├── api-gateway/
-│   │   ├── create_api.sh
-│   │   └── list_routes.sh
+├── .github/
+│   └── workflows/
+│       └── frontend-deploy.yml
+├── infra/
+│   ├── README.md
+│   ├── network.yaml
+│   ├── backend.yaml
+│   └── deploy_script/
+│       ├── build.sh
+│       ├── deploy.sh
+│       ├── destroy.sh
+│       └── migrate/
+│           └── index.mjs
+├── backend/
 │   └── lambda/
 │       └── functions/
 │           ├── ClaimCRUDUser/
@@ -222,14 +230,32 @@ cs-361_G650-05/
 | `docs/database/` | ภาพ ER diagram `V4_Databaseschema.png` และต้นฉบับ Mermaid `Databaseschema.mmd` |
 | `docs/database/migrations/` | SQL สร้างและแก้ฐานข้อมูล (ดูหัวข้อ 4) |
 
-### สคริปต์ AWS (`script/`)
+### Infrastructure as Code (`infra/`)
+
+สร้าง backend ทั้งระบบด้วย CloudFormation และสคริปต์ bash (วิธีใช้ดู [infra/README.md](infra/README.md))
 
 | Path | หมายถึง |
 |---|---|
-| `script/cognito/seed_cognito_users.sh` | สร้างกลุ่ม/ผู้ใช้ทดสอบใน Cognito และเขียน `sync_app_user.sql` เพื่อซิงก์ `app_user` |
-| `script/api-gateway/create_api.sh` | สร้าง REST API, authorizer, resource, method และ CORS (ไม่ผูก Lambda และไม่ deploy) |
-| `script/api-gateway/list_routes.sh` | แสดง route ทั้งหมดพร้อม authorizer และ Lambda ที่ผูกอยู่ |
-| `script/lambda/functions/` | โค้ดของ Lambda แต่ละตัว (1 โฟลเดอร์ = 1 function) |
+| `infra/README.md` | วิธี deploy / ปรับปรุง / ลบ ตัวแปรที่ตั้งได้ และการแก้ปัญหาเบื้องต้น |
+| `infra/network.yaml` | VPC, subnet, route table, S3 Gateway endpoint, Security Group, RDS PostgreSQL และ S3 bucket หลักฐาน |
+| `infra/backend.yaml` | Cognito (User Pool, client, กลุ่มผู้ใช้), Lambda 7 ตัว + Lambda รัน migration และ API Gateway (SAM) |
+| `infra/deploy_script/build.sh` | เตรียมโค้ด Lambda ลงโฟลเดอร์ `build/` พร้อมติดตั้ง `node_modules` |
+| `infra/deploy_script/deploy.sh` | สร้างทั้งระบบ: network, backend, migration, ผู้ใช้ทดสอบใน Cognito แล้วพิมพ์ค่า `VITE_*` |
+| `infra/deploy_script/destroy.sh` | ลบทั้งระบบ (ข้อมูลใน RDS และไฟล์หลักฐานหายถาวร) |
+| `infra/deploy_script/migrate/index.mjs` | Lambda ชั่วคราวที่รัน SQL ใน `docs/database/migrations/` บน RDS |
+| `build/` | สร้างตอนรันสคริปต์ ไม่ commit |
+
+### Backend (`backend/`)
+
+| Path | หมายถึง |
+|---|---|
+| `backend/lambda/functions/` | โค้ดของ Lambda แต่ละตัว (1 โฟลเดอร์ = 1 function, ชื่อโฟลเดอร์ใช้อ้างใน `CodeUri` ของ `infra/backend.yaml`) |
+
+### CI/CD (`.github/`)
+
+| Path | หมายถึง |
+|---|---|
+| `.github/workflows/frontend-deploy.yml` | build และ deploy frontend อัตโนมัติเมื่อมี push |
 
 ### Frontend (`teaching-claim-system/`)
 
