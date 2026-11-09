@@ -75,10 +75,14 @@ bash "$SCRIPT_DIR/build.sh"
 # ---------- 2) bucket สำหรับเก็บ zip ตอน package ----------
 # `aws cloudformation package` ต้องอัปโหลดโค้ด Lambda ขึ้น S3 ก่อน CloudFormation จึงจะอ้างถึงได้
 # ชื่อ bucket ต้องไม่ซ้ำทั้งโลก จึงต่อ account id และ region เข้าไป
-ARTIFACT_BUCKET="${ARTIFACT_BUCKET:-$PREFIX-artifacts-$ACCOUNT-$AWS_DEFAULT_REGION}"
-if ! aws s3api head-bucket --bucket "$ARTIFACT_BUCKET" 2>/dev/null; then   # head-bucket ล้มเหลว = ยังไม่มี
-  echo "==> สร้าง bucket $ARTIFACT_BUCKET"
-  aws s3 mb "s3://$ARTIFACT_BUCKET" >/dev/null
+if [ -n "${ARTIFACT_BUCKET:-}" ]; then
+  echo "==> ใช้ artifact bucket ที่มีอยู่แล้ว: $ARTIFACT_BUCKET"
+else
+  ARTIFACT_BUCKET="$PREFIX-artifacts-$ACCOUNT-$AWS_DEFAULT_REGION"
+  if ! aws s3api head-bucket --bucket "$ARTIFACT_BUCKET" 2>/dev/null; then
+    echo "==> สร้าง bucket $ARTIFACT_BUCKET"
+    aws s3 mb "s3://$ARTIFACT_BUCKET" >/dev/null
+  fi
 fi
 
 # ---------- 3) network stack (RDS ใช้เวลาประมาณ 5-10 นาที) ----------

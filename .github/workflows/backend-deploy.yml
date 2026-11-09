@@ -17,6 +17,7 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      ARTIFACT_BUCKET: ${{ secrets.AMPLIFY_BUILD_BUCKET }}
 
     steps:
       - name: Checkout
