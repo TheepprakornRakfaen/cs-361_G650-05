@@ -229,6 +229,16 @@ jobs:
           cd ..
           echo "Zip size: $(du -sh frontend-${{ github.sha }}.zip | cut -f1)"
 
+      - name: Debug credentials (ลบทิ้งหลังแก้เสร็จ)
+        env:
+          K: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          S: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          T: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: |
+          echo "KEY prefix : ${K:0:4}  length: ${#K}"
+          echo "SECRET length: ${#S}"
+          echo "TOKEN length : ${#T}"
+          
       # ── 4. Configure AWS credentials ─────────────────────
       #    ใช้ GitHub Secrets — ไม่มี key ใน code
       #    AWS Academy Learner Lab ใช้ temporary credentials
