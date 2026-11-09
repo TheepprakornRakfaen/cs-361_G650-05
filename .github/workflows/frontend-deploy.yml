@@ -231,11 +231,14 @@ jobs:
 
       # ── 4. Configure AWS credentials ─────────────────────
       #    ใช้ GitHub Secrets — ไม่มี key ใน code
+      #    AWS Academy Learner Lab ใช้ temporary credentials
+      #    ต้องมี AWS_SESSION_TOKEN และต้องอัปเดตทุกครั้งที่เริ่ม lab ใหม่
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
       # ── 5. Upload zip ไปยัง S3 staging bucket ────────────
@@ -307,13 +310,7 @@ jobs:
       - name: Smoke test deployed frontend
         if: steps.wait-deploy.outputs.status == 'success'
         run: |
-          # ดึง URL ของ branch ที่ deploy ไป
-          APP_URL=$(aws amplify get-branch \
-            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
-            --branch-name ${{ github.ref_name }} \
-            --query 'branch.displayName' \
-            --output text 2>/dev/null || echo "")
-
+          # ดึง domain ของ Amplify app
           BRANCH_URL=$(aws amplify get-app \
             --app-id ${{ secrets.AMPLIFY_APP_ID }} \
             --query 'app.defaultDomain' \
@@ -342,7 +339,7 @@ jobs:
             echo "SMOKE_TEST=warning" >> $GITHUB_ENV
           fi
 
-          echo "frontend-url=${FULL_URL}" >> $GITHUB_ENV
+          echo "FRONTEND_URL=${FULL_URL}" >> $GITHUB_ENV
 
       # ── 9. Deployment Summary ─────────────────────────────
       - name: Write deployment summary
@@ -357,8 +354,8 @@ jobs:
           echo "| Amplify App | \`${{ secrets.AMPLIFY_APP_ID }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Deploy Status | ${{ steps.wait-deploy.outputs.status }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Test | ${SMOKE_TEST:-skipped} |" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${frontend_url:-}" ]; then
-            echo "| Frontend URL | ${frontend_url} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${FRONTEND_URL:-}" ]; then
+            echo "| Frontend URL | ${FRONTEND_URL} |" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### Triggered by" >> $GITHUB_STEP_SUMMARY
