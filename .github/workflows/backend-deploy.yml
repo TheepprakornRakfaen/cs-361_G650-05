@@ -17,7 +17,6 @@ jobs:
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       FUNCTION_PREFIX: GRP05-
-      ARTIFACT_BUCKET: grp05-claims-evidence-620560406466
 
     steps:
       - name: Checkout
@@ -39,21 +38,6 @@ jobs:
       - name: Verify AWS credentials
         run: |
           aws sts get-caller-identity
-
-      - name: Verify AWS identity and S3 access
-        run: |
-          echo "==> AWS identity"
-          aws sts get-caller-identity
-
-          echo "==> Test S3 write access"
-          echo "GitHub Actions S3 test" > /tmp/github-actions-s3-test.txt
-
-          aws s3 cp \
-            /tmp/github-actions-s3-test.txt \
-            "s3://${ARTIFACT_BUCKET}/v5/backend/test/github-actions-s3-test.txt"
-
-          aws s3 rm \
-            "s3://${ARTIFACT_BUCKET}/v5/backend/test/github-actions-s3-test.txt"
 
       - name: Build Lambda functions
         run: |
@@ -85,26 +69,40 @@ jobs:
           echo "==> Generated artifacts:"
           ls -lh artifacts/
 
-      - name: Upload deployment artifacts to S3
-        env:
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          echo "==> Uploading artifacts for commit $COMMIT_SHA"
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-lambda-${{ github.sha }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+          retention-days: 7
 
-          for FILE in artifacts/*.zip; do
-            aws s3 cp "$FILE" \
-              "s3://${ARTIFACT_BUCKET}/v5/backend/${COMMIT_SHA}/$(basename "$FILE")"
-          done
-
-      - name: Verify S3 artifacts
-        env:
-          COMMIT_SHA: ${{ github.sha }}
+      - name: Verify deployment artifacts
         run: |
           echo "==> Verifying deployment artifacts"
 
-          aws s3 ls \
-            "s3://${ARTIFACT_BUCKET}/v5/backend/${COMMIT_SHA}/" \
-            --human-readable
+          EXPECTED_FUNCTIONS=(
+            "ClaimCRUDUser"
+            "ClaimsPeriodTermCourses"
+            "ClaimUserRequest"
+            "ClaimWorkflowAPI"
+            "ClaimEvidencePresign"
+            "ClaimEvidenceAPI"
+            "ClaimAdminMasterData"
+          )
+
+          for FUNCTION in "${EXPECTED_FUNCTIONS[@]}"; do
+            FILE="artifacts/${FUNCTION}.zip"
+
+            if [ ! -f "$FILE" ]; then
+              echo "ERROR: Missing artifact $FILE"
+              exit 1
+            fi
+
+            echo "✓ Found $FILE"
+          done
+
+          echo "==> All Lambda deployment artifacts verified"
 
       - name: Deploy Lambda functions
         run: |
