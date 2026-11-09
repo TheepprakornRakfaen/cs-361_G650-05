@@ -395,6 +395,173 @@ export const handler = async (event) => {
   }
 };
 
+async function attachAnomalyDetection(rows) {
+  if (!rows.length) return;
+
+  const { rows: contextRows } = await pool.query(
+    `SELECT
+       c.id,
+       c.status,
+       c.hour::float AS claim_hour,
+       c.section_id,
+       c.period_id,
+       c.type_id,
+       c.claimant_id,
+       ss.hour::float AS quota_used,
+       ss.max_hour::float AS quota_max,
+
+       (SELECT COUNT(*)::int
+        FROM claim_evidence ev
+        WHERE ev.claim_id = c.id) AS evidence_count,
+
+       (SELECT COUNT(*)::int
+        FROM claim_date cd
+        WHERE cd.claim_id = c.id) AS date_count,
+
+       (SELECT to_char(cd.teach_date, 'YYYY-MM-DD')
+        FROM claim_date cd
+        JOIN academic_term t ON t.id = s.term_id
+        WHERE cd.claim_id = c.id
+          AND (
+            cd.teach_date < t.start_date
+            OR cd.teach_date > t.end_date
+          )
+        ORDER BY cd.teach_date
+        LIMIT 1) AS outside_term_date,
+
+       (SELECT json_build_object(
+          'id', other.id,
+          'date', to_char(other_date.teach_date, 'YYYY-MM-DD')
+        )
+        FROM claim_date self_date
+        JOIN claim_date other_date
+          ON other_date.teach_date = self_date.teach_date
+        JOIN claim other
+          ON other.id = other_date.claim_id
+        WHERE self_date.claim_id = c.id
+          AND other.id <> c.id
+          AND other.claimant_id = c.claimant_id
+          AND other.section_id = c.section_id
+          AND other.status IN (1, 2, 3, 6)
+        ORDER BY other.created_at, other.id
+        LIMIT 1) AS duplicate_match
+
+     FROM claim c
+     JOIN section s ON s.id = c.section_id
+     LEFT JOIN section_staff ss
+       ON ss.section_id = c.section_id
+      AND ss.user_id = c.claimant_id
+     WHERE c.id = ANY($1::uuid[])`,
+    [rows.map((row) => row.id)],
+  );
+
+  const contexts = new Map(contextRows.map((c) => [String(c.id), c]));
+
+  const activeStatuses = new Set([1, 2, 3, 6]);
+
+  for (const row of rows) {
+    const c = contexts.get(String(row.id));
+    if (!c) throw new Error("Claim context not found");
+
+    const issues = [];
+
+    const add = (id, type, severity, title, message, extra = {}) => {
+      issues.push({ id, type, severity, title, message, ...extra });
+    };
+
+    if (c.status !== 0 && Number(c.evidence_count) === 0) {
+      add(
+        "MISSING_EVIDENCE",
+        "MISSING_EVIDENCE",
+        "warning",
+        "ยังไม่ได้แนบหลักฐาน",
+        "ไม่พบรายการเอกสารหลักฐานที่บันทึกกับคำร้องนี้",
+      );
+    }
+
+    if (c.status !== 0 && Number(c.date_count) === 0) {
+      add(
+        "MISSING_DATES",
+        "INCOMPLETE",
+        "error",
+        "ไม่พบวันที่สอน",
+        "คำร้องนี้ไม่มีวันที่สอนในระบบ",
+      );
+    }
+
+    if (c.status !== 0 && !(Number(c.claim_hour) > 0)) {
+      add(
+        "ZERO_HOURS",
+        "INCOMPLETE",
+        "error",
+        "ชั่วโมงสอนไม่ถูกต้อง",
+        "ชั่วโมงที่ขอเบิกต้องมากกว่า 0",
+      );
+    }
+
+    if (
+      c.status !== 0 &&
+      (!c.claimant_id || !c.section_id || !c.period_id || !c.type_id)
+    ) {
+      add(
+        "MISSING_REQUIRED_FIELDS",
+        "INCOMPLETE",
+        "error",
+        "ข้อมูลคำร้องไม่ครบ",
+        "ไม่พบข้อมูลผู้ยื่น รายวิชา รอบยื่น หรือประเภทค่าตอบแทน",
+      );
+    }
+
+    if (activeStatuses.has(Number(c.status)) && c.duplicate_match) {
+      add(
+        "POTENTIAL_DUPLICATE",
+        "DUPLICATE",
+        "warning",
+        "อาจเป็นคำร้องซ้ำ",
+        `พบคำร้องอีกฉบับของผู้ยื่นและ Section เดียวกันในวันที่ ${c.duplicate_match.date}`,
+        {
+          targetId: c.duplicate_match.id,
+          targetCode: c.duplicate_match.id,
+        },
+      );
+    }
+
+    if (c.outside_term_date) {
+      add(
+        "DATE_OUTSIDE_TERM",
+        "INVALID_DATE",
+        "warning",
+        "วันที่สอนอยู่นอกภาคการศึกษา",
+        `วันที่ ${c.outside_term_date} อยู่นอกช่วงภาคการศึกษา`,
+      );
+    }
+
+    if (
+      activeStatuses.has(Number(c.status)) &&
+      c.quota_max !== null &&
+      (Number(c.claim_hour) > Number(c.quota_max) ||
+        Number(c.quota_used) > Number(c.quota_max))
+    ) {
+      add(
+        "EXCEEDS_QUOTA",
+        "EXCEEDS_QUOTA",
+        "warning",
+        "ควรตรวจสอบโควตาชั่วโมง",
+        `คำร้อง ${Number(c.claim_hour)} ชม. / ใช้ไป ${Number(c.quota_used)} ชม. / เพดาน ${Number(c.quota_max)} ชม.`,
+      );
+    }
+
+    row.anomalyDetection = {
+      hasIssues: issues.length > 0,
+      hasErrors: issues.some((x) => x.severity === "error"),
+      hasWarnings: issues.some((x) => x.severity === "warning"),
+      anomalies: issues,
+      clean: issues.length === 0,
+      summary: issues.map((x) => x.message).join(" | "),
+    };
+  }
+}
+
 // ---------------------------------------------------------------------
 // GET: cognitoSub = null -> ทุกคน (ยกเว้นร่าง), มีค่า -> เฉพาะของตัวเอง
 // ส่งเฉพาะฟิลด์ที่ services/claimMapper.js ใช้
@@ -553,6 +720,8 @@ async function queryClaims(cognitoSub, opts) {
      ${paginationSql}`,
     dataParams,
   );
+
+  await attachAnomalyDetection(rows);
 
   // ไม่ส่ง Pagination: คงรูปแบบเดิม
   if (!opts.pagination) {

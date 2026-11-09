@@ -27,7 +27,7 @@
 // (ไม่มี class_schedule และไม่มี start_time / end_time)
 // อยู่ใน VPC เดียวกับ RDS (security group: cs361-lambda-sg)
 // =====================================================================
-import pg from 'pg';
+import pg from "pg";
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -36,56 +36,68 @@ const pool = new pg.Pool({
   connectionTimeoutMillis: 3000,
 });
 
-const STAFF_FILTERS = ['none', 'assigned', 'used', 'full'];
+const STAFF_FILTERS = ["none", "assigned", "used", "full"];
 
 const respond = (statusCode, body) => ({
   statusCode,
   headers: {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
   },
   body: JSON.stringify(body),
 });
 
 export const handler = async (event) => {
   const claims = event.requestContext?.authorizer?.claims;
-  if (!claims?.sub) return respond(401, { message: 'ต้องเข้าสู่ระบบก่อน' });
+  if (!claims?.sub) return respond(401, { message: "ต้องเข้าสู่ระบบก่อน" });
 
   const q = event.queryStringParameters ?? {};
   const termId = q.term_id !== undefined ? Number(q.term_id) : null;
   if (termId !== null && !Number.isInteger(termId)) {
-    return respond(400, { message: 'term_id ต้องเป็นตัวเลข' });
+    return respond(400, { message: "term_id ต้องเป็นตัวเลข" });
   }
-  const all = q.all === 'true';
+  const all = q.all === "true";
 
   // limit ไม่ส่ง = null (ไม่จำกัด) · สูงสุด 100 ต่อหน้า
   const limit = q.limit !== undefined ? Number(q.limit) : null;
   const offset = q.offset !== undefined ? Number(q.offset) : 0;
-  if (limit !== null && !(Number.isInteger(limit) && limit >= 1 && limit <= 100)) {
-    return respond(400, { message: 'limit ต้องเป็นจำนวนเต็ม 1-100' });
+  if (
+    limit !== null &&
+    !(Number.isInteger(limit) && limit >= 1 && limit <= 100)
+  ) {
+    return respond(400, { message: "limit ต้องเป็นจำนวนเต็ม 1-100" });
   }
   if (!(Number.isInteger(offset) && offset >= 0)) {
-    return respond(400, { message: 'offset ต้องเป็นจำนวนเต็มตั้งแต่ 0' });
+    return respond(400, { message: "offset ต้องเป็นจำนวนเต็มตั้งแต่ 0" });
   }
   const page = { limit, offset };
-  const search = String(q.q ?? '').trim().slice(0, 100);
-  const staff = q.staff ?? '';
+  const search = String(q.q ?? "")
+    .trim()
+    .slice(0, 100);
+  const staff = q.staff ?? "";
   if (staff && !STAFF_FILTERS.includes(staff)) {
-    return respond(400, { message: `staff ต้องเป็น ${STAFF_FILTERS.join(' / ')}` });
+    return respond(400, {
+      message: `staff ต้องเป็น ${STAFF_FILTERS.join(" / ")}`,
+    });
   }
 
   try {
     switch (event.resource) {
-      case '/api/term':    return await getTerms();
-      case '/api/period':  return await getPeriods(termId, all, page);
-      case '/api/courses': return await getCourses(claims.sub, termId, all, page, search, staff);
-      case '/api/compensation-types': return await getCompensationTypes();
-      default:             return respond(404, { message: 'ไม่พบ endpoint นี้' });
+      case "/api/term":
+        return await getTerms();
+      case "/api/period":
+        return await getPeriods(termId, all, page);
+      case "/api/courses":
+        return await getCourses(claims.sub, termId, all, page, search, staff);
+      case "/api/compensation-types":
+        return await getCompensationTypes();
+      default:
+        return respond(404, { message: "ไม่พบ endpoint นี้" });
     }
   } catch (err) {
-    console.error('DB error:', err.code, err.message);
-    return respond(500, { message: 'ดึงข้อมูลไม่สำเร็จ' });
+    console.error("DB error:", err.code, err.message);
+    return respond(500, { message: "ดึงข้อมูลไม่สำเร็จ" });
   }
 };
 
@@ -95,10 +107,11 @@ export const handler = async (event) => {
 // ---------------------------------------------------------------------
 async function queryPage(sql, params, { limit, offset }, countSql) {
   const n = params.length;
-  const { rows } = await pool.query(
-    `${sql} LIMIT $${n + 1} OFFSET $${n + 2}`,
-    [...params, limit, offset],
-  );
+  const { rows } = await pool.query(`${sql} LIMIT $${n + 1} OFFSET $${n + 2}`, [
+    ...params,
+    limit,
+    offset,
+  ]);
 
   let total = rows.length ? Number(rows[0].total_count) : 0;
   // offset เลยแถวสุดท้าย → ไม่มีแถวให้อ่าน total จึงนับแยก

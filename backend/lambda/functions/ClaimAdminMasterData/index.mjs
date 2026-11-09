@@ -18,7 +18,7 @@
 // Environment variables:
 //   DATABASE_URL = postgres://claim_admin:<PASSWORD>@<RDS_ENDPOINT>:5432/claims
 // =====================================================================
-import pg from 'pg';
+import pg from "pg";
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -29,24 +29,24 @@ const pool = new pg.Pool({
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STAFF_ROLES = ['INSTRUCTOR', 'TA'];
+const STAFF_ROLES = ["INSTRUCTOR", "TA"];
 
 const respond = (statusCode, body) => ({
   statusCode,
   headers: {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
   },
   body: JSON.stringify(body),
 });
 
 const getGroups = (claims) => {
-  const raw = claims?.['cognito:groups'];
+  const raw = claims?.["cognito:groups"];
   if (Array.isArray(raw)) return raw;
-  return String(raw ?? '')
-    .replace(/[\[\]"']/g, '')
+  return String(raw ?? "")
+    .replace(/[\[\]"']/g, "")
     .split(/[,\s]+/)
     .filter(Boolean);
 };
@@ -63,37 +63,49 @@ const parseBody = (event) => {
 };
 
 export const handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return respond(204, {});
+  if (event.httpMethod === "OPTIONS") return respond(204, {});
 
   const claims = event.requestContext?.authorizer?.claims;
-  if (!claims?.sub) return respond(401, { message: 'ต้องเข้าสู่ระบบก่อน' });
-  if (!getGroups(claims).includes('ADMIN')) {
-    return respond(403, { message: 'เฉพาะผู้ดูแลระบบ' });
+  if (!claims?.sub) return respond(401, { message: "ต้องเข้าสู่ระบบก่อน" });
+  if (!getGroups(claims).includes("ADMIN")) {
+    return respond(403, { message: "เฉพาะผู้ดูแลระบบ" });
   }
 
   const body = parseBody(event);
-  if (body === null) return respond(400, { message: 'JSON ไม่ถูกต้อง' });
+  if (body === null) return respond(400, { message: "JSON ไม่ถูกต้อง" });
 
   // proxy = "sections", "sections/12", "section-staff", "users"
-  const parts = String(event.pathParameters?.proxy ?? '').split('/').filter(Boolean);
-  const route = `${event.httpMethod} ${parts[0] ?? ''}`;
+  const parts = String(event.pathParameters?.proxy ?? "")
+    .split("/")
+    .filter(Boolean);
+  const route = `${event.httpMethod} ${parts[0] ?? ""}`;
 
   try {
     switch (route) {
-      case 'GET users':             return await listUsers();
-      case 'POST sections':         return await createSection(body);
-      case 'DELETE sections':       return await deleteSection(parts[1]);
-      case 'GET section-staff':     return await listStaff(event.queryStringParameters?.section_id);
-      case 'PUT section-staff':     return await upsertStaff(body);
-      case 'DELETE section-staff':  return await removeStaff(body);
-      default:                      return respond(404, { message: 'ไม่พบ endpoint นี้' });
+      case "GET users":
+        return await listUsers();
+      case "POST sections":
+        return await createSection(body);
+      case "DELETE sections":
+        return await deleteSection(parts[1]);
+      case "GET section-staff":
+        return await listStaff(event.queryStringParameters?.section_id);
+      case "PUT section-staff":
+        return await upsertStaff(body);
+      case "DELETE section-staff":
+        return await removeStaff(body);
+      default:
+        return respond(404, { message: "ไม่พบ endpoint นี้" });
     }
   } catch (err) {
-    console.error('DB error:', err.code, err.message);
-    if (err.code === '23505') return respond(409, { message: 'ข้อมูลซ้ำกับที่มีอยู่แล้ว' });
-    if (err.code === '23503') return respond(400, { message: 'อ้างอิงข้อมูลที่ไม่มีอยู่' });
-    if (err.code === '23514') return respond(400, { message: 'ค่าไม่ผ่านเงื่อนไขของตาราง' });
-    return respond(500, { message: 'บันทึกข้อมูลไม่สำเร็จ' });
+    console.error("DB error:", err.code, err.message);
+    if (err.code === "23505")
+      return respond(409, { message: "ข้อมูลซ้ำกับที่มีอยู่แล้ว" });
+    if (err.code === "23503")
+      return respond(400, { message: "อ้างอิงข้อมูลที่ไม่มีอยู่" });
+    if (err.code === "23514")
+      return respond(400, { message: "ค่าไม่ผ่านเงื่อนไขของตาราง" });
+    return respond(500, { message: "บันทึกข้อมูลไม่สำเร็จ" });
   }
 };
 
@@ -121,19 +133,23 @@ async function listUsers() {
 // POST /api/admin/sections
 // ---------------------------------------------------------------------
 async function createSection(body) {
-  const code = String(body.course_code ?? '').trim().toUpperCase();
-  const nameTh = String(body.course_name_th ?? '').trim();
-  const nameEn = String(body.course_name_en ?? '').trim() || null;
+  const code = String(body.course_code ?? "")
+    .trim()
+    .toUpperCase();
+  const nameTh = String(body.course_name_th ?? "").trim();
+  const nameEn = String(body.course_name_en ?? "").trim() || null;
   const termId = toInt(body.term_id);
-  const sectionNo = String(body.section_no ?? '').trim();
+  const sectionNo = String(body.section_no ?? "").trim();
 
   if (!code || !nameTh || !termId || !sectionNo) {
-    return respond(400, { message: 'ต้องระบุรหัสวิชา ชื่อวิชา ภาคการศึกษา และกลุ่ม' });
+    return respond(400, {
+      message: "ต้องระบุรหัสวิชา ชื่อวิชา ภาคการศึกษา และกลุ่ม",
+    });
   }
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
     const course = await client.query(
       `INSERT INTO course (code, name_th, name_en)
        VALUES ($1, $2, $3)
@@ -149,12 +165,15 @@ async function createSection(body) {
        RETURNING id`,
       [course.rows[0].id, termId, sectionNo],
     );
-    await client.query('COMMIT');
-    return respond(201, { section_id: section.rows[0].id, course_id: course.rows[0].id });
+    await client.query("COMMIT");
+    return respond(201, {
+      section_id: section.rows[0].id,
+      course_id: course.rows[0].id,
+    });
   } catch (err) {
-    await client.query('ROLLBACK');
-    if (err.code === '23505') {
-      return respond(409, { message: 'มี section นี้ในภาคการศึกษานี้แล้ว' });
+    await client.query("ROLLBACK");
+    if (err.code === "23505") {
+      return respond(409, { message: "มี section นี้ในภาคการศึกษานี้แล้ว" });
     }
     throw err;
   } finally {
@@ -167,16 +186,21 @@ async function createSection(body) {
 // ---------------------------------------------------------------------
 async function deleteSection(rawId) {
   const sectionId = toInt(rawId);
-  if (!sectionId) return respond(400, { message: 'section_id ไม่ถูกต้อง' });
+  if (!sectionId) return respond(400, { message: "section_id ไม่ถูกต้อง" });
 
-  const used = await pool.query('SELECT 1 FROM claim WHERE section_id = $1 LIMIT 1', [sectionId]);
+  const used = await pool.query(
+    "SELECT 1 FROM claim WHERE section_id = $1 LIMIT 1",
+    [sectionId],
+  );
   if (used.rowCount) {
-    return respond(409, { message: 'section นี้มีคำขอเบิกแล้ว ลบไม่ได้' });
+    return respond(409, { message: "section นี้มีคำขอเบิกแล้ว ลบไม่ได้" });
   }
 
   // section_staff ลบตามด้วย ON DELETE CASCADE
-  const { rowCount } = await pool.query('DELETE FROM section WHERE id = $1', [sectionId]);
-  if (!rowCount) return respond(404, { message: 'ไม่พบ section' });
+  const { rowCount } = await pool.query("DELETE FROM section WHERE id = $1", [
+    sectionId,
+  ]);
+  if (!rowCount) return respond(404, { message: "ไม่พบ section" });
   return respond(200, { deleted: sectionId });
 }
 
@@ -185,7 +209,8 @@ async function deleteSection(rawId) {
 // ---------------------------------------------------------------------
 async function listStaff(rawSectionId) {
   const sectionId = rawSectionId ? toInt(rawSectionId) : null;
-  if (rawSectionId && !sectionId) return respond(400, { message: 'section_id ไม่ถูกต้อง' });
+  if (rawSectionId && !sectionId)
+    return respond(400, { message: "section_id ไม่ถูกต้อง" });
 
   const { rows } = await pool.query(
     `SELECT ss.section_id,
@@ -209,28 +234,30 @@ async function listStaff(rawSectionId) {
 // ---------------------------------------------------------------------
 async function upsertStaff(body) {
   const sectionId = toInt(body.section_id);
-  const userId = String(body.user_id ?? '');
-  const role = String(body.role ?? '').toUpperCase();
+  const userId = String(body.user_id ?? "");
+  const role = String(body.role ?? "").toUpperCase();
   const maxHour = Number(body.max_hour);
 
   if (!sectionId || !UUID_RE.test(userId)) {
-    return respond(400, { message: 'ต้องระบุ section และผู้สอน' });
+    return respond(400, { message: "ต้องระบุ section และผู้สอน" });
   }
   if (!STAFF_ROLES.includes(role)) {
-    return respond(400, { message: 'บทบาทต้องเป็น INSTRUCTOR หรือ TA' });
+    return respond(400, { message: "บทบาทต้องเป็น INSTRUCTOR หรือ TA" });
   }
   if (!Number.isFinite(maxHour) || maxHour < 0 || maxHour > 9999) {
-    return respond(400, { message: 'โควตาชั่วโมงไม่ถูกต้อง' });
+    return respond(400, { message: "โควตาชั่วโมงไม่ถูกต้อง" });
   }
 
   // hour (ชั่วโมงที่เบิกไปแล้ว) ไม่ถูกแก้ — โควตาใหม่ต้องไม่น้อยกว่าที่ใช้ไป
   const current = await pool.query(
-    'SELECT hour::float AS hour FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid',
+    "SELECT hour::float AS hour FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid",
     [sectionId, userId],
   );
   const used = current.rows[0]?.hour ?? 0;
   if (maxHour < used) {
-    return respond(409, { message: `โควตาต้องไม่น้อยกว่าชั่วโมงที่ใช้ไปแล้ว (${used} ชม.)` });
+    return respond(409, {
+      message: `โควตาต้องไม่น้อยกว่าชั่วโมงที่ใช้ไปแล้ว (${used} ชม.)`,
+    });
   }
 
   const { rows } = await pool.query(
@@ -250,22 +277,25 @@ async function upsertStaff(body) {
 // ---------------------------------------------------------------------
 async function removeStaff(body) {
   const sectionId = toInt(body.section_id);
-  const userId = String(body.user_id ?? '');
+  const userId = String(body.user_id ?? "");
   if (!sectionId || !UUID_RE.test(userId)) {
-    return respond(400, { message: 'ต้องระบุ section และผู้สอน' });
+    return respond(400, { message: "ต้องระบุ section และผู้สอน" });
   }
 
   const { rows } = await pool.query(
-    'SELECT hour::float AS hour FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid',
+    "SELECT hour::float AS hour FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid",
     [sectionId, userId],
   );
-  if (!rows.length) return respond(404, { message: 'ไม่พบผู้สอนใน section นี้' });
+  if (!rows.length)
+    return respond(404, { message: "ไม่พบผู้สอนใน section นี้" });
   if (rows[0].hour > 0) {
-    return respond(409, { message: 'ผู้สอนคนนี้มีชั่วโมงที่เบิกแล้ว นำออกไม่ได้' });
+    return respond(409, {
+      message: "ผู้สอนคนนี้มีชั่วโมงที่เบิกแล้ว นำออกไม่ได้",
+    });
   }
 
   await pool.query(
-    'DELETE FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid',
+    "DELETE FROM section_staff WHERE section_id = $1 AND user_id = $2::uuid",
     [sectionId, userId],
   );
   return respond(200, { deleted: { section_id: sectionId, user_id: userId } });
