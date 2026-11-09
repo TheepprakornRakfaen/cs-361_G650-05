@@ -1,4 +1,4 @@
-name: Backend - Build & Deploy
+name: Backend - Build, Package & Deploy
 
 on:
   push:
@@ -16,7 +16,8 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      FUNCTION_PREFIX: GRP05-test-
+      FUNCTION_PREFIX: GRP05-
+      ARTIFACT_BUCKET: grp05-claims-evidence-620560406466
 
     steps:
       - name: Checkout
@@ -56,15 +57,39 @@ jobs:
             "ClaimEvidencePresign"
             "ClaimEvidenceAPI"
             "ClaimAdminMasterData"
-            "migrate"
           )
 
           for FUNCTION in "${FUNCTIONS[@]}"; do
             echo "==> Packaging $FUNCTION"
+
             cd "build/$FUNCTION"
             zip -qr "../../artifacts/${FUNCTION}.zip" .
             cd ../..
           done
+
+          echo "==> Generated artifacts:"
+          ls -lh artifacts/
+
+      - name: Upload deployment artifacts to S3
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          echo "==> Uploading artifacts for commit $COMMIT_SHA"
+
+          for FILE in artifacts/*.zip; do
+            aws s3 cp "$FILE" \
+              "s3://${ARTIFACT_BUCKET}/v5/backend/${COMMIT_SHA}/$(basename "$FILE")"
+          done
+
+      - name: Verify S3 artifacts
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          echo "==> Verifying deployment artifacts"
+
+          aws s3 ls \
+            "s3://${ARTIFACT_BUCKET}/v5/backend/${COMMIT_SHA}/" \
+            --human-readable
 
       - name: Deploy Lambda functions
         run: |
@@ -76,15 +101,10 @@ jobs:
             "ClaimEvidencePresign"
             "ClaimEvidenceAPI"
             "ClaimAdminMasterData"
-            "migrate"
           )
 
           for FUNCTION in "${FUNCTIONS[@]}"; do
-            LAMBDA_NAME="${FUNCTION_PREFIX}ClaimMigrate"
-
-            if [ "$FUNCTION" != "migrate" ]; then
-              LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
-            fi
+            LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
 
             echo "==> Deploying $LAMBDA_NAME"
 
@@ -92,6 +112,7 @@ jobs:
               --function-name "$LAMBDA_NAME" \
               --zip-file "fileb://artifacts/${FUNCTION}.zip" \
               --publish
+
             aws lambda wait function-updated \
               --function-name "$LAMBDA_NAME"
           done
@@ -106,15 +127,10 @@ jobs:
             "ClaimEvidencePresign"
             "ClaimEvidenceAPI"
             "ClaimAdminMasterData"
-            "migrate"
           )
 
           for FUNCTION in "${FUNCTIONS[@]}"; do
-            LAMBDA_NAME="${FUNCTION_PREFIX}ClaimMigrate"
-
-            if [ "$FUNCTION" != "migrate" ]; then
-              LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
-            fi
+            LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
 
             echo "==> Verifying $LAMBDA_NAME"
 
