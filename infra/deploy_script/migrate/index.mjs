@@ -69,11 +69,12 @@ async function inspectLegacyDatabase(client) {
     SELECT EXISTS (
       SELECT 1
       FROM pg_class c
-      JOIN pg_namespace n ON n.oid = c.relnamespace
+      JOIN pg_namespace n
+        ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
-        AND c.relname = 'claim_amount'
-        AND c.relkind = 'v'
-    ) AS ok
+        AND c.relkind IN ('r', 'p', 'v', 'm')
+        AND c.relname <> 'schema_migrations'
+    ) AS existing_schema
   `)).rows[0].ok;
 
   let seedChecks = {};
@@ -153,7 +154,7 @@ export const handler = async (event = {}) => {
             name,
             applied_at,
             to_jsonb(sm)->>'checksum' AS checksum,
-            to_jsonb(sm)->>'baselined' AS baselined
+            to_jsonb(sm)->>'baselined' AS baselined,
             to_jsonb(sm)->>'skipped' AS skipped
           FROM public.schema_migrations sm
           ORDER BY name

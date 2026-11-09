@@ -27,6 +27,7 @@ SQL Migration อยู่ที่:
 | `002_seed.sql` | เพิ่มข้อมูลเริ่มต้นและข้อมูลตัวอย่าง |
 | `003_claim_paid_status.sql` | เพิ่มสถานะ Claim Paid |
 | `004_add_claim_paid_at.sql` | เพิ่มคอลัมน์ `paid_at` |
+| `005_reference_seed.sql` | เพิ่มประเภทค่าตอบแทนเริ่มต้นโดยไม่เขียนทับข้อมูลเดิม |
 | `_archive/` | เก็บ Migration รุ่นเก่าสำหรับอ้างอิง |
 
 Migration Runner จะอ่านไฟล์ `.sql` ตามลำดับชื่อ และไม่รัน Migration ที่บันทึกว่า Applied หรือ Baselined แล้วซ้ำ
@@ -41,6 +42,7 @@ Migration Runner จะอ่านไฟล์ `.sql` ตามลำดับ�
 | `checksum` | SHA-256 ของไฟล์ |
 | `applied_at` | เวลาบันทึก Migration |
 | `baselined` | ระบุว่า Migration ถูกลงทะเบียนจากฐานข้อมูลเดิมหรือไม่ |
+| `skipped` | ระบุว่า Migration ถูกข้ามตามนโยบาย Seed Mode โดยไม่ได้ Execute SQL |
 
 ระบบตรวจสอบ Checksum เพื่อช่วยป้องกันการแก้ไข Migration ที่เคยรันแล้ว
 
@@ -102,7 +104,36 @@ Migration Runner จะอ่านไฟล์ `.sql` ตามลำดับ�
 5. เรียก `apply`
 6. ตรวจสอบรายการ Applied Migrations และข้อมูลเริ่มต้น
 
-หากใช้ Demo Seed ต้องกำหนด `ENABLE_DEMO_SEED=true` เฉพาะ Environment ที่แยกจาก Production
+### Seed Modes
+
+Migration Runner ใช้ตัวแปร `SEED_MODE` เพื่อควบคุม
+การเพิ่มข้อมูลเริ่มต้น
+
+| Value | Behavior |
+|---|---|
+| `reference` | ค่าเริ่มต้น ข้าม Demo Seed และรัน Reference Seed |
+| `demo` | รัน Demo Seed สำหรับ Development/Test |
+
+**Reference Mode**
+
+- สร้าง Database Schema ตาม Migration
+- เพิ่มประเภทค่าตอบแทนจาก `005_reference_seed.sql`
+- ไม่สร้างบัญชีผู้ใช้ตัวอย่าง
+- ไม่สร้างรายวิชา ภาคการศึกษา หรือ Section ตัวอย่าง
+- ผู้ดูแลระบบต้องเพิ่มข้อมูลจริงก่อนเริ่มใช้งานระบบ
+
+**Demo Mode**
+
+- ใช้เฉพาะ Environment ทดสอบ
+- เพิ่มข้อมูลตัวอย่างจาก `002_seed.sql`
+- ห้ามใช้กับ Production Database
+
+หาก `002_seed.sql` เคยถูกข้ามด้วย Reference Mode
+ระบบจะไม่อนุญาตให้เปลี่ยนกลับไปรัน Demo Seed
+บนฐานข้อมูลเดิมโดยอัตโนมัติ
+
+Migration ที่ถูกข้ามจะมีสถานะ `skipped_by_policy`
+และไม่ถือว่า SQL ของไฟล์นั้นเคยถูก Execute
 
 ไม่ควรเปิด Demo Seed ใน Production
 
