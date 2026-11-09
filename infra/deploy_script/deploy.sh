@@ -64,7 +64,8 @@ echo "==> ตรวจ credentials"
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)" \
   || { echo "credentials ใช้ไม่ได้/หมดอายุ (Learner Lab อยู่ได้ประมาณ 4 ชม.)"; exit 1; }
 # Learner Lab สร้าง IAM role ใหม่ไม่ได้ จึงใช้ LabRole ที่มีอยู่แล้วเป็นสิทธิ์ของทุก Lambda
-LAB_ROLE_ARN="$(aws iam get-role --role-name LabRole --query Role.Arn --output text)"
+# LAB_ROLE_ARN="$(aws iam get-role --role-name LabRole --query Role.Arn --output text)"
+LAB_ROLE_ARN="arn:aws:iam::${ACCOUNT}:role/LabRole"
 echo "    account=$ACCOUNT region=$AWS_DEFAULT_REGION"
 
 # ---------- 1) build ----------
