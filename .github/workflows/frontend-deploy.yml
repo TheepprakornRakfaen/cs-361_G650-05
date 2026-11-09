@@ -238,7 +238,7 @@ jobs:
           echo "KEY prefix : ${K:0:4}  length: ${#K}"
           echo "SECRET length: ${#S}"
           echo "TOKEN length : ${#T}"
-          
+
       # ── 4. Configure AWS credentials ─────────────────────
       #    ใช้ GitHub Secrets — ไม่มี key ใน code
       #    AWS Academy Learner Lab ใช้ temporary credentials
@@ -251,22 +251,31 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # ── 5. Upload zip ไปยัง S3 staging bucket ────────────
+            # ── 5. Upload zip ไปยัง S3 staging bucket ────────────
       - name: Upload artifact to S3
+        env:
+          BUCKET: ${{ secrets.AMPLIFY_BUILD_BUCKET }}
         run: |
-          aws s3 cp frontend-${{ github.sha }}.zip \
-            s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip \
-            --no-progress
-          echo "Uploaded to s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip"
+          BUCKET=$(echo -n "$BUCKET" | tr -d '[:space:]')
+          KEY="frontend-${{ github.sha }}.zip"
+          aws s3 cp "$KEY" "s3://${BUCKET}/${KEY}" --no-progress
+          echo "Uploaded to s3://${BUCKET}/${KEY}"
 
       # ── 6. Trigger Amplify deployment ─────────────────────
       - name: Deploy to Amplify
         id: amplify-deploy
+        env:
+          APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
+          BUCKET: ${{ secrets.AMPLIFY_BUILD_BUCKET }}
         run: |
+          APP_ID=$(echo -n "$APP_ID" | tr -d '[:space:]')
+          BUCKET=$(echo -n "$BUCKET" | tr -d '[:space:]')
+          KEY="frontend-${{ github.sha }}.zip"
+
           DEPLOY_OUTPUT=$(aws amplify start-deployment \
-            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
-            --branch-name ${{ github.ref_name }} \
-            --source-url "s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip" \
+            --app-id "$APP_ID" \
+            --branch-name "${{ github.ref_name }}" \
+            --source-url "s3://${BUCKET}/${KEY}" \
             --output json)
 
           echo "Deploy output: ${DEPLOY_OUTPUT}"
