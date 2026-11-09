@@ -1,19 +1,24 @@
 name: Frontend – Build & Deploy
 
-# ========================================================
+# ============================================================
 # V5 – Automation / Infrastructure as Code
-# CI/CD pipeline สำหรับ frontend (React + Vite)
-# ทำงานอัตโนมัติทุกครั้งที่มีการ push ไปยัง branch ที่กำหนด
-# ไม่ต้องตั้งค่าหรือ deploy ด้วยมือ ลด Manual Configuration
-# และความคลาดเคลื่อนจากการตั้งค่าซ้ำในแต่ละ environment
-# ========================================================
+# CI/CD pipeline สำหรับ Teaching Claim System (React + Vite)
+#
+# ทำงานอัตโนมัติทุกครั้งที่ push ไปยัง branch ที่กำหนด
+# ไม่ต้อง build หรือ deploy ด้วยมือ ลด Manual Configuration
+#
+# Branch Strategy:
+#   V5   → Development  (dev mock, no backend)
+#   V4   → Staging      (staging backend + Cognito)
+#   main → Production   (production backend + Cognito)
+# ============================================================
 
 on:
   push:
     branches:
-      - main        # Production deployment
-      - V4          # Staging deployment
-      - V5          # Development deployment
+      - main
+      - V4
+      - V5
     paths:
       - "teaching-claim-system/**"
       - ".github/workflows/frontend-deploy.yml"
@@ -21,99 +26,211 @@ on:
   pull_request:
     branches:
       - main
+      - V4
     paths:
       - "teaching-claim-system/**"
 
-# หยุด job เก่าทันทีเมื่อมี push ใหม่มาในรอบเดียวกัน (ประหยัด build minutes)
+# หยุด job เก่าเมื่อมี push ใหม่ ประหยัด build minutes
 concurrency:
   group: frontend-${{ github.ref }}
   cancel-in-progress: true
 
+# ============================================================
+# ENV กลาง — ใช้ร่วมกันทุก job
+# ============================================================
+env:
+  NODE_VERSION: "20"
+  WORKING_DIR: teaching-claim-system
+
 jobs:
-  # ============================================================
-  # JOB 1: Build — ตรวจสอบโค้ด + build artifact
-  # ============================================================
+  # ==========================================================
+  # JOB 1: Build
+  # ตรวจสอบ dependencies → กำหนด env ตาม branch → build
+  # ==========================================================
   build:
-    name: Build Frontend
+    name: 🔨 Build Frontend
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: teaching-claim-system
+        working-directory: ${{ env.WORKING_DIR }}
+
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+      build-time: ${{ steps.meta.outputs.build-time }}
 
     steps:
+      # ── 1. Checkout ──────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      # ── 2. Node.js + cache ───────────────────────────────
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: teaching-claim-system/package-lock.json
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
+      # ── 3. Install ───────────────────────────────────────
       - name: Install dependencies
         run: npm ci --prefer-offline
 
-      # --------------------------------------------------------
-      # กำหนด environment variable ตาม branch อัตโนมัติ
-      # ไม่ต้องแก้ไฟล์ .env ด้วยมือในแต่ละ environment
-      # --------------------------------------------------------
-      - name: Set environment (Production)
+      # ── 4. กำหนด Environment Variables ตาม branch ───────
+      #    Secrets ไม่ hard-code ในโค้ด — ดึงจาก GitHub Secrets
+      #    ทุก key ที่ขึ้นต้น VITE_ จะถูก Vite embed เข้า bundle อัตโนมัติ
+
+      - name: Configure env – Production (main)
         if: github.ref == 'refs/heads/main'
+        env:
+          API_URL: ${{ secrets.PROD_API_URL }}
+          COGNITO_POOL_ID: ${{ secrets.PROD_COGNITO_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.PROD_COGNITO_CLIENT_ID }}
         run: |
-          echo "VITE_ENV=production" >> .env.production.local
-          echo "VITE_API_URL=${{ secrets.PROD_API_URL }}" >> .env.production.local
-          echo "VITE_COGNITO_USER_POOL_ID=${{ secrets.PROD_COGNITO_POOL_ID }}" >> .env.production.local
-          echo "VITE_COGNITO_CLIENT_ID=${{ secrets.PROD_COGNITO_CLIENT_ID }}" >> .env.production.local
+          cat > .env.production.local << EOF
+          VITE_ENV=production
+          VITE_API_URL=${API_URL}
+          VITE_COGNITO_USER_POOL_ID=${COGNITO_POOL_ID}
+          VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+          EOF
 
-      - name: Set environment (Staging / V4)
+      - name: Configure env – Staging (V4)
         if: github.ref == 'refs/heads/V4'
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+          COGNITO_POOL_ID: ${{ secrets.STAGING_COGNITO_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.STAGING_COGNITO_CLIENT_ID }}
         run: |
-          echo "VITE_ENV=staging" >> .env.production.local
-          echo "VITE_API_URL=${{ secrets.STAGING_API_URL }}" >> .env.production.local
-          echo "VITE_COGNITO_USER_POOL_ID=${{ secrets.STAGING_COGNITO_POOL_ID }}" >> .env.production.local
-          echo "VITE_COGNITO_CLIENT_ID=${{ secrets.STAGING_COGNITO_CLIENT_ID }}" >> .env.production.local
-          echo "VITE_DEV_AUTH_BYPASS=true" >> .env.production.local
+          cat > .env.production.local << EOF
+          VITE_ENV=staging
+          VITE_API_URL=${API_URL}
+          VITE_COGNITO_USER_POOL_ID=${COGNITO_POOL_ID}
+          VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+          EOF
 
-      - name: Set environment (Development / V5)
+      - name: Configure env – Development (V5)
         if: github.ref == 'refs/heads/V5'
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
+          COGNITO_POOL_ID: ${{ secrets.STAGING_COGNITO_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.STAGING_COGNITO_CLIENT_ID }}
         run: |
-          echo "VITE_ENV=development" >> .env.production.local
-          echo "VITE_DEV_AUTH_BYPASS=true" >> .env.production.local
+          cat > .env.production.local << EOF
+          VITE_ENV=development
+          VITE_API_URL=${API_URL}
+          VITE_COGNITO_USER_POOL_ID=${COGNITO_POOL_ID}
+          VITE_COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+          VITE_DEV_AUTH_BYPASS=true
+          EOF
 
+      - name: Configure env – Pull Request (build check only)
+        if: github.event_name == 'pull_request'
+        run: |
+          cat > .env.production.local << EOF
+          VITE_ENV=ci
+          VITE_API_URL=https://placeholder.example.com
+          VITE_COGNITO_USER_POOL_ID=us-east-1_placeholder
+          VITE_COGNITO_CLIENT_ID=placeholder
+          EOF
+
+      # ── 5. Build ─────────────────────────────────────────
       - name: Build
         run: npm run build
 
-      # เก็บ artifact ไว้ให้ deploy job ดึงไปใช้
+      # ── 6. ตรวจสอบ build output ──────────────────────────
+      - name: Verify build output
+        run: |
+          echo "=== Build Output ==="
+          ls -lh dist/
+          echo ""
+          echo "=== Asset sizes ==="
+          ls -lh dist/assets/ | sort -k5 -rh | head -15
+          echo ""
+          echo "=== index.html ==="
+          cat dist/index.html
+          echo ""
+          INDEX_SIZE=$(wc -c < dist/index.html)
+          echo "index.html size: ${INDEX_SIZE} bytes"
+          if [ "$INDEX_SIZE" -lt 100 ]; then
+            echo "ERROR: index.html is too small — build may have failed"
+            exit 1
+          fi
+
+      # ── 7. Metadata สำหรับ summary ────────────────────────
+      - name: Set build metadata
+        id: meta
+        run: |
+          ARTIFACT_NAME="frontend-dist-${{ github.sha }}"
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          DIST_SIZE=$(du -sh dist/ | cut -f1)
+          echo "artifact-name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          echo "build-time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+          echo "### ✅ Build สำเร็จ" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| รายการ | ค่า |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node.js | ${{ env.NODE_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dist size | ${DIST_SIZE} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build time | ${BUILD_TIME} |" >> $GITHUB_STEP_SUMMARY
+
+      # ── 8. Upload artifact ────────────────────────────────
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist-${{ github.sha }}
-          path: teaching-claim-system/dist/
+          path: ${{ env.WORKING_DIR }}/dist/
           retention-days: 7
+          if-no-files-found: error
 
-  # ============================================================
-  # JOB 2: Deploy to AWS Amplify / S3+CloudFront
-  # รันเฉพาะ push (ไม่รัน pull_request)
-  # ============================================================
+  # ==========================================================
+  # JOB 2: Deploy
+  # ดาวน์โหลด artifact → zip → upload S3 → Amplify deploy
+  # รันเฉพาะ push ไม่รัน pull_request
+  # ==========================================================
   deploy:
-    name: Deploy to AWS
+    name: 🚀 Deploy to AWS Amplify
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
 
-    # Environment context แยกตาม branch (secret แยกกัน)
     environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      name: >-
+        ${{
+          github.ref == 'refs/heads/main' && 'production' ||
+          github.ref == 'refs/heads/V4'   && 'staging'    ||
+          'development'
+        }}
 
     steps:
+      # ── 1. Download artifact ──────────────────────────────
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist-${{ github.sha }}
           path: dist/
 
+      # ── 2. ตรวจสอบไฟล์ที่ดาวน์โหลด ──────────────────────
+      - name: Verify downloaded artifact
+        run: |
+          echo "=== Downloaded artifact ==="
+          ls -lh dist/
+          if [ ! -f dist/index.html ]; then
+            echo "ERROR: index.html not found in artifact"
+            exit 1
+          fi
+
+      # ── 3. Package เป็น zip สำหรับ Amplify ───────────────
+      - name: Package dist as zip
+        run: |
+          cd dist
+          zip -r ../frontend-${{ github.sha }}.zip .
+          cd ..
+          echo "Zip size: $(du -sh frontend-${{ github.sha }}.zip | cut -f1)"
+
+      # ── 4. Configure AWS credentials ─────────────────────
+      #    ใช้ GitHub Secrets — ไม่มี key ใน code
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -121,32 +238,142 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # --------------------------------------------------------
-      # ตัวเลือก A: AWS Amplify (แนะนำสำหรับ V1/V2)
-      # ตัวเลือก B: S3 + CloudFront invalidation (Production)
-      # ปลดหมายเหตุตัวที่ต้องการใช้
-      # --------------------------------------------------------
-
-      # --- ตัวเลือก A: Amplify ---
-      - name: Deploy to Amplify
+      # ── 5. Upload zip ไปยัง S3 staging bucket ────────────
+      - name: Upload artifact to S3
         run: |
-          aws amplify start-deployment \
+          aws s3 cp frontend-${{ github.sha }}.zip \
+            s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip \
+            --no-progress
+          echo "Uploaded to s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip"
+
+      # ── 6. Trigger Amplify deployment ─────────────────────
+      - name: Deploy to Amplify
+        id: amplify-deploy
+        run: |
+          DEPLOY_OUTPUT=$(aws amplify start-deployment \
             --app-id ${{ secrets.AMPLIFY_APP_ID }} \
             --branch-name ${{ github.ref_name }} \
-            --source-url "s3://${{ secrets.BUILD_BUCKET }}/frontend-${{ github.sha }}.zip"
+            --source-url "s3://${{ secrets.AMPLIFY_BUILD_BUCKET }}/frontend-${{ github.sha }}.zip" \
+            --output json)
 
-      # # --- ตัวเลือก B: S3 + CloudFront ---
-      # - name: Sync dist to S3
-      #   run: |
-      #     aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ \
-      #       --delete \
-      #       --cache-control "public, max-age=31536000, immutable" \
-      #       --exclude "index.html"
-      #     aws s3 cp dist/index.html s3://${{ secrets.S3_BUCKET_NAME }}/index.html \
-      #       --cache-control "no-cache, no-store, must-revalidate"
-      #
-      # - name: Invalidate CloudFront cache
-      #   run: |
-      #     aws cloudfront create-invalidation \
-      #       --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-      #       --paths "/*"
+          echo "Deploy output: ${DEPLOY_OUTPUT}"
+          JOB_ID=$(echo "${DEPLOY_OUTPUT}" | python3 -c "import sys,json; print(json.load(sys.stdin)['jobSummary']['jobId'])")
+          echo "job-id=${JOB_ID}" >> $GITHUB_OUTPUT
+          echo "Amplify Job ID: ${JOB_ID}"
+
+      # ── 7. รอ Amplify deployment เสร็จ ───────────────────
+      - name: Wait for Amplify deployment
+        id: wait-deploy
+        run: |
+          JOB_ID="${{ steps.amplify-deploy.outputs.job-id }}"
+          APP_ID="${{ secrets.AMPLIFY_APP_ID }}"
+          BRANCH="${{ github.ref_name }}"
+          MAX_WAIT=300  # รอสูงสุด 5 นาที
+          ELAPSED=0
+
+          echo "Waiting for Amplify deployment (Job: ${JOB_ID})..."
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(aws amplify get-job \
+              --app-id "${APP_ID}" \
+              --branch-name "${BRANCH}" \
+              --job-id "${JOB_ID}" \
+              --query 'job.summary.status' \
+              --output text)
+
+            echo "[${ELAPSED}s] Status: ${STATUS}"
+
+            if [ "${STATUS}" = "SUCCEED" ]; then
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "✅ Deployment สำเร็จ"
+              break
+            elif [ "${STATUS}" = "FAILED" ] || [ "${STATUS}" = "CANCELLED" ]; then
+              echo "status=failed" >> $GITHUB_OUTPUT
+              echo "❌ Deployment ล้มเหลว: ${STATUS}"
+              exit 1
+            fi
+
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "status=timeout" >> $GITHUB_OUTPUT
+            echo "⏱ Deployment timeout หลัง ${MAX_WAIT}s"
+            exit 1
+          fi
+
+      # ── 8. Smoke test — ตรวจสอบ Frontend หลัง deploy ────
+      - name: Smoke test deployed frontend
+        if: steps.wait-deploy.outputs.status == 'success'
+        run: |
+          # ดึง URL ของ branch ที่ deploy ไป
+          APP_URL=$(aws amplify get-branch \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --branch-name ${{ github.ref_name }} \
+            --query 'branch.displayName' \
+            --output text 2>/dev/null || echo "")
+
+          BRANCH_URL=$(aws amplify get-app \
+            --app-id ${{ secrets.AMPLIFY_APP_ID }} \
+            --query 'app.defaultDomain' \
+            --output text)
+
+          FULL_URL="https://${{ github.ref_name }}.${BRANCH_URL}"
+          echo "Testing URL: ${FULL_URL}"
+
+          # รอให้ CloudFront propagate
+          sleep 10
+
+          # ตรวจสอบว่า Frontend ตอบสนอง
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            "${FULL_URL}" || echo "000")
+
+          echo "HTTP Status: ${HTTP_STATUS}"
+
+          if [ "${HTTP_STATUS}" = "200" ]; then
+            echo "✅ Frontend ตอบสนอง HTTP 200"
+            echo "SMOKE_TEST=passed" >> $GITHUB_ENV
+          else
+            echo "⚠️ Frontend ตอบสนอง HTTP ${HTTP_STATUS} (อาจยังไม่ propagate)"
+            echo "SMOKE_TEST=warning" >> $GITHUB_ENV
+          fi
+
+          echo "frontend-url=${FULL_URL}" >> $GITHUB_ENV
+
+      # ── 9. Deployment Summary ─────────────────────────────
+      - name: Write deployment summary
+        if: always()
+        run: |
+          echo "### 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| รายการ | ค่า |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Amplify App | \`${{ secrets.AMPLIFY_APP_ID }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Status | ${{ steps.wait-deploy.outputs.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Test | ${SMOKE_TEST:-skipped} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${frontend_url:-}" ]; then
+            echo "| Frontend URL | ${frontend_url} |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Triggered by" >> $GITHUB_STEP_SUMMARY
+          echo "- Actor: \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Event: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: \`$(date -u +"%Y-%m-%dT%H:%M:%SZ")\`" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================
+  # JOB 3: Notify (optional — เพิ่มทีหลังถ้าต้องการ)
+  # ==========================================================
+  # notify:
+  #   name: 📣 Notify
+  #   needs: deploy
+  #   if: always()
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Send Slack / Line Notify
+  #       run: echo "TODO: add notification"
