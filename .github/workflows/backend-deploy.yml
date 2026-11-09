@@ -6,7 +6,7 @@ on:
       - V5
     paths:
       - "backend/**"
-      - "infra/**"
+      - "infra/deploy_script/build.sh"
       - ".github/workflows/backend-deploy.yml"
   workflow_dispatch:
 
@@ -16,8 +16,7 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      ARTIFACT_BUCKET: ${{ secrets.AMPLIFY_BUILD_BUCKET }}
+      FUNCTION_PREFIX: GRP05-test-
 
     steps:
       - name: Checkout
@@ -37,9 +36,90 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Verify AWS credentials
-        run: aws sts get-caller-identity
-
-      - name: Deploy backend
         run: |
-          chmod +x infra/deploy_script/deploy.sh
-          bash infra/deploy_script/deploy.sh
+          aws sts get-caller-identity
+
+      - name: Build Lambda functions
+        run: |
+          chmod +x infra/deploy_script/build.sh
+          bash infra/deploy_script/build.sh
+
+      - name: Package Lambda functions
+        run: |
+          mkdir -p artifacts
+
+          FUNCTIONS=(
+            "ClaimCRUDUser"
+            "ClaimsPeriodTermCourses"
+            "ClaimUserRequest"
+            "ClaimWorkflowAPI"
+            "ClaimEvidencePresign"
+            "ClaimEvidenceAPI"
+            "ClaimAdminMasterData"
+            "migrate"
+          )
+
+          for FUNCTION in "${FUNCTIONS[@]}"; do
+            echo "==> Packaging $FUNCTION"
+            cd "build/$FUNCTION"
+            zip -qr "../../artifacts/${FUNCTION}.zip" .
+            cd ../..
+          done
+
+      - name: Deploy Lambda functions
+        run: |
+          FUNCTIONS=(
+            "ClaimCRUDUser"
+            "ClaimsPeriodTermCourses"
+            "ClaimUserRequest"
+            "ClaimWorkflowAPI"
+            "ClaimEvidencePresign"
+            "ClaimEvidenceAPI"
+            "ClaimAdminMasterData"
+            "migrate"
+          )
+
+          for FUNCTION in "${FUNCTIONS[@]}"; do
+            LAMBDA_NAME="${FUNCTION_PREFIX}ClaimMigrate"
+
+            if [ "$FUNCTION" != "migrate" ]; then
+              LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
+            fi
+
+            echo "==> Deploying $LAMBDA_NAME"
+
+            aws lambda update-function-code \
+              --function-name "$LAMBDA_NAME" \
+              --zip-file "fileb://artifacts/${FUNCTION}.zip" \
+              --publish
+            aws lambda wait function-updated \
+              --function-name "$LAMBDA_NAME"
+          done
+
+      - name: Verify Lambda deployment
+        run: |
+          FUNCTIONS=(
+            "ClaimCRUDUser"
+            "ClaimsPeriodTermCourses"
+            "ClaimUserRequest"
+            "ClaimWorkflowAPI"
+            "ClaimEvidencePresign"
+            "ClaimEvidenceAPI"
+            "ClaimAdminMasterData"
+            "migrate"
+          )
+
+          for FUNCTION in "${FUNCTIONS[@]}"; do
+            LAMBDA_NAME="${FUNCTION_PREFIX}ClaimMigrate"
+
+            if [ "$FUNCTION" != "migrate" ]; then
+              LAMBDA_NAME="${FUNCTION_PREFIX}${FUNCTION}"
+            fi
+
+            echo "==> Verifying $LAMBDA_NAME"
+
+            aws lambda get-function \
+              --function-name "$LAMBDA_NAME" \
+              --query 'Configuration.[FunctionName,State,LastUpdateStatus]' \
+              --output table
+          done
