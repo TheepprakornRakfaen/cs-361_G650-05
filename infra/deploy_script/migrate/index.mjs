@@ -71,9 +71,9 @@ async function inspectLegacyDatabase(client) {
       FROM pg_class c
       JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
-        AND c.relkind IN ('r', 'p', 'v', 'm')
-        AND c.relname <> 'schema_migrations'
-    ) AS existing_schema
+        AND c.relname = 'claim_amount'
+        AND c.relkind = 'v'
+    ) AS ok
   `)).rows[0].ok;
 
   let seedChecks = {};
@@ -154,6 +154,7 @@ export const handler = async (event = {}) => {
             applied_at,
             to_jsonb(sm)->>'checksum' AS checksum,
             to_jsonb(sm)->>'baselined' AS baselined
+            to_jsonb(sm)->>'skipped' AS skipped
           FROM public.schema_migrations sm
           ORDER BY name
         `);
@@ -186,10 +187,12 @@ export const handler = async (event = {}) => {
         if (previous) {
           if (!previous.checksum) {
             state = "applied_without_checksum";
-          } else if (previous.checksum === checksum) {
-            state = previous.baselined === "true"
-              ? "baselined"
-              : "applied";
+          } else if (previous.checksum === checksum) {         
+            state = previous.skipped === "true"
+              ? "skipped_by_policy"
+              : previous.baselined === "true"
+                ? "baselined"
+                : "applied";
           } else {
             state = "modified";
           }
@@ -352,6 +355,12 @@ export const handler = async (event = {}) => {
       ADD COLUMN IF NOT EXISTS checksum TEXT
     `);
 
+    await client.query(`
+      ALTER TABLE schema_migrations
+      ADD COLUMN IF NOT EXISTS skipped BOOLEAN
+      NOT NULL DEFAULT false
+    `);
+
     const history = await client.query(
       "SELECT name, checksum FROM schema_migrations"
     );
@@ -382,18 +391,29 @@ export const handler = async (event = {}) => {
       );
     }
 
-    // Reject unsafe demo seeding before applying any migration.
-    const seedPending =
-      files.includes("002_seed.sql") &&
-      !done.has("002_seed.sql");
+    const seedMode = process.env.SEED_MODE ?? "reference";
 
+    if (!["reference", "demo"].includes(seedMode)) {
+      throw new Error(`Invalid SEED_MODE: ${seedMode}`);
+    }
+
+    const skippedByPolicy = new Set(
+      (await client.query(`
+        SELECT name
+        FROM schema_migrations
+        WHERE skipped = true
+      `)).rows.map((row) => row.name)
+    );
+
+    // Never execute a previously skipped demo seed later
+    // without a reviewed migration plan.
     if (
-      seedPending &&
-      process.env.ENABLE_DEMO_SEED !== "true"
+      seedMode === "demo" &&
+      skippedByPolicy.has("002_seed.sql")
     ) {
       throw new Error(
-        "Demo seed is disabled. " +
-        "Set ENABLE_DEMO_SEED=true only in an isolated test environment."
+        "Demo seed was previously skipped. " +
+        "Do not change seed policy on this database."
       );
     }
 
@@ -424,6 +444,29 @@ export const handler = async (event = {}) => {
 
         skipped.push(file);
         continue;
+      }
+
+      if (
+        file === "002_seed.sql" &&
+        seedMode === "reference"
+      ) {
+        try {
+          await client.query("BEGIN");
+
+          await client.query(
+            `INSERT INTO schema_migrations
+              (name, checksum, skipped)
+            VALUES ($1, $2, true)`,
+            [file, checksum]
+          );
+
+          await client.query("COMMIT");
+          skipped.push(file);
+          continue;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        }
       }
 
       const sql = content.replace(
