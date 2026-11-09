@@ -40,6 +40,21 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Verify AWS identity and S3 access
+        run: |
+          echo "==> AWS identity"
+          aws sts get-caller-identity
+
+          echo "==> Test S3 write access"
+          echo "GitHub Actions S3 test" > /tmp/github-actions-s3-test.txt
+
+          aws s3 cp \
+            /tmp/github-actions-s3-test.txt \
+            "s3://${ARTIFACT_BUCKET}/v5/backend/test/github-actions-s3-test.txt"
+
+          aws s3 rm \
+            "s3://${ARTIFACT_BUCKET}/v5/backend/test/github-actions-s3-test.txt"
+
       - name: Build Lambda functions
         run: |
           chmod +x infra/deploy_script/build.sh
