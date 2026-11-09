@@ -73,7 +73,19 @@ mkdir -p "$OUT/migrate/sql"
 cp "$ROOT/infra/deploy_script/migrate/index.mjs" "$OUT/migrate/"
 # 0*.sql = เฉพาะ 001-004 ที่ระดับบนสุด (ไม่รวมโฟลเดอร์ _archive ที่เป็นของเก่า)
 # ชื่อไฟล์เรียงตามเลขนำหน้า migrate/index.mjs จะรันตามลำดับนั้น
-cp "$ROOT"/docs/database/migrations/0*.sql "$OUT/migrate/sql/"
+shopt -s nullglob
+
+migration_files=(
+  "$ROOT"/docs/database/migrations/[0-9][0-9][0-9]_*.sql
+)
+
+if (( ${#migration_files[@]} == 0 )); then
+  echo "ERROR: No migration SQL files found"
+  exit 1
+fi
+
+cp -- "${migration_files[@]}" "$OUT/migrate/sql/"
+
 (
   cd "$OUT/migrate"
   npm init -y >/dev/null                                      # สร้าง package.json เปล่าให้ npm ติดตั้งลงได้

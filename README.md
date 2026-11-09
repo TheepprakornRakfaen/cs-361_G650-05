@@ -97,6 +97,17 @@
 
 ### Migration (`docs/database/migrations/`)
 
+**Automated Migration & Seeding (V5)**
+
+ระบบใช้ Migration Runner สำหรับติดตามและ Execute
+Database Migrations โดยอัตโนมัติ
+
+รองรับ Migration History, Checksum Validation,
+Transaction Rollback, Status Inspection และ Legacy Baseline
+
+คู่มือการใช้งานและข้อควรระวัง:
+[Database Migration Guide](docs/database/MIGRATION_GUIDE.md)
+
 | ไฟล์ | ทำอะไร |
 |---|---|
 | `001_schema.sql` | สร้างตาราง ดัชนี และ view ทั้งหมดในครั้งเดียว (รวมผลของ migration เดิม 001–017) |
