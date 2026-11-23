@@ -1721,6 +1721,50 @@ export default function CreateClaim({
           {/* STEP 4 */}
           {step === 4 && (
             <div className="space-y-5">
+              {/* อาจารย์ไม่มีขั้นแนบไฟล์ ให้ดาวน์โหลดแบบขอเบิกได้จากหน้านี้ */}
+              {!needsFiles && (
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{ borderColor: C.border, background: "#FAFDFE" }}
+                >
+                  <p
+                    className="flex items-center gap-2 text-sm font-bold mb-1"
+                    style={{ color: C.ink }}
+                  >
+                    <FileSignature size={16} style={{ color: C.tealDark }} />
+                    แบบขอเบิกค่าตอบแทนการสอน
+                  </p>
+
+                  <p className="text-xs leading-5 mb-4" style={{ color: C.sub }}>
+                    ดาวน์โหลดหรือเปิดฉบับที่กรอกข้อมูลจากคำขอนี้ไว้ให้แล้ว เพื่อพิมพ์เก็บไว้ (ไม่ต้องแนบกลับในระบบ)
+                  </p>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={downloadSignFormPdf}
+                      className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold text-white whitespace-nowrap"
+                      style={{
+                        background: `linear-gradient(90deg, ${C.teal}, ${C.tealDark})`,
+                      }}
+                    >
+                      <Download size={15} />
+                      ดาวน์โหลดแบบฟอร์ม (PDF)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => printSignForm(buildSignFormData())}
+                      className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold border whitespace-nowrap"
+                      style={{ borderColor: C.teal, color: C.tealDark }}
+                    >
+                      <Printer size={15} />
+                      เปิดเพื่อพิมพ์ (กรอกข้อมูลให้แล้ว)
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <SummaryRow
                 label="รายวิชา"
                 value={`${form.courseCode || "-"} — ${form.courseName || "-"}`}
