@@ -484,7 +484,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
                   <FlaskConical size={14} />
                   โหมดทดลอง (เฉพาะตอนพัฒนา)
                 </p>
-                <p className="text-[11px] mt-1 mb-3" style={{ color: C.sub }}>
+                <p className="text-[0.6875rem] mt-1 mb-3" style={{ color: C.sub }}>
                   เข้าระบบโดยไม่ต้องล็อกอิน ใช้ข้อมูลจำลอง ไม่แตะ backend จริง
                 </p>
 
@@ -504,7 +504,7 @@ export default function Login({ onBack, onLoginSuccess, notice = "" }) {
 
                 {DEV_TEST_ACCOUNT_OPTIONS.length > 0 && (
                   <>
-                <p className="text-[11px] mt-3 mb-2 font-semibold" style={{ color: C.orange }}>
+                <p className="text-[0.6875rem] mt-3 mb-2 font-semibold" style={{ color: C.orange }}>
                   ผู้ใช้จริงตามสถานการณ์ทดสอบ V4
                 </p>
 

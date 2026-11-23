@@ -223,7 +223,7 @@ export default function Topbar({
                             style={{ background: active ? C.tealSoft : "transparent" }}
                           >
                             <span
-                              className="mt-0.5 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap"
+                              className="mt-0.5 shrink-0 px-2 py-0.5 rounded-full text-[0.625rem] font-bold whitespace-nowrap"
                               style={{ background: "#FFFFFF", color: C.tealDark, border: `1px solid ${C.border}` }}
                             >
                               {r.section}
@@ -302,7 +302,7 @@ export default function Topbar({
             <Bell size={19} fill="#FFFFFF" strokeWidth={2} />
             {unreadCount > 0 && (
               <span
-                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[0.625rem] font-bold flex items-center justify-center text-white"
                 style={{ background: C.rose, boxShadow: `0 0 0 2px ${C.tealDark}` }}
               >
                 {unreadCount > 9 ? "9+" : unreadCount}
@@ -375,7 +375,7 @@ export default function Topbar({
                       )}
                       {user?.role && (
                         <span
-                          className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold"
                           style={{ background: "rgba(255,255,255,0.20)" }}
                         >
                           {user.role}

@@ -105,7 +105,7 @@ export default function Sidebar({
               }`}
             >
               <p
-                className="font-extrabold text-[15px]"
+                className="font-extrabold text-[0.9375rem]"
                 style={{ color: C.ink }}
               >
                 ระบบเบิกค่าสอน
@@ -168,7 +168,7 @@ export default function Sidebar({
                     flex items-center gap-3
                     px-4 py-3
                     rounded-2xl
-                    text-[15px]
+                    text-[0.9375rem]
                     font-semibold
                     transition-colors duration-200
                     w-full
@@ -233,7 +233,7 @@ export default function Sidebar({
               flex items-center gap-3
               px-4 py-3
               rounded-2xl
-              text-[15px]
+              text-[0.9375rem]
               font-semibold
               w-full
               transition-colors

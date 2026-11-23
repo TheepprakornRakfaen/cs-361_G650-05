@@ -6,6 +6,7 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 17px; /* ใหญ่ขึ้นจาก 16px ทุกขนาดในระบบขยายตาม (Tailwind ใช้ rem) */
 }
 
 body {

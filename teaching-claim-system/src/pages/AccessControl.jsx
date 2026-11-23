@@ -101,7 +101,7 @@ export default function AccessControl({ user }) {
               <RoleBadge roleKey={role} />
               {myRoles.includes(role) && (
                 <span
-                  className="flex items-center gap-1 text-[11px] font-semibold"
+                  className="flex items-center gap-1 text-[0.6875rem] font-semibold"
                   style={{ color: C.tealDark }}
                 >
                   <UserCheck size={13} />

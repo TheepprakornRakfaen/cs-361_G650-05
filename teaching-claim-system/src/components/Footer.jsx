@@ -36,7 +36,7 @@ function FooterLinkList({ title, links }) {
           <li key={l.label}>
             <a
               href={l.href}
-              className="text-[13px] opacity-70 hover:opacity-100 transition-opacity duration-150"
+              className="text-[0.8125rem] opacity-70 hover:opacity-100 transition-opacity duration-150"
             >
               {l.label}
             </a>
@@ -125,7 +125,7 @@ export default function Footer({ onContactClick }) {
                 ติดต่อเรา
               </p>
 
-              <p className="text-[13px] opacity-70 leading-relaxed mb-3">
+              <p className="text-[0.8125rem] opacity-70 leading-relaxed mb-3">
                 มีข้อสงสัยหรือพบปัญหาการใช้งาน
                 ส่งเรื่องถึงเจ้าหน้าที่ผ่านแบบฟอร์มได้เลย
               </p>

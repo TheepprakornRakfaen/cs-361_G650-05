@@ -103,7 +103,7 @@ function Stat({ label, value, hint, tone = C.ink, icon: Icon }) {
       </p>
 
       {hint && (
-        <p className="text-[11px] mt-0.5" style={{ color: C.sub }}>
+        <p className="text-[0.6875rem] mt-0.5" style={{ color: C.sub }}>
           {hint}
         </p>
       )}

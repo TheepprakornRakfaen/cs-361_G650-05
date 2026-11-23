@@ -365,7 +365,7 @@ export default function Dashboard({
               )}
             </div>
 
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] opacity-85">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[0.6875rem] opacity-85">
               {STAT_CARDS.map(({ key, bar }) => (
                 <span key={key} className="flex items-center gap-1.5">
                   <span
@@ -688,7 +688,7 @@ export default function Dashboard({
                           }}
                         />
                       </div>
-                      <p className="text-[11px] mt-1" style={{ color: C.sub }}>
+                      <p className="text-[0.6875rem] mt-1" style={{ color: C.sub }}>
                         เหลือเบิกได้อีก{" "}
                         <span className="font-semibold figure">
                           {course.remaining}

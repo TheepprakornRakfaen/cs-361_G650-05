@@ -107,7 +107,7 @@ export default function Notifications({
               {t.label}
               {n > 0 && (
                 <span
-                  className="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center"
+                  className="min-w-[20px] h-5 px-1.5 rounded-full text-[0.6875rem] font-bold flex items-center justify-center"
                   style={{
                     background: active ? "rgba(255,255,255,0.25)" : C.rose,
                     color: "#FFFFFF",

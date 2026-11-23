@@ -371,7 +371,7 @@ export default function AuditLog({
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       {status ? (
                         <span
-                          className="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="inline-flex px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold"
                           style={{ background: status.bg, color: status.fg }}
                         >
                           {status.label}

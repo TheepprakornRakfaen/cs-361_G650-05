@@ -430,7 +430,7 @@ export default function MyClaims({
               }}
             >
               <p
-                className="font-bold text-[11px] leading-4 md:text-base md:leading-normal min-h-[2rem] md:min-h-0"
+                className="font-bold text-[0.6875rem] leading-4 md:text-base md:leading-normal min-h-[2rem] md:min-h-0"
                 style={{ color: fg }}
               >
                 {label}

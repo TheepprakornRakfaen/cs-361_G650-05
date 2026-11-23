@@ -241,6 +241,12 @@ export default function CreateClaim({
 
   const [step, setStep] = useState(1);
 
+  // อาจารย์ไม่ต้องแนบไฟล์ ข้ามขั้นที่ 3 (เอกสารลงนามและหลักฐาน) — ขั้นนี้มีเฉพาะ TA
+  const needsFiles = getCompType(user?.roleKey) === "TA";
+  const visibleSteps = STEP_TITLES
+    .map((title, index) => ({ title, num: index + 1 }))
+    .filter((item) => needsFiles || item.num !== 3);
+
   // เปลี่ยนขั้นตอนแล้วเลื่อนกลับขึ้นไปบนสุด (ไม่ค้างอยู่ตรงปุ่มด้านล่าง)
   const firstStepRender = useRef(true);
   useEffect(() => {
@@ -671,6 +677,10 @@ export default function CreateClaim({
 
   // ต้องมีเอกสารลงนามอย่างน้อย 1 ไฟล์ (ในระบบแล้ว หรือเลือกใหม่) ก่อนยื่น
   function validateStep3() {
+    if (!needsFiles) {
+      return true;
+    }
+
     const nextErrors = {};
 
     if (signedFiles.length + existingSignedCount === 0) {
@@ -700,7 +710,7 @@ export default function CreateClaim({
       return;
     }
 
-    setStep((current) => Math.min(4, current + 1));
+    setStep((current) => (current === 2 && !needsFiles ? 4 : Math.min(4, current + 1)));
   }
 
   function back() {
@@ -709,7 +719,7 @@ export default function CreateClaim({
       return;
     }
 
-    setStep((current) => current - 1);
+    setStep((current) => (current === 4 && !needsFiles ? 2 : current - 1));
   }
 
   function syncFileName(files) {
@@ -872,41 +882,41 @@ export default function CreateClaim({
     <div className="w-full max-w-none">
       {/* Steps */}
       <div className="flex items-center justify-between gap-3 mb-8 w-full">
-        {STEP_TITLES.map((title, index) => (
+        {visibleSteps.map(({ title, num }, index) => (
           <React.Fragment key={title}>
             <div className="flex items-center gap-2">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold shrink-0"
                 style={{
                   background:
-                    step === index + 1
+                    step === num
                       ? C.teal
-                      : step > index + 1
+                      : step > num
                         ? C.tealSoft
                         : "#EEF2F5",
 
                   color:
-                    step === index + 1
+                    step === num
                       ? "#fff"
-                      : step > index + 1
+                      : step > num
                         ? C.tealDark
                         : C.sub,
                 }}
               >
-                {step > index + 1 ? <CheckCircle2 size={14} /> : index + 1}
+                {step > num ? <CheckCircle2 size={14} /> : index + 1}
               </div>
 
               <span
-                className="text-sm font-semibold whitespace-nowrap hidden sm:inline"
+                className={`text-sm font-semibold whitespace-nowrap hidden ${step === num ? "sm:inline" : "xl:inline"}`}
                 style={{
-                  color: step >= index + 1 ? C.ink : C.sub,
+                  color: step >= num ? C.ink : C.sub,
                 }}
               >
                 {title}
               </span>
             </div>
 
-            {index < 3 && (
+            {index < visibleSteps.length - 1 && (
               <div
                 className="flex-1 h-[2px] min-w-6"
                 style={{
@@ -1761,6 +1771,8 @@ export default function CreateClaim({
                 value={form.notes || "—"}
               />
 
+{needsFiles && (
+            <>
               <SummaryRow
                 label="เอกสารลงนาม"
                 value={
@@ -1781,7 +1793,10 @@ export default function CreateClaim({
                 }
               />
 
-              {signedFiles.length + existingSignedCount === 0 && (
+                          </>
+              )}
+
+              {needsFiles && signedFiles.length + existingSignedCount === 0 && (
                 <div
                   className="flex items-start gap-2 text-xs rounded-xl px-4 py-3"
                   style={{

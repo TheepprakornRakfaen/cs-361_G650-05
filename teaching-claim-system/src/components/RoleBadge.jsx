@@ -6,7 +6,7 @@ export default function RoleBadge({ roleKey, label }) {
 
   return (
     <span
-      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[0.6875rem] font-semibold whitespace-nowrap"
       style={{
         background: meta?.bg || "#EDF0F2",
         color: meta?.fg || "#5B6672",

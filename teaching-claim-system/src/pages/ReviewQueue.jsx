@@ -717,7 +717,7 @@ export default function ReviewQueue({
                 outline: active ? `2px solid ${style.fg}` : "none",
               }}
             >
-              <p className="font-bold text-[11px] sm:text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
+              <p className="font-bold text-[0.6875rem] sm:text-xs leading-snug min-h-[2.5em]" style={{ color: style.fg }}>
                 {style.label}
               </p>
               <p className="text-2xl font-extrabold mt-1 figure" style={{ color: style.fg }}>
@@ -766,7 +766,7 @@ export default function ReviewQueue({
                   className="w-full text-left px-4 py-3.5 active:bg-[#F8FBFC]"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-extrabold text-[13px] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>
+                    <p className="font-extrabold text-[0.8125rem] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>
                       #{claim.code || claim.id}
                     </p>
                     <span className="shrink-0">
@@ -781,19 +781,19 @@ export default function ReviewQueue({
 
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
                     {waiting !== null && (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: sla.bg, color: sla.fg }}>
+                      <span className="px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold" style={{ background: sla.bg, color: sla.fg }}>
                         รอ {waiting} วันทำการ
                       </span>
                     )}
                     {issues > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         <AlertTriangle size={11} />
                         ผิดปกติ {issues} รายการ
                       </span>
                     )}
                     {claim.escalation && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold border"
                         style={{ background: ESCALATED_STYLE.bg, borderColor: ESCALATED_STYLE.border, color: ESCALATED_STYLE.fg }}
                       >
                         <FileQuestion size={11} />
@@ -853,7 +853,7 @@ export default function ReviewQueue({
                     className="group cursor-pointer hover:bg-[#F8FBFC] focus:bg-[#F8FBFC] outline-none transition-colors"
                   >
                     <td className="px-3 py-4 font-semibold min-w-[8.5rem] max-w-[11rem]" style={{ color: C.ink }}>
-                      <p className="font-extrabold text-[13px] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>#{claim.code || claim.id}</p>
+                      <p className="font-extrabold text-[0.8125rem] leading-snug [overflow-wrap:anywhere]" style={{ color: C.tealDark }}>#{claim.code || claim.id}</p>
                     </td>
 
                     <td className="px-3 py-4 min-w-[10rem]">
@@ -861,7 +861,7 @@ export default function ReviewQueue({
                         <p className="font-bold text-slate-900">{claim.claimantName || "-"}</p>
                         {claim.claimantRole && (
                           <span
-                            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                            className="text-[0.625rem] px-2 py-0.5 rounded-full font-semibold"
                             style={{
                               background: claim.claimantRole.includes("TA") ? C.tealSoft : C.violetSoft,
                               color: claim.claimantRole.includes("TA") ? C.tealDark : C.violet,
@@ -897,7 +897,7 @@ export default function ReviewQueue({
                           {check.anomalies.map((a, i) => (
                             <span
                               key={i}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold bg-rose-50 text-rose-700 border border-rose-200"
                               title={a.message}
                             >
                               <AlertTriangle size={11} className="shrink-0" />
@@ -910,7 +910,7 @@ export default function ReviewQueue({
                           {check?.anomalies.map((a, i) => (
                             <span
                               key={i}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold bg-amber-50 text-amber-800 border border-amber-200"
                               title={a.message}
                             >
                               <AlertTriangle size={11} className="shrink-0" />
@@ -925,7 +925,7 @@ export default function ReviewQueue({
                       <p className="text-xs text-slate-500">{formatDate(submitted)}</p>
                       {waiting !== null && (
                         <span
-                          className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                          className="inline-flex mt-1 px-2 py-0.5 rounded-full text-[0.6875rem] font-semibold"
                           style={{ background: sla.bg, color: sla.fg }}
                         >
                           รอ {waiting} วันทำการ
@@ -943,7 +943,7 @@ export default function ReviewQueue({
                       <StatusPill status={claim.status} />
                       {claim.escalation && (
                         <span
-                          className="flex w-fit items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border whitespace-nowrap"
+                          className="flex w-fit items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold border whitespace-nowrap"
                           style={{ background: ESCALATED_STYLE.bg, borderColor: ESCALATED_STYLE.border, color: ESCALATED_STYLE.fg }}
                           title={claim.escalation?.comment || ""}
                         >

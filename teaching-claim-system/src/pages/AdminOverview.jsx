@@ -360,7 +360,7 @@ export default function AdminOverview({
                           style={{ background: sla.bg, color: sla.fg }}
                         >
                           <span className="block text-lg font-extrabold leading-none figure">{days ?? "-"}</span>
-                          <span className="block text-[10px] font-semibold mt-0.5">วันทำการ</span>
+                          <span className="block text-[0.625rem] font-semibold mt-0.5">วันทำการ</span>
                         </span>
 
                         <span className="flex-1 min-w-0">
@@ -370,7 +370,7 @@ export default function AdminOverview({
                             </span>
                             {claim.escalation && (
                               <span
-                                className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[0.6875rem] font-bold"
                                 style={{ background: ESCALATED_STYLE.bg, color: ESCALATED_STYLE.fg }}
                               >
                                 <FileQuestion size={11} />

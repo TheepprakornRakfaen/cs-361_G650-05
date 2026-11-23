@@ -786,7 +786,7 @@ export default function Home({ isLoggedIn = false, goCreate, onLogin, rounds = [
 
                     {/* ลำดับแบบ minimal */}
                     <span
-                      className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                      className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[0.625rem] font-bold"
                       style={{
                         background: "rgba(255,255,255,0.30)",
                         color: "#FFFFFF",

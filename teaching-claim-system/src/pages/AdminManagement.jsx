@@ -958,7 +958,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
               <p className="text-2xl font-extrabold text-slate-900 figure">
                 {baht(budgetStats.totalAllocated)}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1">ปีการศึกษา {rules.currentAcademicYear}</p>
+              <p className="text-[0.6875rem] text-slate-500 mt-1">ปีการศึกษา {rules.currentAcademicYear}</p>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border shadow-sm" style={{ borderColor: C.border }}>
@@ -969,7 +969,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
               <p className="text-2xl font-extrabold text-emerald-700 figure">
                 {baht(budgetStats.paidAmount)}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1">{budgetStats.paidCount} คำขอที่โอนเงินแล้ว</p>
+              <p className="text-[0.6875rem] text-slate-500 mt-1">{budgetStats.paidCount} คำขอที่โอนเงินแล้ว</p>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border shadow-sm" style={{ borderColor: C.border }}>
@@ -980,7 +980,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
               <p className="text-2xl font-extrabold text-purple-700 figure">
                 {baht(budgetStats.approvedAmount)}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1">{budgetStats.approvedCount} คำขอรอรอบการเงิน</p>
+              <p className="text-[0.6875rem] text-slate-500 mt-1">{budgetStats.approvedCount} คำขอรอรอบการเงิน</p>
             </div>
 
             <div className="bg-white rounded-3xl p-5 border shadow-sm" style={{ borderColor: C.border }}>
@@ -991,7 +991,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
               <p className="text-2xl font-extrabold text-slate-900 figure">
                 {baht(budgetStats.remainingBudget)}
               </p>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[0.6875rem] text-slate-500 mt-1">
                 คงเหลือ {100 - budgetStats.percentUsed}% ของงบประมาณ
               </p>
             </div>
@@ -1194,7 +1194,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                         {(type.eligibleRoles || []).map((r) => (
                           <span
                             key={r}
-                            className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700"
+                            className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-slate-100 text-slate-700"
                           >
                             {r === "TEACHER" ? "อาจารย์ผู้สอน" : r === "TA" ? "ผู้ช่วยสอน (TA)" : r}
                           </span>
@@ -1215,7 +1215,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                         {(type.requiredEvidence || []).map((ev, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-medium"
+                            className="inline-flex items-center gap-1 text-[0.6875rem] px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-medium"
                           >
                             <FileText size={11} />
                             {ev}
@@ -1878,7 +1878,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-extrabold text-base text-slate-900">{t.semester}/{t.year}</span>
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-[0.625rem] font-bold px-2 py-0.5 rounded-full ${
                             t.status === "ACTIVE"
                               ? "bg-teal-600 text-white"
                               : t.status === "UPCOMING"
@@ -2292,7 +2292,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                       <tr key={perm.key} className="hover:bg-slate-50">
                         <td className="px-4 py-2.5 font-medium text-slate-800">
                           {perm.label}
-                          <span className="text-[10px] text-slate-400 block font-mono">{perm.key}</span>
+                          <span className="text-[0.625rem] text-slate-400 block font-mono">{perm.key}</span>
                         </td>
                         {Object.values(ROLE).map((r) => {
                           const has = ROLE_PERMISSIONS[r]?.includes(perm.key);
@@ -2302,7 +2302,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                               {has ? (
                                 <span className={`inline-flex items-center gap-1 font-bold ${isOwn ? "text-amber-600" : "text-emerald-600"}`}>
                                   <Check size={14} />
-                                  {isOwn && <span className="text-[10px]">เฉพาะตน</span>}
+                                  {isOwn && <span className="text-[0.625rem]">เฉพาะตน</span>}
                                 </span>
                               ) : (
                                 <span className="text-slate-300">-</span>
@@ -2377,7 +2377,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         {u.fromDb ? (
-                          <span className="text-[11px] text-slate-400">แก้ที่ Cognito group</span>
+                          <span className="text-[0.6875rem] text-slate-400">แก้ที่ Cognito group</span>
                         ) : (
                         <button
                           type="button"
@@ -2587,7 +2587,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-slate-900">{log.source}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      <span className="text-[0.625rem] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                         {log.status}
                       </span>
                     </div>
@@ -2595,7 +2595,7 @@ export default function AdminManagement({ user, claims = [], onReload, terms: ap
                   </div>
                   <div className="text-right text-xs text-slate-400">
                     <p>{new Date(log.timestamp).toLocaleString("th-TH")}</p>
-                    <p className="text-[11px] text-slate-500 font-medium">โดย: {log.actor}</p>
+                    <p className="text-[0.6875rem] text-slate-500 font-medium">โดย: {log.actor}</p>
                   </div>
                 </div>
               ))}

@@ -812,7 +812,7 @@ export default function ClaimDetail({
                   ))}
                 </ul>
                 {can(user, P.CLAIM_REVIEW) && (
-                  <p className="text-[11px] text-slate-500 mt-2">
+                  <p className="text-[0.6875rem] text-slate-500 mt-2">
                     คำแนะนำสำหรับเจ้าหน้าที่: หากข้อมูลไม่ถูกต้อง สามารถกด
                     “ส่งกลับให้แก้ไข” ด้านล่าง เพื่อให้ผู้ยื่นดำเนินการแก้ไข
                   </p>

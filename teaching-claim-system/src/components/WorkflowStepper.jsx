@@ -55,7 +55,7 @@ export default function WorkflowStepper({ status, reviewed = false }) {
               </span>
 
               <span
-                className="text-[10px] sm:text-[11px] md:text-xs font-medium text-center w-14 sm:w-20 md:w-24"
+                className="text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-medium text-center w-14 sm:w-20 md:w-24"
                 style={{ color: style.text }}
               >
                 {step.label}

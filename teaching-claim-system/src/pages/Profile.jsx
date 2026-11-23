@@ -404,7 +404,7 @@ export default function Profile({
               {/* Overlay ตอน hover */}
               <span className="absolute inset-0 bg-black/45 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
                 <Camera size={22} />
-                <span className="text-[10px] mt-1 font-semibold">
+                <span className="text-[0.625rem] mt-1 font-semibold">
                   เปลี่ยนรูป
                 </span>
               </span>
@@ -630,7 +630,7 @@ export default function Profile({
 
                     {key === "bankAccount" && !formErrors[key] && (
                       <span
-                        className="block text-[11px] mt-1"
+                        className="block text-[0.6875rem] mt-1"
                         style={{ color: C.sub }}
                       >
                         ระบบจะแสดงเลขบัญชีแบบปกปิดบางส่วน (เห็นเฉพาะ 4 ตัวท้าย)
@@ -658,7 +658,7 @@ export default function Profile({
                   {user.email || "-"}
                 </p>
                 <span
-                  className="block text-[11px] mt-1"
+                  className="block text-[0.6875rem] mt-1"
                   style={{ color: C.sub }}
                 >
                   อีเมลใช้เข้าสู่ระบบ แก้ไขไม่ได้
@@ -804,7 +804,7 @@ export default function Profile({
                       }}
                     >
                       <p
-                        className="text-[11px] sm:text-xs font-semibold leading-4 flex items-start justify-between gap-1 min-h-[2rem]"
+                        className="text-[0.6875rem] sm:text-xs font-semibold leading-4 flex items-start justify-between gap-1 min-h-[2rem]"
                         style={{
                           color: style.fg,
                         }}

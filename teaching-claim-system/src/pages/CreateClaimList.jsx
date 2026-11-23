@@ -344,7 +344,7 @@ export default function CreateClaimList({
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                               <p
-                                className="font-extrabold text-[15px]"
+                                className="font-extrabold text-[0.9375rem]"
                                 style={{ color: C.ink }}
                               >
                                 {round.label}
